@@ -319,6 +319,7 @@ fun TmdbDetailScreen(
                             isSeries = detail.type.name == "SERIES",
                             sourceName = availability.sourceNames[variant.sourceId]
                                 ?: "Źródło ${variant.sourceId}",
+                            isSelected = state.selectedSourceId == variant.sourceId,
                             onMoviePlay = { vm.playMovie(variant, onPlay) },
                             onSeriesSelect = { vm.selectSeriesSource(variant) },
                         )
@@ -342,20 +343,82 @@ fun TmdbDetailScreen(
                 }
 
                 state.selectedSeries?.let { series ->
+                    var selectedSeasonNumber by remember(series.id) {
+                        mutableStateOf(series.seasons.firstOrNull()?.number ?: 0)
+                    }
+
                     Text(
                         "Odcinki — ${series.name}",
                         style = MaterialTheme.typography.titleLarge,
                         color = colors.onBackground,
                     )
-                    series.seasons.forEach { season ->
+
+                    if (series.seasons.isEmpty()) {
                         Text(
-                            "Sezon ${season.number}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.onSurface,
+                            "Wybrane źródło nie udostępnia listy odcinków.",
+                            color = colors.onSurfaceVariant,
                         )
-                        season.episodes.forEach { episode ->
-                            Button(onClick = { vm.playEpisode(episode.id, onPlay) }) {
-                                Text("${episode.number}. ${episode.title}")
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(
+                                items = series.seasons,
+                                key = { it.number },
+                            ) { season ->
+                                TextButton(
+                                    onClick = {
+                                        selectedSeasonNumber = season.number
+                                    },
+                                ) {
+                                    Text(
+                                        if (season.number == selectedSeasonNumber) {
+                                            "✓ Sezon ${season.number}"
+                                        } else {
+                                            "Sezon ${season.number}"
+                                        },
+                                        color = if (
+                                            season.number == selectedSeasonNumber
+                                        ) colors.primary else colors.onSurface,
+                                    )
+                                }
+                            }
+                        }
+
+                        val selectedSeason = series.seasons.firstOrNull {
+                            it.number == selectedSeasonNumber
+                        }
+
+                        selectedSeason?.episodes?.forEach { episode ->
+                            Button(
+                                onClick = {
+                                    vm.playEpisode(episode.id, onPlay)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(
+                                        "${episode.number}. ${episode.title}",
+                                        color = colors.onPrimary,
+                                    )
+                                    episode.duration?.takeIf { it.isNotBlank() }?.let {
+                                        Text(
+                                            it,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.onPrimary.copy(alpha = 0.8f),
+                                        )
+                                    }
+                                }
+                            }
+                            episode.plot?.takeIf { it.isNotBlank() }?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                )
                             }
                         }
                     }
@@ -371,6 +434,7 @@ private fun SourceVariantRow(
     variant: TmdbXtreamMatchVariant,
     isSeries: Boolean,
     sourceName: String,
+    isSelected: Boolean,
     onMoviePlay: () -> Unit,
     onSeriesSelect: () -> Unit,
 ) {
@@ -391,7 +455,18 @@ private fun SourceVariantRow(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(sourceName, style = MaterialTheme.typography.titleMedium, color = colors.onSurface)
+        Text(
+            sourceName,
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.onSurface,
+        )
+        if (isSelected) {
+            Text(
+                "Wybrane źródło serialu",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.primary,
+            )
+        }
         Text(variant.title, color = colors.onSurfaceVariant)
         Text(
             when (variant.confidence) {

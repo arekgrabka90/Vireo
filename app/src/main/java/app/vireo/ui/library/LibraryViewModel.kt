@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,19 +48,24 @@ class LibraryViewModel @Inject constructor(
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
 
     init {
-        val profileId = profiles.activeId
-        if (profileId > 0L) {
-            viewModelScope.launch {
-                combine(
-                    library.observeWatchlist(profileId),
-                    library.observeContinueWatching(profileId),
-                ) { watchlist, continueWatching ->
-                    LibraryUiState(
-                        watchlist = watchlist,
-                        continueWatching = continueWatching,
-                    )
-                }.collect { _state.value = it }
-            }
+        viewModelScope.launch {
+            profiles.activeIdFlow
+                .flatMapLatest { profileId ->
+                    if (profileId > 0L) {
+                        combine(
+                            library.observeWatchlist(profileId),
+                            library.observeContinueWatching(profileId),
+                        ) { watchlist, continueWatching ->
+                            LibraryUiState(
+                                watchlist = watchlist,
+                                continueWatching = continueWatching,
+                            )
+                        }
+                    } else {
+                        flowOf(LibraryUiState())
+                    }
+                }
+                .collect { _state.value = it }
         }
     }
 

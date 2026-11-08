@@ -1,6 +1,7 @@
 package app.vireo.ui.browse
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,14 +48,19 @@ fun Hero(
     title: Title,
     backdropUrl: String? = null,
     overview: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
+    val interaction = onClick?.let { action ->
+        Modifier.clickable(onClick = action)
+    } ?: Modifier
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(colors.surfaceVariant),
+            .background(colors.surfaceVariant)
+            .then(interaction),
     ) {
         AsyncImage(
             model = backdropUrl?.takeIf { it.isNotBlank() } ?: title.posterUrl,

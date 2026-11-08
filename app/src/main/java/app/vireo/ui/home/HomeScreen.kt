@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -44,6 +45,13 @@ fun HomeScreen(
     val libraryVm: LibraryViewModel = hiltViewModel()
     val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+    val horizontalPadding = when {
+        screenWidth >= 1200 -> 64.dp
+        screenWidth >= 840 -> 48.dp
+        screenWidth >= 600 -> 32.dp
+        else -> 20.dp
+    }
 
     val movieTitles = state.movies.map { it.toHomeTitle() }
     val seriesTitles = state.series.map { it.toHomeTitle() }
@@ -60,7 +68,10 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
-        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
+        contentPadding = PaddingValues(
+            horizontal = horizontalPadding,
+            vertical = if (screenWidth < 600) 16.dp else 24.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item { Wordmark() }
@@ -81,6 +92,7 @@ fun HomeScreen(
                     title = hero,
                     backdropUrl = heroItem?.backdropUrl,
                     overview = heroItem?.overview,
+                    onClick = { open(hero) },
                 )
             }
         }

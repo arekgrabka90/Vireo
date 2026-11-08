@@ -7,6 +7,9 @@ import app.vireo.data.security.CryptoManager
 import app.vireo.data.security.ProfilePinValidator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,10 +24,16 @@ class ProfileRepository @Inject constructor(
 
     val profiles: Flow<List<ProfileEntity>> = dao.observeAll()
 
+    private val _activeId = MutableStateFlow(
+        prefs.getLong("active_profile", 0L)
+    )
+    val activeIdFlow: StateFlow<Long> = _activeId.asStateFlow()
+
     var activeId: Long
-        get() = prefs.getLong("active_profile", 0L)
+        get() = _activeId.value
         set(value) {
             prefs.edit().putLong("active_profile", value).apply()
+            _activeId.value = value
         }
 
     suspend fun count(): Int = dao.count()

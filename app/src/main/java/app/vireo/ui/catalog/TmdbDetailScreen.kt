@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +62,13 @@ fun TmdbDetailScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val detail = state.detail
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+    val detailHeroHeight = when {
+        screenWidth >= 1200 -> 720.dp
+        screenWidth >= 840 -> 680.dp
+        screenWidth >= 600 -> 620.dp
+        else -> 560.dp
+    }
 
     var showSourcePicker by remember { mutableStateOf(false) }
     var pendingReview by remember { mutableStateOf<TmdbXtreamMatchVariant?>(null) }
@@ -142,7 +150,7 @@ fun TmdbDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(440.dp)
+                    .height(detailHeroHeight)
                     .background(colors.surfaceVariant),
             ) {
                 if (!detail.backdropUrl.isNullOrBlank()) {
@@ -166,8 +174,9 @@ fun TmdbDetailScreen(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                0.0f to Color.Black.copy(alpha = 0.38f),
-                                0.35f to Color.Transparent,
+                                0.0f to Color.Black.copy(alpha = 0.24f),
+                                0.38f to Color.Black.copy(alpha = 0.34f),
+                                0.72f to Color.Black.copy(alpha = 0.78f),
                                 1.0f to colors.background,
                             ),
                         ),
@@ -311,6 +320,19 @@ fun TmdbDetailScreen(
                     color = colors.onSurface,
                 )
 
+                // SERIES: SEASONS AND EPISODES
+                if (detail.type.name == "SERIES") {
+                    SeriesEpisodes(
+                        series = state.selectedSeries,
+                        loading = state.seriesLoading,
+                        tmdbId = detail.tmdbId,
+                        watchedEpisodeKeys = state.watchedEpisodeKeys,
+                        onPlayEpisode = { episodeId ->
+                            vm.playEpisode(episodeId, onPlay)
+                        },
+                    )
+                }
+
                 if (detail.cast.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -375,19 +397,6 @@ fun TmdbDetailScreen(
                             }
                         }
                     }
-                }
-
-                // SERIES: SEASONS AND EPISODES
-                if (detail.type.name == "SERIES") {
-                    SeriesEpisodes(
-                        series = state.selectedSeries,
-                        loading = state.seriesLoading,
-                        tmdbId = detail.tmdbId,
-                        watchedEpisodeKeys = state.watchedEpisodeKeys,
-                        onPlayEpisode = { episodeId ->
-                            vm.playEpisode(episodeId, onPlay)
-                        },
-                    )
                 }
 
                 state.playbackError?.let {

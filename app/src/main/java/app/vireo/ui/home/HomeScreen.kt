@@ -35,7 +35,6 @@ import app.vireo.ui.browse.ErrorBlock
 import app.vireo.ui.browse.Hero
 import app.vireo.ui.browse.RowData
 import app.vireo.ui.browse.TitleRow
-import app.vireo.ui.components.Wordmark
 import app.vireo.ui.components.PosterCard
 import app.vireo.ui.library.LibraryViewModel
 import app.vireo.ui.library.tmdbTarget
@@ -123,20 +122,9 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
-        contentPadding = PaddingValues(
-            vertical = if (screenWidth < 600) 16.dp else 24.dp,
-        ),
+        contentPadding = PaddingValues(vertical = 0.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = horizontalPadding),
-            ) {
-                Wordmark()
-            }
-        }
 
         if (state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
             item {

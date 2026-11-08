@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,10 +58,10 @@ fun Hero(
     val colors = MaterialTheme.colorScheme
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val heroHeight = when {
-        screenWidth >= 1200 -> 500.dp
-        screenWidth >= 840 -> 460.dp
-        screenWidth >= 600 -> 410.dp
-        else -> 350.dp
+        screenWidth >= 1200 -> 600.dp
+        screenWidth >= 840 -> 560.dp
+        screenWidth >= 600 -> 500.dp
+        else -> 430.dp
     }
     val interaction = onClick?.let { action ->
         Modifier.clickable(onClick = action)
@@ -85,13 +86,24 @@ fun Hero(
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.04f),
-                            0.42f to Color.Black.copy(alpha = 0.24f),
-                            1.0f to colors.background.copy(alpha = 0.98f),
+                            0.0f to Color.Black.copy(alpha = 0.30f),
+                            0.42f to Color.Black.copy(alpha = 0.48f),
+                            1.0f to colors.background.copy(alpha = 0.99f),
                         ),
                     ),
                 ),
         )
+        Text(
+            text = "VIREO",
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 28.dp, top = 42.dp),
+            color = Color.White,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 6.sp,
+        )
+
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -106,7 +118,7 @@ fun Hero(
             Text(
                 title.name,
                 style = MaterialTheme.typography.headlineMedium,
-                color = colors.onBackground,
+                color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )

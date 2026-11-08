@@ -3,6 +3,9 @@ package app.vireo
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import android.graphics.Color as AndroidColor
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavController
@@ -26,6 +29,10 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         setContent { VireoTheme { VireoNav() } }
     }

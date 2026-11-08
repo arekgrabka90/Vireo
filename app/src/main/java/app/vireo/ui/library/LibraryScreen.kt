@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -24,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
+import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.components.PosterCard
 
 @Composable
@@ -37,8 +37,8 @@ fun LibraryScreen(
     Column(
         modifier = Modifier.fillMaxSize()
             .background(colors.background)
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 28.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Text(
             stringResource(R.string.nav_mylist),
@@ -93,11 +93,24 @@ fun LibraryScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.onSurfaceVariant,
                             )
-                            TextButton(onClick = { vm.markWatched(item) }) {
-                                Text("Oznacz jako obejrzane")
-                            }
-                            TextButton(onClick = { vm.removeFromMyList(item) }) {
-                                Text("Usuń z listy")
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                FocusableBox(onClick = { vm.markWatched(item) }) {
+                                    Text(
+                                        "Obejrzane",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.onSurface,
+                                    )
+                                }
+                                FocusableBox(onClick = { vm.removeFromMyList(item) }) {
+                                    Text(
+                                        "Usuń",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }

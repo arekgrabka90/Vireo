@@ -84,7 +84,7 @@ fun HomeScreen(
             horizontal = horizontalPadding,
             vertical = if (screenWidth < 600) 16.dp else 24.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         item { Wordmark() }
 
@@ -129,7 +129,15 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.onBackground,
                     )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(
+                            start = 6.dp,
+                            end = 28.dp,
+                            top = 8.dp,
+                            bottom = 14.dp,
+                        ),
+                    ) {
                         items(resumable, key = { it.first.contentKey }) { entry ->
                             val item = entry.first
                             val progress = if (item.durationMs > 0L) {
@@ -167,7 +175,15 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.onBackground,
                     )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(
+                            start = 6.dp,
+                            end = 28.dp,
+                            top = 8.dp,
+                            bottom = 14.dp,
+                        ),
+                    ) {
                         items(
                             myListItems,
                             key = { it.first.id.toString() },

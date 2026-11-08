@@ -13,8 +13,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -104,6 +106,13 @@ fun MainShell(
                         NavigationRailItem(
                             selected = selected(d),
                             onClick = { go(d.route) },
+                            colors = NavigationRailItemDefaults.colors(
+                                selectedIconColor = colors.primary,
+                                selectedTextColor = colors.onSurface,
+                                indicatorColor = colors.primaryContainer,
+                                unselectedIconColor = colors.onSurfaceVariant,
+                                unselectedTextColor = colors.onSurfaceVariant,
+                            ),
                             icon = { Text(d.icon, fontSize = 20.sp) },
                             label = {
                                 Text(
@@ -132,6 +141,13 @@ fun MainShell(
                     NavigationBarItem(
                         selected = selected(d),
                         onClick = { go(d.route) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = colors.primary,
+                            selectedTextColor = colors.onSurface,
+                            indicatorColor = colors.primaryContainer,
+                            unselectedIconColor = colors.onSurfaceVariant,
+                            unselectedTextColor = colors.onSurfaceVariant,
+                        ),
                         icon = { Text(d.icon, fontSize = 20.sp) },
                         label = {
                             Text(

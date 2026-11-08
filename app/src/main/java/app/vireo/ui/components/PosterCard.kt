@@ -1,8 +1,13 @@
 package app.vireo.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,20 +45,47 @@ fun PosterCard(
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = when {
+            focused -> 1.045f
+            hovered -> 1.035f
+            pressed -> 0.985f
+            else -> 1f
+        },
+        label = "poster-focus-scale",
+    )
     val shape = RoundedCornerShape(16.dp)
     val colors = MaterialTheme.colorScheme
     val live = title.type == ContentType.LIVE
 
-    Column(modifier = modifier.width(if (live) 172.dp else 140.dp)) {
+    Column(modifier = modifier.width(if (live) 180.dp else 148.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(if (live) 16f / 9f else 2f / 3f)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .hoverable(interactionSource)
                 .onFocusChanged { focused = it.hasFocus }
                 .clip(shape)
                 .background(colors.surfaceVariant)
-                .border(3.dp, if (focused) colors.primary else Color.Transparent, shape)
-                .clickable(onClick = onClick),
+                .border(
+                    width = if (focused || hovered) 2.dp else 0.dp,
+                    color = if (focused) colors.primary
+                        else if (hovered) colors.primary.copy(alpha = 0.58f)
+                        else Color.Transparent,
+                    shape = shape,
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                ),
         ) {
             if (!title.posterUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -70,10 +103,10 @@ fun PosterCard(
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(7.dp))
         Text(
             title.name,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = colors.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

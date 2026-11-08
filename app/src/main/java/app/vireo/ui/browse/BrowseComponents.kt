@@ -57,7 +57,7 @@ fun Hero(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(300.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surfaceVariant)
             .then(interaction),
@@ -83,7 +83,9 @@ fun Hero(
                 ),
         )
         Column(
-            modifier = Modifier.align(Alignment.BottomStart).padding(22.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 28.dp, vertical = 25.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
@@ -121,7 +123,7 @@ fun TitleRow(row: RowData, onSeeAll: () -> Unit, onTitle: (Title) -> Unit) {
         ) {
             Text(
                 row.category.name,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -136,8 +138,13 @@ fun TitleRow(row: RowData, onSeeAll: () -> Unit, onTitle: (Title) -> Unit) {
             }
         }
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(
+                start = 6.dp,
+                end = 28.dp,
+                top = 10.dp,
+                bottom = 14.dp,
+            ),
         ) {
             items(row.titles, key = { it.id }) { t ->
                 PosterCard(title = t, onClick = { onTitle(t) })

@@ -17,7 +17,7 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace --info --scan
       - uses: actions/upload-artifact@v4
         with:
           name: vireo-debug-apk

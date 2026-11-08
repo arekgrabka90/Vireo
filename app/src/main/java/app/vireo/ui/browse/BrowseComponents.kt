@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,7 +100,10 @@ fun Hero(
             text = "VIREO",
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 28.dp, top = 42.dp),
+                .padding(
+                    start = 28.dp,
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp,
+                ),
             color = Color.White,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,

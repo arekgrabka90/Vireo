@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -189,7 +192,10 @@ fun TmdbDetailScreen(
                 ) {
                     FocusableBox(
                         onClick = onBack,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+                        modifier = Modifier.padding(
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+                            bottom = 12.dp,
+                        ),
                     ) {
                         Text(
                             "‹  ${stringResource(R.string.back)}",

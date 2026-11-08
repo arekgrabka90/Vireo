@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.ContentRepository
 import app.vireo.data.NoSourceException
+import app.vireo.data.StaleSourceException
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -46,55 +48,101 @@ class BrowseViewModel @Inject constructor(
             seenVersion = repo.sourceVersion
             _state.value = BrowseState()
         }
-        val st = _state.value
-        if (type in st.loading || st.categories[type] != null) return
+
+        val current = _state.value
+        if (type in current.loading || current.categories[type] != null) return
+
         load(type)
     }
 
     fun retry(type: ContentType) = load(type)
 
     private fun load(type: ContentType) {
+        if (type in _state.value.loading) return
+
+        val requestVersion = repo.sourceVersion
+
+        _state.update { current ->
+            current.copy(
+                loading = current.loading + type,
+                errors = current.errors - type,
+            )
+        }
+
         viewModelScope.launch {
-            _state.update { st -> st.copy(loading = st.loading + type, errors = st.errors - type) }
-            runCatching {
-                val cats = repo.categories(type).getOrThrow()
-                val rows: List<RowData> = if (type == ContentType.LIVE) {
-                    emptyList()
-                } else {
-                    coroutineScope {
-                        cats.take(ROWS)
-                            .map { c ->
-                                async {
-                                    val items = repo.titles(type, c.id).getOrDefault(emptyList())
-                                    RowData(c, items.take(ROW_ITEMS))
+            try {
+                val categories = repo.categories(type).getOrThrow()
+
+                val rows: List<RowData> =
+                    if (type == ContentType.LIVE) {
+                        emptyList()
+                    } else {
+                        coroutineScope {
+                            categories.take(ROWS)
+                                .map { category ->
+                                    async {
+                                        val titles = repo.titles(
+                                            type,
+                                            category.id,
+                                        ).getOrThrow()
+
+                                        RowData(
+                                            category,
+                                            titles.take(ROW_ITEMS),
+                                        )
+                                    }
                                 }
-                            }
-                            .awaitAll()
-                            .filter { r -> r.titles.isNotEmpty() }
+                                .awaitAll()
+                                .filter { it.titles.isNotEmpty() }
+                        }
                     }
+
+                if (requestVersion != repo.sourceVersion) {
+                    resetAndReload(type)
+                    return@launch
                 }
-                cats to rows
-            }.onSuccess { (cats, rows) ->
-                _state.update { st ->
-                    st.copy(
-                        loading = st.loading - type,
+
+                _state.update { current ->
+                    current.copy(
+                        loading = current.loading - type,
                         noSource = false,
-                        categories = st.categories + (type to cats),
-                        rows = st.rows + (type to rows),
+                        categories = current.categories +
+                            (type to categories),
+                        rows = current.rows + (type to rows),
                     )
                 }
-            }.onFailure { e ->
-                _state.update { st ->
-                    if (e is NoSourceException) {
-                        st.copy(loading = st.loading - type, noSource = true)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (
+                    error is StaleSourceException ||
+                    requestVersion != repo.sourceVersion
+                ) {
+                    resetAndReload(type)
+                    return@launch
+                }
+
+                _state.update { current ->
+                    if (error is NoSourceException) {
+                        current.copy(
+                            loading = current.loading - type,
+                            noSource = true,
+                        )
                     } else {
-                        st.copy(
-                            loading = st.loading - type,
-                            errors = st.errors + (type to (e.message ?: "Error")),
+                        current.copy(
+                            loading = current.loading - type,
+                            errors = current.errors +
+                                (type to (error.message ?: "Error")),
                         )
                     }
                 }
             }
         }
+    }
+
+    private fun resetAndReload(type: ContentType) {
+        seenVersion = repo.sourceVersion
+        _state.value = BrowseState()
+        ensure(type)
     }
 }

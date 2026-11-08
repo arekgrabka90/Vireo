@@ -63,4 +63,4 @@
     <string name="ph_parental">Parental control options.</string>
     <string name="pin_keep_hint">Leave blank to keep the current PIN.</string>
     <string name="pin_invalid">Enter exactly four digits or leave the field blank.</string>
-</resources>
+    <string name="profile_load_error">Could not load the profile.</string>\n    <string name="profile_save_error">Could not save the profile. Please try again.</string>\n    <string name="profile_delete_error">Could not delete the profile. Please try again.</string>\n</resources>

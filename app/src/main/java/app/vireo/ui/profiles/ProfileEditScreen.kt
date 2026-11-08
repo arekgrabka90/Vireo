@@ -130,15 +130,32 @@ fun ProfileEditScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+
+            state.errorRes?.let { errorRes ->
+                Text(
+                    stringResource(errorRes),
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { vm.save(onDone) }, enabled = state.name.isNotBlank() && state.pinValid) {
+                Button(
+                    onClick = { vm.save(onDone) },
+                    enabled = state.name.isNotBlank() &&
+                        state.pinValid &&
+                        !state.isSaving &&
+                        state.loaded,
+                ) {
                     Text(stringResource(R.string.save))
                 }
                 if (!state.isFirst) {
                     TextButton(onClick = onDone) { Text(stringResource(R.string.cancel)) }
                 }
                 if (state.canDelete) {
-                    TextButton(onClick = { vm.delete(onDone) }) {
+                    TextButton(
+                        onClick = { vm.delete(onDone) },
+                        enabled = !state.isSaving,
+                    ) {
                         Text(stringResource(R.string.delete), color = colors.error)
                     }
                 }

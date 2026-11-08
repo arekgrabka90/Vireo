@@ -29,6 +29,9 @@ interface ProfileDao {
     @Query("SELECT COUNT(*) FROM profiles")
     suspend fun count(): Int
 
+    @Query("SELECT * FROM profiles ORDER BY id LIMIT 1")
+    suspend fun first(): ProfileEntity?
+
     @Insert
     suspend fun insert(profile: ProfileEntity): Long
 

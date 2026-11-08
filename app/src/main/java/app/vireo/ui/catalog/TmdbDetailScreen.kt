@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -25,10 +29,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,13 +87,54 @@ fun TmdbDetailScreen(
         }
 
         if (detail != null) {
-            if (detail.backdropUrl != null) {
-                AsyncImage(
-                    model = detail.backdropUrl,
-                    contentDescription = detail.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(230.dp),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .background(colors.surfaceVariant),
+            ) {
+                if (!detail.backdropUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = detail.backdropUrl,
+                        contentDescription = detail.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    colors.background.copy(alpha = 0.98f),
+                                ),
+                            ),
+                        ),
                 )
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(horizontal = 24.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        if (detail.type.name == "SERIES") "SERIAL" else "FILM",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.primary,
+                    )
+                    Text(
+                        detail.title,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             Row(
@@ -102,12 +151,6 @@ fun TmdbDetailScreen(
                     )
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        detail.title,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onBackground,
-                    )
                     val metadata = listOfNotNull(
                         detail.year?.toString(),
                         detail.runtimeMinutes?.let { "$it min" },
@@ -150,12 +193,64 @@ fun TmdbDetailScreen(
 
                 if (detail.cast.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text("Obsada", style = MaterialTheme.typography.titleLarge, color = colors.onBackground)
-                    detail.cast.forEach { member ->
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(member.name, color = colors.onSurface)
-                            if (member.character.isNotBlank()) {
-                                Text(member.character, color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Obsada",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = colors.onBackground,
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        items(
+                            items = detail.cast,
+                            key = { member -> member.id },
+                        ) { member ->
+                            Column(
+                                modifier = Modifier.width(116.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(148.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(colors.surfaceVariant),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (!member.profileUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = member.profileUrl,
+                                            contentDescription = member.name,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        Text(
+                                            member.name.take(1).uppercase(),
+                                            style = MaterialTheme.typography.headlineLarge,
+                                            color = colors.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    member.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = colors.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+
+                                if (member.character.isNotBlank()) {
+                                    Text(
+                                        member.character,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }

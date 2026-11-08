@@ -76,7 +76,7 @@ interface XtreamContentIndexDao {
         SELECT * FROM xtream_content_index
         WHERE contentType = :contentType
           AND normalizedTitle = :normalizedTitle
-          AND (:year IS NULL OR year = :year)
+          AND (:year IS NULL OR year IS NULL OR year = :year)
         ORDER BY sourceId
         """
     )

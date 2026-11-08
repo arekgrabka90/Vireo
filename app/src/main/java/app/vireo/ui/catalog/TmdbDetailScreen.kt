@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,12 +28,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
+import app.vireo.data.xtream.TmdbXtreamMatchConfidence
+import app.vireo.data.xtream.TmdbXtreamMatchStatus
+import app.vireo.data.xtream.TmdbXtreamMatchVariant
 import app.vireo.ui.components.FocusableBox
 import coil.compose.AsyncImage
 
 @Composable
 fun TmdbDetailScreen(
     onBack: () -> Unit,
+    onPlay: () -> Unit,
     vm: TmdbDetailViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -55,17 +60,11 @@ fun TmdbDetailScreen(
             Box(
                 modifier = Modifier.fillMaxWidth().height(260.dp),
                 contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
+            ) { CircularProgressIndicator() }
         }
 
         state.error?.let {
-            Text(
-                it,
-                color = colors.error,
-                modifier = Modifier.padding(24.dp),
-            )
+            Text(it, color = colors.error, modifier = Modifier.padding(24.dp))
             Text(
                 vm.fallbackName,
                 style = MaterialTheme.typography.headlineMedium,
@@ -97,7 +96,6 @@ fun TmdbDetailScreen(
                         modifier = Modifier.size(width = 116.dp, height = 174.dp),
                     )
                 }
-
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         detail.title,
@@ -105,16 +103,13 @@ fun TmdbDetailScreen(
                         fontWeight = FontWeight.Bold,
                         color = colors.onBackground,
                     )
-
                     val metadata = listOfNotNull(
                         detail.year?.toString(),
                         detail.runtimeMinutes?.let { "$it min" },
                     ).joinToString(" • ")
-
                     if (metadata.isNotBlank()) {
                         Text(metadata, color = colors.onSurfaceVariant)
                     }
-
                     detail.rating?.let {
                         Text(
                             "★ ${"%.1f".format(java.util.Locale.US, it)}",
@@ -122,12 +117,8 @@ fun TmdbDetailScreen(
                             style = MaterialTheme.typography.titleMedium,
                         )
                     }
-
                     if (detail.genres.isNotEmpty()) {
-                        Text(
-                            detail.genres.joinToString(" • "),
-                            color = colors.onSurfaceVariant,
-                        )
+                        Text(detail.genres.joinToString(" • "), color = colors.onSurfaceVariant)
                     }
                 }
             }
@@ -136,41 +127,126 @@ fun TmdbDetailScreen(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                Text("Opis", style = MaterialTheme.typography.titleLarge, color = colors.onBackground)
                 Text(
-                    "Opis",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.onBackground,
-                )
-                Text(
-                    detail.overview?.takeIf { it.isNotBlank() }
-                        ?: "Brak opisu dla tego tytułu.",
+                    detail.overview?.takeIf { it.isNotBlank() } ?: "Brak opisu dla tego tytułu.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.onSurface,
                 )
 
                 if (detail.cast.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Obsada",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = colors.onBackground,
-                    )
+                    Text("Obsada", style = MaterialTheme.typography.titleLarge, color = colors.onBackground)
                     detail.cast.forEach { member ->
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(member.name, color = colors.onSurface)
                             if (member.character.isNotBlank()) {
-                                Text(
-                                    member.character,
-                                    color = colors.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
+                                Text(member.character, color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Dostępność w Twoich źródłach",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.onBackground,
+                )
+
+                if (state.availabilityLoading) {
+                    CircularProgressIndicator()
+                }
+
+                state.availabilityError?.let {
+                    Text(it, color = colors.error)
+                }
+
+                state.availability?.let { availability ->
+                    when (availability.match.status) {
+                        TmdbXtreamMatchStatus.NOT_FOUND -> Text(
+                            "Nie znaleziono tego tytułu w podłączonych źródłach. Tytuł pozostaje w katalogu TMDB.",
+                            color = colors.onSurfaceVariant,
+                        )
+                        TmdbXtreamMatchStatus.NEEDS_REVIEW -> Text(
+                            "Znaleziono możliwe dopasowania. Wymagają ręcznej weryfikacji.",
+                            color = colors.onSurfaceVariant,
+                        )
+                        TmdbXtreamMatchStatus.MATCHED -> Text(
+                            "Znaleziono potwierdzone dopasowanie. Sprawdź również warianty wymagające weryfikacji.",
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+
+                    availability.match.variants.forEach { variant ->
+                        SourceVariantRow(
+                            variant = variant,
+                            isSeries = detail.type.name == "SERIES",
+                            sourceName = availability.sourceNames[variant.sourceId]
+                                ?: "Źródło ${variant.sourceId}",
+                            onMoviePlay = { vm.playMovie(variant, onPlay) },
+                            onSeriesSelect = { vm.selectSeriesSource(variant) },
+                        )
+                    }
+                }
+
+                state.playbackError?.let { Text(it, color = colors.error) }
+
+                state.selectedSeries?.let { series ->
+                    Text(
+                        "Odcinki — ${series.name}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = colors.onBackground,
+                    )
+                    series.seasons.forEach { season ->
+                        Text(
+                            "Sezon ${season.number}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.onSurface,
+                        )
+                        season.episodes.forEach { episode ->
+                            Button(onClick = { vm.playEpisode(episode.id, onPlay) }) {
+                                Text("${episode.number}. ${episode.title}")
                             }
                         }
                     }
                 }
             }
         }
-
         Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun SourceVariantRow(
+    variant: TmdbXtreamMatchVariant,
+    isSeries: Boolean,
+    sourceName: String,
+    onMoviePlay: () -> Unit,
+    onSeriesSelect: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(sourceName, style = MaterialTheme.typography.titleMedium, color = colors.onSurface)
+        Text(variant.title, color = colors.onSurfaceVariant)
+        Text(
+            when (variant.confidence) {
+                TmdbXtreamMatchConfidence.EXACT_TITLE -> "Potwierdzone — zgodny tytuł i rok"
+                TmdbXtreamMatchConfidence.ORIGINAL_TITLE -> "Potwierdzone — zgodny tytuł oryginalny i rok"
+                TmdbXtreamMatchConfidence.NEEDS_REVIEW -> "Wymaga weryfikacji — niepełna zgodność roku"
+            },
+            color = if (variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW) {
+                colors.tertiary
+            } else {
+                colors.primary
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Button(onClick = if (isSeries) onSeriesSelect else onMoviePlay) {
+            Text(if (isSeries) "Wybierz serial" else "Odtwórz")
+        }
     }
 }

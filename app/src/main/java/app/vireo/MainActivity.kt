@@ -113,6 +113,7 @@ private fun VireoNav() {
             val name = entry.arguments?.getString("name").orEmpty()
             TmdbDetailScreen(
                 onBack = { nav.popBackStack() },
+                onPlay = { nav.navigate("player") },
             )
         }
         composable("player") {

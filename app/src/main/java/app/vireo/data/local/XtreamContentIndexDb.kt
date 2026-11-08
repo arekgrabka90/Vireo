@@ -88,6 +88,22 @@ interface XtreamContentIndexDao {
 
     @Query(
         """
+        SELECT * FROM xtream_content_index
+        WHERE contentType = :contentType
+          AND normalizedTitle LIKE '%' || :token || '%'
+          AND (:year IS NULL OR year IS NULL OR year = :year)
+        ORDER BY sourceId
+        LIMIT 1000
+        """
+    )
+    suspend fun findCandidatesContaining(
+        contentType: String,
+        token: String,
+        year: Int?,
+    ): List<XtreamContentIndexEntity>
+
+    @Query(
+        """
         SELECT * FROM catalog_sync_state
         WHERE sourceId = :sourceId AND contentType = :contentType
         LIMIT 1

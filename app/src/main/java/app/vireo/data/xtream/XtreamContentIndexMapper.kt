@@ -12,6 +12,27 @@ internal object XtreamTitleNormalizer {
         """\s*[\(\[]\s*((?:19|20)\d{2})\s*[\)\]]\s*$"""
     )
 
+    private val bracketContent = Regex("""\[[^\]]*]|\([^)]*\)""")
+    private val multiSpace = Regex("""\s+""")
+    private val seasonToken = Regex(
+        """\b(?:s|season)\s*\d{1,2}\b""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val episodeToken = Regex(
+        """\b(?:e|ep|episode)\s*\d{1,3}\b""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val releaseTags = Regex(
+        """\b(?:2160p|1080p|720p|480p|4k|uhd|fhd|hdr|dv|dovi|hevc|x265|x264|h264|h265|remux|bluray|bdrip|webrip|web[- ]?dl|proper|repack|multi|dubbed|dual[- ]?audio)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val languagePrefix = Regex(
+        """^(?:de|deu|ger|en|eng|fr|fra|fre|es|esp|spa|pt|por|nl|dut|pl|pol|tr|tur|ar|ara|ru|rus|ro|ron|rom|ita|ell|gre|cz|cze|hu|hun|swe|nor|dan|fin|bg|bul|hr|hrv|srp|sk|slo|slv|ua|ukr|mk|mkd|vip|multi|dual)\s*[:\-|]\s*""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val nonAlphaNumeric = Regex("""[^\p{L}\p{N}]+""")
+    private val diacritics = Regex("""\p{Mn}+""")
+
     fun extractYear(title: String): Int? =
         yearSuffix.find(title.trim())
             ?.groupValues
@@ -19,21 +40,25 @@ internal object XtreamTitleNormalizer {
             ?.toIntOrNull()
 
     fun normalize(title: String): String {
-        val trimmed = title.trim()
-        val match = yearSuffix.find(trimmed)
-        val withoutYear = if (match != null) {
-            trimmed.removeRange(match.range).trim()
-        } else {
-            trimmed
-        }
+        if (title.isBlank()) return ""
 
-        return Normalizer.normalize(withoutYear, Normalizer.Form.NFD)
-            .replace(Regex("\\p{Mn}+"), "")
+        val stripped = title
+            .replace('\u2503', '|')
+            .replace(Regex("""^\s*\|(?:[A-Za-z0-9]{1,6}\|)+\s*"""), " ")
+            .trimStart()
+            .replace(languagePrefix, " ")
+            .replace(bracketContent, " ")
+            .replace(seasonToken, " ")
+            .replace(episodeToken, " ")
+            .replace(releaseTags, " ")
+
+        return Normalizer.normalize(stripped, Normalizer.Form.NFD)
+            .replace(diacritics, "")
             .lowercase(Locale.ROOT)
             .replace("&", " and ")
-            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(nonAlphaNumeric, " ")
             .trim()
-            .replace(Regex("\\s+"), " ")
+            .replace(multiSpace, " ")
     }
 }
 

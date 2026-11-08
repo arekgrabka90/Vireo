@@ -247,11 +247,42 @@ class XtreamContentIndexRepository @Inject constructor(
         val normalized = XtreamTitleNormalizer.normalize(title)
         if (normalized.isBlank()) return emptyList()
 
-        return indexDao.findCandidates(
-            contentType = type.name,
-            normalizedTitle = normalized,
-            year = year,
+        val results = linkedMapOf<Triple<Long, String, String>, XtreamContentIndexEntity>()
+
+        fun add(items: List<XtreamContentIndexEntity>) {
+            items.forEach { item ->
+                results[Triple(item.sourceId, item.contentType, item.streamId)] = item
+            }
+        }
+
+        add(
+            indexDao.findCandidates(
+                contentType = type.name,
+                normalizedTitle = normalized,
+                year = year,
+            )
         )
+
+        // Search by informative title tokens as well. This finds provider
+        // titles with language/quality prefixes and extra release metadata.
+        val ignored = setOf("the", "and", "for", "with", "from", "der", "die", "das")
+        val tokens = normalized.split(' ')
+            .filter { it.length >= 3 && it !in ignored }
+            .distinct()
+            .sortedByDescending { it.length }
+            .take(4)
+
+        for (token in tokens) {
+            add(
+                indexDao.findCandidatesContaining(
+                    contentType = type.name,
+                    token = token,
+                    year = year,
+                )
+            )
+        }
+
+        return results.values.toList()
     }
 
     suspend fun syncState(

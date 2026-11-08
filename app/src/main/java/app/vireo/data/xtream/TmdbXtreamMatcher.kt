@@ -37,51 +37,67 @@ data class TmdbXtreamMatch(
 
 internal object TmdbXtreamMatcher {
 
+    private val stopWords = setOf(
+        "the", "a", "an", "and", "of", "to", "in", "on",
+        "part", "episode", "season", "movie",
+    )
+
     fun match(
         item: TmdbCatalogItem,
         candidates: Collection<XtreamContentIndexEntity>,
     ): TmdbXtreamMatch {
-        if (item.type == ContentType.LIVE) {
-            return result(item, emptyList())
-        }
+        if (item.type == ContentType.LIVE) return result(item, emptyList())
 
-        val primaryTitle = XtreamTitleNormalizer.normalize(item.title)
-        val originalTitle = item.originalTitle
+        val primary = XtreamTitleNormalizer.normalize(item.title)
+        val original = item.originalTitle
             ?.let(XtreamTitleNormalizer::normalize)
-            ?.takeIf { it.isNotBlank() && it != primaryTitle }
+            ?.takeIf { it.isNotBlank() && it != primary }
 
-        if (primaryTitle.isBlank()) {
-            return result(item, emptyList())
-        }
+        if (primary.isBlank()) return result(item, emptyList())
 
-        val variants = linkedMapOf<Pair<Long, String>, TmdbXtreamMatchVariant>()
+        val variants = linkedMapOf<Pair<Long, String>, Pair<TmdbXtreamMatchVariant, Int>>()
 
         for (candidate in candidates) {
             if (candidate.contentType != item.type.name) continue
             if (candidate.sourceId <= 0L || candidate.streamId.isBlank()) continue
 
-            val confidenceByTitle = when (candidate.normalizedTitle) {
-                primaryTitle -> TmdbXtreamMatchConfidence.EXACT_TITLE
-                originalTitle -> TmdbXtreamMatchConfidence.ORIGINAL_TITLE
-                else -> null
-            } ?: continue
+            // Re-normalize the raw provider title. Existing database rows may
+            // have been indexed by an older normalizer and remain inside TTL.
+            val providerTitle = XtreamTitleNormalizer.normalize(candidate.title)
+            if (providerTitle.isBlank()) continue
 
-            // Jawny konflikt lat wyklucza kandydata.
+            val primaryScore = scoreNameMatch(providerTitle, primary)
+            val originalScore = original?.let { scoreNameMatch(providerTitle, it) } ?: 0
+            val score = maxOf(primaryScore, originalScore)
+            if (score < MIN_MATCH_SCORE) continue
+
+            val providerYear = candidate.year
+                ?: XtreamTitleNormalizer.extractYear(candidate.title)
+
+            // A substantial year conflict is not a match (e.g. different
+            // remakes). A one-year discrepancy is retained only for review.
             if (
                 item.year != null &&
-                candidate.year != null &&
-                item.year != candidate.year
+                providerYear != null &&
+                kotlin.math.abs(item.year - providerYear) > 1
             ) {
                 continue
             }
 
-            // Bez potwierdzonego roku nie tworzymy automatycznego matcha.
-            val confidence = if (
-                item.year != null && candidate.year == item.year
-            ) {
-                confidenceByTitle
-            } else {
-                TmdbXtreamMatchConfidence.NEEDS_REVIEW
+            val exactPrimary = providerTitle == primary
+            val exactOriginal = original != null && providerTitle == original
+            val sameYear = item.year != null && providerYear == item.year
+
+            val confidence = when {
+                exactPrimary && sameYear -> TmdbXtreamMatchConfidence.EXACT_TITLE
+                exactOriginal && sameYear -> TmdbXtreamMatchConfidence.ORIGINAL_TITLE
+                else -> TmdbXtreamMatchConfidence.NEEDS_REVIEW
+            }
+
+            val yearAdjustedScore = when {
+                item.year == null || providerYear == null -> score
+                item.year == providerYear -> score + 20
+                else -> score + 8
             }
 
             val variant = TmdbXtreamMatchVariant(
@@ -96,24 +112,51 @@ internal object TmdbXtreamMatcher {
 
             val key = candidate.sourceId to candidate.streamId
             val existing = variants[key]
-
-            if (
-                existing == null ||
-                confidence.rank() > existing.confidence.rank()
-            ) {
-                variants[key] = variant
+            if (existing == null || yearAdjustedScore > existing.second) {
+                variants[key] = variant to yearAdjustedScore
             }
         }
 
-        return result(
-            item = item,
-            variants = variants.values.sortedWith(
-                compareByDescending<TmdbXtreamMatchVariant> {
-                    it.confidence.rank()
-                }.thenBy { it.sourceId }
-                    .thenBy { it.title.lowercase() }
-            ),
-        )
+        val sorted = variants.values
+            .sortedWith(
+                compareByDescending<Pair<TmdbXtreamMatchVariant, Int>> {
+                    it.second
+                }.thenBy { it.first.sourceId }
+                    .thenBy { it.first.title.lowercase() }
+            )
+            .map { it.first }
+
+        return result(item, sorted)
+    }
+
+    private fun scoreNameMatch(
+        provider: String,
+        wanted: String,
+    ): Int {
+        if (provider.isBlank() || wanted.isBlank()) return 0
+        if (provider == wanted) return 120
+
+        // Provider titles often add a subtitle or edition label.
+        if (provider.contains(wanted)) return 90
+
+        val providerWords = provider.split(' ')
+            .filter { it.isNotBlank() && it !in stopWords }
+            .toSet()
+        val wantedWords = wanted.split(' ')
+            .filter { it.isNotBlank() && it !in stopWords }
+            .toSet()
+
+        if (providerWords.isEmpty() || wantedWords.isEmpty()) return 0
+
+        val overlap = providerWords.intersect(wantedWords).size
+        val coverage = overlap.toDouble() / wantedWords.size.toDouble()
+
+        return when {
+            overlap >= 2 && coverage >= 0.75 -> 75 + overlap
+            overlap >= 2 && wantedWords.size >= 3 && coverage >= 0.60 -> 68 + overlap
+            // A one-word partial title is too ambiguous to accept.
+            else -> 0
+        }
     }
 
     private fun result(
@@ -126,7 +169,6 @@ internal object TmdbXtreamMatcher {
             } -> TmdbXtreamMatchStatus.MATCHED
 
             variants.isNotEmpty() -> TmdbXtreamMatchStatus.NEEDS_REVIEW
-
             else -> TmdbXtreamMatchStatus.NOT_FOUND
         }
 
@@ -140,9 +182,5 @@ internal object TmdbXtreamMatcher {
         )
     }
 
-    private fun TmdbXtreamMatchConfidence.rank(): Int = when (this) {
-        TmdbXtreamMatchConfidence.EXACT_TITLE -> 3
-        TmdbXtreamMatchConfidence.ORIGINAL_TITLE -> 2
-        TmdbXtreamMatchConfidence.NEEDS_REVIEW -> 1
-    }
+    private const val MIN_MATCH_SCORE = 65
 }

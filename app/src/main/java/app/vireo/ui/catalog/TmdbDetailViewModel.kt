@@ -49,6 +49,7 @@ class TmdbDetailViewModel @Inject constructor(
     val state: StateFlow<TmdbDetailState> = _state.asStateFlow()
 
     private var seriesLoadJob: Job? = null
+    private var seriesRequestId: Long = 0L
 
     init { load() }
 
@@ -104,6 +105,7 @@ class TmdbDetailViewModel @Inject constructor(
 
     fun selectSeriesSource(variant: TmdbXtreamMatchVariant) {
         seriesLoadJob?.cancel()
+        val requestId = ++seriesRequestId
 
         _state.value = _state.value.copy(
             selectedSeries = null,
@@ -115,7 +117,10 @@ class TmdbDetailViewModel @Inject constructor(
         seriesLoadJob = viewModelScope.launch {
             availabilityRepository.loadSeries(variant)
                 .onSuccess { series ->
-                    if (_state.value.selectedSourceId == variant.sourceId) {
+                    if (
+                        requestId == seriesRequestId &&
+                        _state.value.selectedSourceId == variant.sourceId
+                    ) {
                         _state.value = _state.value.copy(
                             selectedSeries = series,
                             seriesLoading = false,
@@ -123,7 +128,10 @@ class TmdbDetailViewModel @Inject constructor(
                     }
                 }
                 .onFailure { error ->
-                    if (_state.value.selectedSourceId == variant.sourceId) {
+                    if (
+                        requestId == seriesRequestId &&
+                        _state.value.selectedSourceId == variant.sourceId
+                    ) {
                         _state.value = _state.value.copy(
                             seriesLoading = false,
                             playbackError = error.message

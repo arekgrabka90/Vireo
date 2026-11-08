@@ -41,4 +41,32 @@ class XtreamTitleNormalizerTest {
     fun `empty punctuation does not produce a searchable title`() {
         assertEquals("", XtreamTitleNormalizer.normalize(" !!! "))
     }
+
+
+    @Test
+    fun `removes language quality and bracket metadata`() {
+        assertEquals(
+            "dune",
+            XtreamTitleNormalizer.normalize("EN | Dune (2021) [1080p]"),
+        )
+        assertEquals(
+            "dune",
+            XtreamTitleNormalizer.normalize("PL | Dune 4K"),
+        )
+    }
+
+    @Test
+    fun `normalizes provider release tags without losing title words`() {
+        assertEquals(
+            "the lord of the rings",
+            XtreamTitleNormalizer.normalize("The Lord of the Rings [MULTI] UHD"),
+        )
+    }
+
+    @Test
+    fun `extracts year from parenthesized and bracketed metadata`() {
+        assertEquals(2021, XtreamTitleNormalizer.extractYear("Dune (2021)"))
+        assertEquals(2019, XtreamTitleNormalizer.extractYear("Joker [2019]"))
+    }
+
 }

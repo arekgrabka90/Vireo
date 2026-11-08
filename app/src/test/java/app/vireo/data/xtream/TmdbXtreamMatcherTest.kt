@@ -184,4 +184,71 @@ class TmdbXtreamMatcherTest {
 
         assertEquals(1, result.variants.size)
     }
+
+
+    @Test
+    fun `provider subtitle and release metadata produce review candidate`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(
+                title = "The Fellowship of the Ring",
+                originalTitle = "The Fellowship of the Ring",
+                year = 2001,
+            ),
+            listOf(
+                indexed(
+                    title = "The Lord of the Rings - The Fellowship of the Ring (2001) [1080p]",
+                    normalizedTitle = "the lord of the rings the fellowship of the ring 1080p",
+                    year = 2001,
+                )
+            ),
+        )
+
+        assertEquals(TmdbXtreamMatchStatus.NEEDS_REVIEW, result.status)
+        assertEquals(1, result.variants.size)
+        assertEquals(
+            TmdbXtreamMatchConfidence.NEEDS_REVIEW,
+            result.variants.first().confidence,
+        )
+    }
+
+    @Test
+    fun `fuzzy matching rejects a one word partial title`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(
+                title = "Dune Part Two",
+                originalTitle = "Dune Part Two",
+                year = 2024,
+            ),
+            listOf(
+                indexed(
+                    title = "Dune (2024)",
+                    normalizedTitle = "dune",
+                    year = 2024,
+                )
+            ),
+        )
+
+        assertEquals(TmdbXtreamMatchStatus.NOT_FOUND, result.status)
+    }
+
+    @Test
+    fun `one year difference requires manual review`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(
+                title = "Dune",
+                originalTitle = "Dune",
+                year = 2021,
+            ),
+            listOf(
+                indexed(
+                    title = "Dune (2020)",
+                    normalizedTitle = "dune",
+                    year = 2020,
+                )
+            ),
+        )
+
+        assertEquals(TmdbXtreamMatchStatus.NEEDS_REVIEW, result.status)
+    }
+
 }

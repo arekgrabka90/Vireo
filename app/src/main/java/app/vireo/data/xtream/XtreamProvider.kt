@@ -4,8 +4,12 @@ import app.vireo.domain.model.AccountInfo
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.Channel
 import app.vireo.domain.model.ContentType
+import app.vireo.domain.model.Episode
 import app.vireo.domain.model.Movie
+import app.vireo.domain.model.MovieDetails
+import app.vireo.domain.model.Season
 import app.vireo.domain.model.Series
+import app.vireo.domain.model.SeriesDetails
 import app.vireo.domain.provider.ContentProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -64,7 +68,7 @@ class XtreamProvider(
                 iconUrl = o.str("stream_icon"),
                 categoryId = o.str("category_id"),
                 epgChannelId = o.str("epg_channel_id"),
-                streamUrl = "$base/live/$username/$password/$id.m3u8",
+                streamUrl = liveUrl(id),
             )
         }
     }
@@ -97,6 +101,77 @@ class XtreamProvider(
         }
     }
 
+    override suspend fun movieDetails(id: String): Result<MovieDetails> = runCatching {
+        val root = fetch("get_vod_info", mapOf("vod_id" to id)) as? JsonObject
+            ?: error("Invalid server response")
+        val info = root["info"] as? JsonObject
+        val data = root["movie_data"] as? JsonObject
+        val ext = data?.str("container_extension") ?: "mp4"
+        MovieDetails(
+            id = id,
+            name = info?.str("name") ?: data?.str("name") ?: id,
+            posterUrl = info?.str("movie_image") ?: info?.str("cover_big"),
+            backdropUrl = info?.firstUrl("backdrop_path"),
+            plot = info?.str("plot") ?: info?.str("description"),
+            genre = info?.str("genre"),
+            year = (info?.str("releasedate") ?: info?.str("release_date") ?: info?.str("year"))?.take(4),
+            duration = info?.str("duration"),
+            cast = info?.str("cast") ?: info?.str("actors"),
+            director = info?.str("director"),
+            rating = info?.str("rating"),
+            streamUrl = "$base/movie/$username/$password/$id.$ext",
+        )
+    }
+
+    override suspend fun seriesDetails(id: String): Result<SeriesDetails> = runCatching {
+        val root = fetch("get_series_info", mapOf("series_id" to id)) as? JsonObject
+            ?: error("Invalid server response")
+        val info = root["info"] as? JsonObject
+        val eps = root["episodes"]
+        val seasonArrays: List<Pair<Int, JsonArray>> = when (eps) {
+            is JsonObject -> eps.entries.mapNotNull { e ->
+                val n = e.key.toIntOrNull()
+                val arr = e.value as? JsonArray
+                if (n != null && arr != null) n to arr else null
+            }
+            is JsonArray -> eps.mapIndexedNotNull { i, v ->
+                (v as? JsonArray)?.let { arr -> (i + 1) to arr }
+            }
+            else -> emptyList()
+        }
+        val seasons = seasonArrays.map { (number, arr) ->
+            val episodes = arr.mapNotNull { it as? JsonObject }.mapNotNull { o ->
+                val epId = o.str("id") ?: return@mapNotNull null
+                val epInfo = o["info"] as? JsonObject
+                val ext = o.str("container_extension") ?: "mp4"
+                Episode(
+                    id = epId,
+                    number = o.str("episode_num")?.toIntOrNull() ?: 0,
+                    title = o.str("title") ?: "Episode",
+                    plot = epInfo?.str("plot"),
+                    duration = epInfo?.str("duration"),
+                    thumbUrl = epInfo?.str("movie_image"),
+                    streamUrl = "$base/series/$username/$password/$epId.$ext",
+                )
+            }.sortedBy { it.number }
+            Season(number, episodes)
+        }.filter { it.episodes.isNotEmpty() }.sortedBy { it.number }
+        SeriesDetails(
+            id = id,
+            name = info?.str("name") ?: id,
+            posterUrl = info?.str("cover"),
+            backdropUrl = info?.firstUrl("backdrop_path"),
+            plot = info?.str("plot") ?: info?.str("description"),
+            genre = info?.str("genre"),
+            year = (info?.str("releaseDate") ?: info?.str("releasedate") ?: info?.str("release_date"))?.take(4),
+            cast = info?.str("cast"),
+            rating = info?.str("rating"),
+            seasons = seasons,
+        )
+    }
+
+    override fun liveUrl(id: String): String = "$base/live/$username/$password/$id.m3u8"
+
     private fun categoryParams(categoryId: String?): Map<String, String> =
         categoryId?.let { mapOf("category_id" to it) } ?: emptyMap()
 
@@ -123,4 +198,12 @@ class XtreamProvider(
 
     private fun JsonObject.str(key: String): String? =
         (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+
+    private fun JsonObject.firstUrl(key: String): String? = when (val v = this[key]) {
+        is JsonArray -> v.firstNotNullOfOrNull { el ->
+            (el as? JsonPrimitive)?.contentOrNull?.takeIf { s -> s.isNotBlank() }
+        }
+        is JsonPrimitive -> v.contentOrNull?.takeIf { it.isNotBlank() }
+        else -> null
+    }
 }

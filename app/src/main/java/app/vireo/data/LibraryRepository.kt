@@ -20,6 +20,19 @@ class LibraryRepository @Inject constructor(
     fun observeContinueWatching(profileId: Long): Flow<List<LibraryItemEntity>> =
         dao.observeContinueWatching(profileId)
 
+    suspend fun resumePosition(
+        profileId: Long,
+        contentKey: String,
+    ): Long {
+        if (profileId <= 0L || contentKey.isBlank()) return 0L
+
+        val item = dao.get(profileId, contentKey) ?: return 0L
+
+        if (item.watched || item.durationMs <= 0L) return 0L
+
+        return item.positionMs.coerceIn(0L, item.durationMs)
+    }
+
     suspend fun saveProgress(
         profileId: Long,
         item: PlayItem,

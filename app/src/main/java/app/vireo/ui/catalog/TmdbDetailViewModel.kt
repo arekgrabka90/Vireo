@@ -17,6 +17,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -56,21 +58,28 @@ class TmdbDetailViewModel @Inject constructor(
     private var seriesLoadJob: Job? = null
     private var seriesRequestId: Long = 0L
 
-    init { load() }
+    init {
+        load()
+
+        viewModelScope.launch {
+            profiles.activeIdFlow.collectLatest {
+                refreshMyList()
+            }
+        }
+    }
 
     fun load() {
         viewModelScope.launch {
             _state.value = TmdbDetailState(loading = true)
             repository.details(type, tmdbId)
                 .onSuccess { detail ->
-                    val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
-                    val inMyList = library.isWatchlisted(profiles.activeId, contentKey)
                     _state.value = TmdbDetailState(
                         loading = false,
                         detail = detail,
                         availabilityLoading = true,
-                        inMyList = inMyList,
                     )
+                    refreshMyList()
+
                     availabilityRepository.find(detail)
                         .onSuccess { availability ->
                             _state.value = _state.value.copy(
@@ -95,6 +104,26 @@ class TmdbDetailViewModel @Inject constructor(
         }
     }
 
+    private suspend fun refreshMyList() {
+        val detail = _state.value.detail ?: return
+        val profileId = profiles.activeId
+        val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
+        val inMyList = library.isWatchlisted(profileId, contentKey)
+
+        if (profiles.activeId != profileId) return
+
+        _state.update { current ->
+            if (
+                current.detail?.tmdbId == detail.tmdbId &&
+                current.detail?.type == detail.type
+            ) {
+                current.copy(inMyList = inMyList)
+            } else {
+                current
+            }
+        }
+    }
+
     fun toggleMyList() {
         val detail = _state.value.detail ?: return
         val enabled = !_state.value.inMyList
@@ -111,7 +140,18 @@ class TmdbDetailViewModel @Inject constructor(
                 backdropUrl = detail.backdropUrl,
                 enabled = enabled,
             )
-            _state.value = _state.value.copy(inMyList = enabled)
+            if (profiles.activeId == profileId) {
+                _state.update { current ->
+                    if (
+                        current.detail?.tmdbId == detail.tmdbId &&
+                        current.detail?.type == detail.type
+                    ) {
+                        current.copy(inMyList = enabled)
+                    } else {
+                        current
+                    }
+                }
+            }
         }
     }
 

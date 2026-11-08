@@ -71,7 +71,7 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.item?.url) {
+    LaunchedEffect(state.item?.url, state.item?.contentKey) {
         val item = state.item ?: return@LaunchedEffect
         while (true) {
             delay(15_000)
@@ -92,13 +92,18 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.item?.url) {
-        val item = state.item
-        if (item != null) {
-            exoPlayer.setMediaItem(MediaItem.fromUri(item.url))
-            exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
-        }
+    LaunchedEffect(state.item?.url, state.item?.contentKey) {
+        val item = state.item ?: return@LaunchedEffect
+
+        // Pozycja jest odczytywana dla profilu przypisanego do sesji.
+        val resumeAt = vm.resumePosition(item)
+
+        exoPlayer.setMediaItem(
+            MediaItem.fromUri(item.url),
+            resumeAt,
+        )
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {

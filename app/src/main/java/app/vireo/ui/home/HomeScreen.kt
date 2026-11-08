@@ -55,6 +55,18 @@ fun HomeScreen(
 
     val movieTitles = state.movies.map { it.toHomeTitle() }
     val seriesTitles = state.series.map { it.toHomeTitle() }
+
+    val myListItems = libraryState.watchlist.mapNotNull { item ->
+        val target = item.tmdbTarget() ?: return@mapNotNull null
+        target to Title(
+            id = item.contentKey,
+            name = item.title,
+            posterUrl = item.posterUrl,
+            rating = null,
+            type = target.type,
+            categoryId = null,
+        )
+    }
     val heroItem = state.movies.firstOrNull { !it.backdropUrl.isNullOrBlank() }
         ?: state.series.firstOrNull { !it.backdropUrl.isNullOrBlank() }
         ?: state.movies.firstOrNull { !it.posterUrl.isNullOrBlank() }
@@ -141,6 +153,35 @@ fun HomeScreen(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (myListItems.isNotEmpty()) {
+            item(key = "my-list") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Moja lista",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.onBackground,
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(
+                            myListItems,
+                            key = { it.first.id.toString() },
+                        ) { entry ->
+                            PosterCard(
+                                title = entry.second,
+                                onClick = {
+                                    onOpenTitle(
+                                        entry.first.type,
+                                        entry.first.id,
+                                        entry.second.name,
+                                    )
+                                },
+                            )
                         }
                     }
                 }

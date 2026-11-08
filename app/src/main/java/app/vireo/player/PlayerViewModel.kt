@@ -25,10 +25,19 @@ class PlayerViewModel @Inject constructor(
     private val profiles: ProfileRepository,
 ) : ViewModel() {
 
+    // Profil zostaje przypisany do calej sesji odtwarzania.
+    // Zmiana aktywnego profilu nie przeniesie postepu do innego profilu.
+    private val playbackProfileId = profiles.activeId
+
     private val _state = MutableStateFlow(
         PlayerUiState(item = session.current(), hasNext = session.hasNext()),
     )
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
+
+    suspend fun resumePosition(item: PlayItem): Long {
+        val contentKey = item.contentKey ?: return 0L
+        return library.resumePosition(playbackProfileId, contentKey)
+    }
 
     fun saveProgress(
         item: PlayItem?,
@@ -36,7 +45,7 @@ class PlayerViewModel @Inject constructor(
         durationMs: Long,
     ) {
         val target = item ?: return
-        val profileId = profiles.activeId
+        val profileId = playbackProfileId
         viewModelScope.launch {
             library.saveProgress(profileId, target, positionMs, durationMs)
         }

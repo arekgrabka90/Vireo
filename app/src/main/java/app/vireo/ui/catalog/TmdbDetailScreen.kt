@@ -9,30 +9,35 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,8 +47,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
 import app.vireo.data.xtream.TmdbXtreamMatchConfidence
-import app.vireo.data.xtream.TmdbXtreamMatchStatus
 import app.vireo.data.xtream.TmdbXtreamMatchVariant
+import app.vireo.domain.model.SeriesDetails
 import app.vireo.ui.components.FocusableBox
 import coil.compose.AsyncImage
 
@@ -57,45 +62,87 @@ fun TmdbDetailScreen(
     val colors = MaterialTheme.colorScheme
     val detail = state.detail
 
+    var showSourcePicker by remember { mutableStateOf(false) }
+    var pendingReview by remember { mutableStateOf<TmdbXtreamMatchVariant?>(null) }
+
+    val variants = state.availability?.match?.variants.orEmpty()
+    val canWatch = detail != null &&
+        !state.availabilityLoading &&
+        variants.isNotEmpty()
+
+    fun startVariant(variant: TmdbXtreamMatchVariant) {
+        if (detail?.type?.name == "SERIES") {
+            vm.selectSeriesSource(variant)
+        } else {
+            vm.playMovie(variant, onPlay)
+        }
+    }
+
+    fun watch() {
+        if (!canWatch) return
+
+        // Automatyczne uruchomienie jest dozwolone tylko dla
+        // jednego jednoznacznie potwierdzonego wariantu.
+        if (
+            variants.size == 1 &&
+            variants.first().confidence != TmdbXtreamMatchConfidence.NEEDS_REVIEW
+        ) {
+            startVariant(variants.first())
+        } else {
+            showSourcePicker = true
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
             .background(colors.background)
             .verticalScroll(rememberScrollState()),
     ) {
-        FocusableBox(
-            onClick = onBack,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-        ) {
-            Text(stringResource(R.string.back), color = colors.onSurface)
-        }
-
         if (state.loading) {
             Box(
-                modifier = Modifier.fillMaxWidth().height(260.dp),
+                modifier = Modifier.fillMaxWidth().height(360.dp),
                 contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+            ) {
+                CircularProgressIndicator()
+            }
         }
 
-        state.error?.let {
-            Text(it, color = colors.error, modifier = Modifier.padding(24.dp))
-            Text(
-                vm.fallbackName,
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.onBackground,
-                modifier = Modifier.padding(horizontal = 24.dp),
-            )
+        state.error?.let { error ->
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(error, color = colors.error)
+                Text(
+                    vm.fallbackName,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.onBackground,
+                )
+                OutlinedButton(onClick = onBack) {
+                    Text(stringResource(R.string.back))
+                }
+            }
         }
 
         if (detail != null) {
+            // CINEMATIC HERO
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(440.dp)
                     .background(colors.surfaceVariant),
             ) {
                 if (!detail.backdropUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = detail.backdropUrl,
+                        contentDescription = detail.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (!detail.posterUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = detail.posterUrl,
                         contentDescription = detail.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
@@ -107,95 +154,154 @@ fun TmdbDetailScreen(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    colors.background.copy(alpha = 0.98f),
-                                ),
+                                0.0f to Color.Black.copy(alpha = 0.38f),
+                                0.35f to Color.Transparent,
+                                1.0f to colors.background,
                             ),
                         ),
                 )
 
                 Column(
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 24.dp, vertical = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 18.dp),
                 ) {
-                    Text(
-                        if (detail.type.name == "SERIES") "SERIAL" else "FILM",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.primary,
-                    )
-                    Text(
-                        detail.title,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onBackground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                if (detail.posterUrl != null) {
-                    AsyncImage(
-                        model = detail.posterUrl,
-                        contentDescription = detail.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(width = 116.dp, height = 174.dp),
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val metadata = listOfNotNull(
-                        detail.year?.toString(),
-                        detail.runtimeMinutes?.let { "$it min" },
-                    ).joinToString(" • ")
-                    if (metadata.isNotBlank()) {
-                        Text(metadata, color = colors.onSurfaceVariant)
-                    }
-                    detail.rating?.let {
+                    FocusableBox(
+                        onClick = onBack,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+                    ) {
                         Text(
-                            "★ ${"%.1f".format(java.util.Locale.US, it)}",
-                            color = colors.primary,
+                            "‹  ${stringResource(R.string.back)}",
+                            color = Color.White,
                             style = MaterialTheme.typography.titleMedium,
                         )
                     }
+
+                    Spacer(Modifier.weight(1f))
+
+                    Text(
+                        if (detail.type.name == "SERIES") "VIREO ORIGINAL EXPERIENCE · SERIES"
+                        else "VIREO CINEMA · MOVIE",
+                        color = colors.primary,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        detail.title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    val metadata = listOfNotNull(
+                        detail.year?.toString(),
+                        detail.runtimeMinutes?.let { "$it min" },
+                    ).joinToString("  ·  ")
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (metadata.isNotBlank()) {
+                            Text(metadata, color = Color.White.copy(alpha = 0.88f))
+                        }
+                        detail.rating?.let {
+                            Text(
+                                "★ ${"%.1f".format(java.util.Locale.US, it)}",
+                                color = Color(0xFFFFD166),
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+
                     if (detail.genres.isNotEmpty()) {
-                        Text(detail.genres.joinToString(" • "), color = colors.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            detail.genres.joinToString("  ·  "),
+                            color = Color.White.copy(alpha = 0.78f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Button(
+                            onClick = { watch() },
+                            enabled = canWatch,
+                            modifier = Modifier.widthIn(min = 148.dp),
+                        ) {
+                            if (state.availabilityLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text("▶  WATCH", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(onClick = vm::toggleMyList) {
+                            Text(
+                                if (state.inMyList) "✓  MY LIST" else "+  MY LIST",
+                            )
+                        }
+                    }
+
+                    if (!state.availabilityLoading && variants.isEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            if (state.availabilityError != null) {
+                                "Odtwarzanie jest chwilowo niedostępne."
+                            } else {
+                                "Ten tytuł nie jest obecnie dostępny do odtworzenia."
+                            },
+                            color = Color.White.copy(alpha = 0.72f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(onClick = vm::toggleMyList) {
-                    Text(if (state.inMyList) "Usuń z Mojej listy" else "Dodaj do Mojej listy")
-                }
-            }
-
+            // DETAIL CONTENT
             Column(
-                modifier = Modifier.padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Text("Opis", style = MaterialTheme.typography.titleLarge, color = colors.onBackground)
                 Text(
-                    detail.overview?.takeIf { it.isNotBlank() } ?: "Brak opisu dla tego tytułu.",
+                    "O filmie",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onBackground,
+                )
+
+                Text(
+                    detail.overview?.takeIf { it.isNotBlank() }
+                        ?: "Opis tego tytułu nie jest jeszcze dostępny.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.onSurface,
                 )
 
                 if (detail.cast.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         "Obsada",
                         style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         color = colors.onBackground,
                     )
 
@@ -204,17 +310,17 @@ fun TmdbDetailScreen(
                     ) {
                         items(
                             items = detail.cast,
-                            key = { member -> member.id },
+                            key = { it.id },
                         ) { member ->
                             Column(
                                 modifier = Modifier.width(116.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(148.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .height(150.dp)
+                                        .clip(RoundedCornerShape(14.dp))
                                         .background(colors.surfaceVariant),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -236,8 +342,8 @@ fun TmdbDetailScreen(
 
                                 Text(
                                     member.name,
-                                    style = MaterialTheme.typography.titleSmall,
                                     color = colors.onSurface,
+                                    style = MaterialTheme.typography.titleSmall,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -245,8 +351,8 @@ fun TmdbDetailScreen(
                                 if (member.character.isNotBlank()) {
                                     Text(
                                         member.character,
-                                        style = MaterialTheme.typography.bodySmall,
                                         color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -256,276 +362,308 @@ fun TmdbDetailScreen(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Dostępność w Twoich źródłach",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.onBackground,
-                )
-
-                if (state.availabilityLoading) {
-                    CircularProgressIndicator()
-                }
-
-                state.availabilityError?.let {
-                    Text(it, color = colors.error)
-                }
-
-                state.availability?.let { availability ->
-                    val failedSourceIds = availability.syncReport.failures
-                        .map { it.sourceId }
-                        .distinct()
-
-                    if (failedSourceIds.isNotEmpty()) {
-                        val failedNames = failedSourceIds
-                            .map { id ->
-                                availability.sourceNames[id] ?: "Źródło $id"
-                            }
-                            .take(3)
-                            .joinToString(", ")
-
-                        Text(
-                            "Nie udało się zsynchronizować ${failedSourceIds.size} źródeł. " +
-                                "Wyniki mogą być niepełne. Problem: $failedNames",
-                            color = colors.tertiary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-
-                    when (availability.match.status) {
-                        TmdbXtreamMatchStatus.NOT_FOUND -> Text(
-                            if (failedSourceIds.isEmpty()) {
-                                "Nie znaleziono tego tytułu w podłączonych źródłach. " +
-                                    "Tytuł pozostaje w katalogu TMDB."
-                            } else {
-                                "Nie znaleziono dopasowania w sprawdzonych źródłach. " +
-                                    "Nie można wykluczyć dostępności w źródłach, których synchronizacja się nie powiodła."
-                            },
-                            color = colors.onSurfaceVariant,
-                        )
-                        TmdbXtreamMatchStatus.NEEDS_REVIEW -> Text(
-                            "Znaleziono możliwe dopasowania. Wymagają ręcznej weryfikacji.",
-                            color = colors.onSurfaceVariant,
-                        )
-                        TmdbXtreamMatchStatus.MATCHED -> Text(
-                            "Znaleziono potwierdzone dopasowanie. Sprawdź również warianty wymagające weryfikacji.",
-                            color = colors.onSurfaceVariant,
-                        )
-                    }
-
-                    availability.match.variants.forEach { variant ->
-                        SourceVariantRow(
-                            variant = variant,
-                            isSeries = detail.type.name == "SERIES",
-                            sourceName = availability.sourceNames[variant.sourceId]
-                                ?: "Źródło ${variant.sourceId}",
-                            isSelected = state.selectedSourceId == variant.sourceId,
-                            onMoviePlay = { vm.playMovie(variant, onPlay) },
-                            onSeriesSelect = { vm.selectSeriesSource(variant) },
-                        )
-                    }
-                }
-
-                state.playbackError?.let { Text(it, color = colors.error) }
-
-                if (state.seriesLoading) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Text(
-                            "Pobieranie odcinków z wybranego źródła...",
-                            color = colors.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                state.selectedSeries?.let { series ->
-                    var selectedSeasonNumber by remember(series.id) {
-                        mutableStateOf(series.seasons.firstOrNull()?.number ?: 0)
-                    }
-
-                    Text(
-                        "Odcinki — ${series.name}",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = colors.onBackground,
+                // SERIES: SEASONS AND EPISODES
+                if (detail.type.name == "SERIES") {
+                    SeriesEpisodes(
+                        series = state.selectedSeries,
+                        loading = state.seriesLoading,
+                        selectedSourceId = state.selectedSourceId,
+                        onPlayEpisode = { episodeId ->
+                            vm.playEpisode(episodeId, onPlay)
+                        },
                     )
+                }
 
-                    if (series.seasons.isEmpty()) {
+                state.playbackError?.let {
+                    Surface(
+                        color = colors.errorContainer,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
                         Text(
-                            "Wybrane źródło nie udostępnia listy odcinków.",
-                            color = colors.onSurfaceVariant,
+                            it,
+                            color = colors.onErrorContainer,
+                            modifier = Modifier.padding(14.dp),
                         )
-                    } else {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(
-                                items = series.seasons,
-                                key = { it.number },
-                            ) { season ->
-                                TextButton(
-                                    onClick = {
-                                        selectedSeasonNumber = season.number
-                                    },
-                                ) {
-                                    Text(
-                                        if (season.number == selectedSeasonNumber) {
-                                            "✓ Sezon ${season.number}"
-                                        } else {
-                                            "Sezon ${season.number}"
-                                        },
-                                        color = if (
-                                            season.number == selectedSeasonNumber
-                                        ) colors.primary else colors.onSurface,
-                                    )
-                                }
-                            }
-                        }
-
-                        val selectedSeason = series.seasons.firstOrNull {
-                            it.number == selectedSeasonNumber
-                        }
-
-                        selectedSeason?.episodes?.forEach { episode ->
-                            Button(
-                                onClick = {
-                                    vm.playEpisode(episode.id, onPlay)
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                                ) {
-                                    Text(
-                                        "${episode.number}. ${episode.title}",
-                                        color = colors.onPrimary,
-                                    )
-                                    episode.duration?.takeIf { it.isNotBlank() }?.let {
-                                        Text(
-                                            it,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.onPrimary.copy(alpha = 0.8f),
-                                        )
-                                    }
-                                }
-                            }
-                            episode.plot?.takeIf { it.isNotBlank() }?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                )
-                            }
-                        }
                     }
                 }
             }
         }
+
         Spacer(Modifier.height(32.dp))
     }
-}
 
-@Composable
-private fun SourceVariantRow(
-    variant: TmdbXtreamMatchVariant,
-    isSeries: Boolean,
-    sourceName: String,
-    isSelected: Boolean,
-    onMoviePlay: () -> Unit,
-    onSeriesSelect: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    var showReviewConfirmation by remember(variant.sourceId, variant.streamId) {
-        mutableStateOf(false)
-    }
-    val needsReview = variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW
+    // SOURCE PICKER
+    if (showSourcePicker) {
+        val availability = state.availability
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 7.dp)
-            .background(
-                colors.surfaceVariant.copy(alpha = 0.55f),
-                androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-            )
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            sourceName,
-            style = MaterialTheme.typography.titleMedium,
-            color = colors.onSurface,
-        )
-        if (isSelected) {
-            Text(
-                "Wybrane źródło serialu",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.primary,
-            )
-        }
-        Text(variant.title, color = colors.onSurfaceVariant)
-        Text(
-            when (variant.confidence) {
-                TmdbXtreamMatchConfidence.EXACT_ID -> "Potwierdzone — zgodny identyfikator TMDB/IMDb"
-                TmdbXtreamMatchConfidence.EXACT_TITLE -> "Potwierdzone — zgodny tytuł i rok"
-                TmdbXtreamMatchConfidence.ORIGINAL_TITLE -> "Potwierdzone — zgodny tytuł oryginalny i rok"
-                TmdbXtreamMatchConfidence.NEEDS_REVIEW -> "Wymaga weryfikacji — niepełna zgodność roku"
-            },
-            color = if (needsReview) colors.tertiary else colors.primary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Button(
-            onClick = {
-                if (needsReview) {
-                    showReviewConfirmation = true
-                } else if (isSeries) {
-                    onSeriesSelect()
-                } else {
-                    onMoviePlay()
-                }
-            },
-        ) {
-            Text(
-                when {
-                    needsReview && isSeries -> "Sprawdź i wybierz serial"
-                    needsReview -> "Sprawdź i odtwórz"
-                    isSeries -> "Wybierz serial"
-                    else -> "Odtwórz"
-                }
-            )
-        }
-    }
-
-    if (showReviewConfirmation) {
         AlertDialog(
-            onDismissRequest = { showReviewConfirmation = false },
-            title = { Text("Weryfikacja dopasowania") },
+            onDismissRequest = { showSourcePicker = false },
+            title = {
+                Text(
+                    "Wybierz źródło",
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    variants.forEach { variant ->
+                        val sourceName = availability?.sourceNames?.get(variant.sourceId)
+                            ?: "Źródło ${variant.sourceId}"
+                        val needsReview =
+                            variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW
+
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(14.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                Text(
+                                    sourceName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    variant.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    if (needsReview) "Wymaga Twojej weryfikacji"
+                                    else "Potwierdzone dopasowanie",
+                                    color = if (needsReview) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                Button(
+                                    onClick = {
+                                        showSourcePicker = false
+                                        if (needsReview) {
+                                            pendingReview = variant
+                                        } else {
+                                            startVariant(variant)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        if (needsReview) "Zweryfikuj źródło"
+                                        else "Wybierz to źródło",
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSourcePicker = false }) {
+                    Text("Zamknij")
+                }
+            },
+        )
+    }
+
+    // EXPLICIT CONFIRMATION FOR UNCERTAIN MATCHES
+    pendingReview?.let { variant ->
+        val sourceName = state.availability?.sourceNames?.get(variant.sourceId)
+            ?: "Źródło ${variant.sourceId}"
+
+        AlertDialog(
+            onDismissRequest = { pendingReview = null },
+            title = { Text("Potwierdź wybór źródła") },
             text = {
                 Text(
-                    "Źródło „$sourceName” zawiera pozycję „${variant.title}”, " +
-                        "ale rok wydania nie został jednoznacznie potwierdzony. " +
-                        "Czy rozpoznajesz ten tytuł i chcesz ręcznie zaakceptować ten wariant?"
+                    "Pozycja „${variant.title}” w źródle „$sourceName” " +
+                        "nie ma pełnego potwierdzenia zgodności z tym tytułem. " +
+                        "Jeśli rozpoznajesz właściwy film lub serial, możesz kontynuować."
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showReviewConfirmation = false
-                        if (isSeries) onSeriesSelect() else onMoviePlay()
+                        pendingReview = null
+                        startVariant(variant)
                     },
                 ) {
-                    Text(if (isSeries) "Potwierdź i wybierz" else "Potwierdź i odtwórz")
+                    Text("Potwierdź")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showReviewConfirmation = false }) {
+                TextButton(onClick = { pendingReview = null }) {
                     Text("Anuluj")
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun SeriesEpisodes(
+    series: SeriesDetails?,
+    loading: Boolean,
+    selectedSourceId: Long?,
+    onPlayEpisode: (String) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    var selectedSeasonNumber by remember(series?.id) {
+        mutableStateOf(series?.seasons?.firstOrNull()?.number ?: 0)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Sezony i odcinki",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = colors.onBackground,
+        )
+
+        if (loading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp))
+                Text(
+                    "Przygotowuję odcinki...",
+                    color = colors.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (series != null) {
+            Text(
+                series.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onSurface,
+            )
+
+            if (series.seasons.isEmpty()) {
+                Text(
+                    "Lista odcinków nie jest dostępna dla tego źródła.",
+                    color = colors.onSurfaceVariant,
+                )
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(
+                        items = series.seasons,
+                        key = { it.number },
+                    ) { season ->
+                        if (season.number == selectedSeasonNumber) {
+                            Button(
+                                onClick = { selectedSeasonNumber = season.number },
+                            ) {
+                                Text("Sezon ${season.number}")
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { selectedSeasonNumber = season.number },
+                            ) {
+                                Text("Sezon ${season.number}")
+                            }
+                        }
+                    }
+                }
+
+                val selectedSeason = series.seasons.firstOrNull {
+                    it.number == selectedSeasonNumber
+                }
+
+                selectedSeason?.episodes?.forEach { episode ->
+                    Surface(
+                        color = colors.surfaceVariant.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(14.dp),
+                        onClick = { onPlayEpisode(episode.id) },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (!episode.thumbUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = episode.thumbUrl,
+                                    contentDescription = episode.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(width = 112.dp, height = 68.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 112.dp, height = 68.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(colors.surface),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "${episode.number}",
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.titleLarge,
+                                    )
+                                }
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    "${episode.number}. ${episode.title}",
+                                    color = colors.onSurface,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                episode.duration?.takeIf { it.isNotBlank() }?.let {
+                                    Text(
+                                        it,
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                                episode.plot?.takeIf { it.isNotBlank() }?.let {
+                                    Text(
+                                        it,
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+
+                            Text(
+                                "▶",
+                                color = colors.primary,
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (!loading) {
+            Text(
+                "Wybierz źródło przyciskiem WATCH, aby zobaczyć odcinki.",
+                color = colors.onSurfaceVariant,
+            )
+        }
     }
 }

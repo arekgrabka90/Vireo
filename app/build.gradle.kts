@@ -13,6 +13,22 @@ val escapedTmdbApiKey = tmdbApiKey
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+val vireoSigningStorePath =
+    providers.environmentVariable("VIREO_KEYSTORE_PATH").orNull
+val vireoSigningStorePassword =
+    providers.environmentVariable("VIREO_KEYSTORE_PASSWORD").orNull
+val vireoSigningKeyAlias =
+    providers.environmentVariable("VIREO_KEY_ALIAS").orNull
+val vireoSigningKeyPassword =
+    providers.environmentVariable("VIREO_KEY_PASSWORD").orNull
+
+val vireoHasStableSigning = listOf(
+    vireoSigningStorePath,
+    vireoSigningStorePassword,
+    vireoSigningKeyAlias,
+    vireoSigningKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "app.vireo"
     compileSdk = 34
@@ -29,27 +45,27 @@ android {
 
 
     signingConfigs {
-        create("stable") {
-            storeFile = file(
-                System.getenv("VIREO_KEYSTORE_PATH")
-                    ?: error("Missing VIREO_KEYSTORE_PATH")
-            )
-            storePassword = System.getenv("VIREO_KEYSTORE_PASSWORD")
-                ?: error("Missing VIREO_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("VIREO_KEY_ALIAS")
-                ?: error("Missing VIREO_KEY_ALIAS")
-            keyPassword = System.getenv("VIREO_KEY_PASSWORD")
-                ?: error("Missing VIREO_KEY_PASSWORD")
+        if (vireoHasStableSigning) {
+            create("stable") {
+                storeFile = file(vireoSigningStorePath!!)
+                storePassword = vireoSigningStorePassword!!
+                keyAlias = vireoSigningKeyAlias!!
+                keyPassword = vireoSigningKeyPassword!!
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("stable")
+            if (vireoHasStableSigning) {
+                signingConfig = signingConfigs.getByName("stable")
+            }
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("stable")
+            if (vireoHasStableSigning) {
+                signingConfig = signingConfigs.getByName("stable")
+            }
         }
     }
     compileOptions {

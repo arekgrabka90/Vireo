@@ -14,6 +14,7 @@ import javax.inject.Singleton
 data class TmdbXtreamAvailability(
     val match: TmdbXtreamMatch,
     val sourceNames: Map<Long, String>,
+    val syncReport: XtreamIndexSyncReport,
 )
 
 @Singleton
@@ -27,6 +28,10 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         if (detail.type != ContentType.MOVIE && detail.type != ContentType.SERIES) {
             error("Nieobsługiwany typ treści.")
         }
+
+        // Odśwież indeksy przed wyszukiwaniem. Polityka TTL zapobiega
+        // niepotrzebnym pobraniom, a raport ujawnia nieosiągalne źródła.
+        val syncReport = indexRepository.syncAll()
 
         val candidates = linkedMapOf<Pair<Long, String>, app.vireo.data.local.XtreamContentIndexEntity>()
 
@@ -63,6 +68,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             TmdbXtreamAvailability(
                 match = match,
                 sourceNames = accounts,
+                syncReport = syncReport,
             )
         )
     } catch (cancelled: CancellationException) {

@@ -13,12 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -163,9 +167,35 @@ fun TmdbDetailScreen(
                 }
 
                 state.availability?.let { availability ->
+                    val failedSourceIds = availability.syncReport.failures
+                        .map { it.sourceId }
+                        .distinct()
+
+                    if (failedSourceIds.isNotEmpty()) {
+                        val failedNames = failedSourceIds
+                            .map { id ->
+                                availability.sourceNames[id] ?: "Źródło $id"
+                            }
+                            .take(3)
+                            .joinToString(", ")
+
+                        Text(
+                            "Nie udało się zsynchronizować ${failedSourceIds.size} źródeł. " +
+                                "Wyniki mogą być niepełne. Problem: $failedNames",
+                            color = colors.tertiary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+
                     when (availability.match.status) {
                         TmdbXtreamMatchStatus.NOT_FOUND -> Text(
-                            "Nie znaleziono tego tytułu w podłączonych źródłach. Tytuł pozostaje w katalogu TMDB.",
+                            if (failedSourceIds.isEmpty()) {
+                                "Nie znaleziono tego tytułu w podłączonych źródłach. " +
+                                    "Tytuł pozostaje w katalogu TMDB."
+                            } else {
+                                "Nie znaleziono dopasowania w sprawdzonych źródłach. " +
+                                    "Nie można wykluczyć dostępności w źródłach, których synchronizacja się nie powiodła."
+                            },
                             color = colors.onSurfaceVariant,
                         )
                         TmdbXtreamMatchStatus.NEEDS_REVIEW -> Text(
@@ -226,6 +256,11 @@ private fun SourceVariantRow(
     onSeriesSelect: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    var showReviewConfirmation by remember(variant.sourceId, variant.streamId) {
+        mutableStateOf(false)
+    }
+    val needsReview = variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -238,15 +273,57 @@ private fun SourceVariantRow(
                 TmdbXtreamMatchConfidence.ORIGINAL_TITLE -> "Potwierdzone — zgodny tytuł oryginalny i rok"
                 TmdbXtreamMatchConfidence.NEEDS_REVIEW -> "Wymaga weryfikacji — niepełna zgodność roku"
             },
-            color = if (variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW) {
-                colors.tertiary
-            } else {
-                colors.primary
-            },
+            color = if (needsReview) colors.tertiary else colors.primary,
             style = MaterialTheme.typography.bodySmall,
         )
-        Button(onClick = if (isSeries) onSeriesSelect else onMoviePlay) {
-            Text(if (isSeries) "Wybierz serial" else "Odtwórz")
+        Button(
+            onClick = {
+                if (needsReview) {
+                    showReviewConfirmation = true
+                } else if (isSeries) {
+                    onSeriesSelect()
+                } else {
+                    onMoviePlay()
+                }
+            },
+        ) {
+            Text(
+                when {
+                    needsReview && isSeries -> "Sprawdź i wybierz serial"
+                    needsReview -> "Sprawdź i odtwórz"
+                    isSeries -> "Wybierz serial"
+                    else -> "Odtwórz"
+                }
+            )
         }
+    }
+
+    if (showReviewConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showReviewConfirmation = false },
+            title = { Text("Weryfikacja dopasowania") },
+            text = {
+                Text(
+                    "Źródło „$sourceName” zawiera pozycję „${variant.title}”, " +
+                        "ale rok wydania nie został jednoznacznie potwierdzony. " +
+                        "Czy rozpoznajesz ten tytuł i chcesz ręcznie zaakceptować ten wariant?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showReviewConfirmation = false
+                        if (isSeries) onSeriesSelect() else onMoviePlay()
+                    },
+                ) {
+                    Text(if (isSeries) "Potwierdź i wybierz" else "Potwierdź i odtwórz")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReviewConfirmation = false }) {
+                    Text("Anuluj")
+                }
+            },
+        )
     }
 }

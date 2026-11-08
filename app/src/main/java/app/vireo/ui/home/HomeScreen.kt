@@ -38,8 +38,11 @@ fun HomeScreen(
 
     val movieTitles = state.movies.map { it.toHomeTitle() }
     val seriesTitles = state.series.map { it.toHomeTitle() }
-    val hero = movieTitles.firstOrNull { !it.posterUrl.isNullOrBlank() }
-        ?: seriesTitles.firstOrNull { !it.posterUrl.isNullOrBlank() }
+    val heroItem = state.movies.firstOrNull { !it.backdropUrl.isNullOrBlank() }
+        ?: state.series.firstOrNull { !it.backdropUrl.isNullOrBlank() }
+        ?: state.movies.firstOrNull { !it.posterUrl.isNullOrBlank() }
+        ?: state.series.firstOrNull { !it.posterUrl.isNullOrBlank() }
+    val hero = heroItem?.toHomeTitle()
 
     fun open(title: Title) {
         val id = title.id.toIntOrNull() ?: return
@@ -64,7 +67,13 @@ fun HomeScreen(
         }
 
         if (hero != null) {
-            item { Hero(hero) }
+            item {
+                Hero(
+                    title = hero,
+                    backdropUrl = heroItem?.backdropUrl,
+                    overview = heroItem?.overview,
+                )
+            }
         }
 
         if (movieTitles.isNotEmpty()) {

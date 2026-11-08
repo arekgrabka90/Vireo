@@ -39,11 +39,11 @@ fun PosterCard(
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(16.dp)
     val colors = MaterialTheme.colorScheme
     val live = title.type == ContentType.LIVE
 
-    Column(modifier = modifier.width(if (live) 164.dp else 132.dp)) {
+    Column(modifier = modifier.width(if (live) 172.dp else 140.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -51,7 +51,7 @@ fun PosterCard(
                 .onFocusChanged { focused = it.hasFocus }
                 .clip(shape)
                 .background(colors.surfaceVariant)
-                .border(2.dp, if (focused) colors.primary else Color.Transparent, shape)
+                .border(3.dp, if (focused) colors.primary else Color.Transparent, shape)
                 .clickable(onClick = onClick),
         ) {
             if (!title.posterUrl.isNullOrBlank()) {

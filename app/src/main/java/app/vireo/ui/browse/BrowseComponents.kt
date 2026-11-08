@@ -43,7 +43,11 @@ fun ContentType.navLabel(): Int = when (this) {
 }
 
 @Composable
-fun Hero(title: Title) {
+fun Hero(
+    title: Title,
+    backdropUrl: String? = null,
+    overview: String? = null,
+) {
     val colors = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
@@ -53,7 +57,7 @@ fun Hero(title: Title) {
             .background(colors.surfaceVariant),
     ) {
         AsyncImage(
-            model = title.posterUrl,
+            model = backdropUrl?.takeIf { it.isNotBlank() } ?: title.posterUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             alignment = Alignment.TopCenter,
@@ -64,11 +68,18 @@ fun Hero(title: Title) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, colors.background.copy(alpha = 0.95f)),
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.04f),
+                            0.42f to Color.Black.copy(alpha = 0.24f),
+                            1.0f to colors.background.copy(alpha = 0.98f),
+                        ),
                     ),
                 ),
         )
-        Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             Text(
                 title.name,
                 style = MaterialTheme.typography.headlineMedium,
@@ -76,6 +87,16 @@ fun Hero(title: Title) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            val summary = overview?.trim()?.takeIf { it.isNotBlank() }
+            if (summary != null) {
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.88f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             val rating = title.rating?.takeIf { it.isNotBlank() && it != "0" }
             if (rating != null) {
                 Text("★ $rating", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)

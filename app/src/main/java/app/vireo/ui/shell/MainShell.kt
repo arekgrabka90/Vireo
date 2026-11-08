@@ -39,6 +39,7 @@ import app.vireo.ui.live.LiveTvScreen
 import app.vireo.ui.more.MoreScreen
 import app.vireo.ui.settings.SettingsScreen
 import app.vireo.ui.settings.SourcesScreen
+import app.vireo.ui.search.SearchScreen
 
 private data class Dest(val route: String, val label: Int, val icon: String)
 
@@ -172,7 +173,7 @@ private fun ShellNavHost(
             PlaceholderScreen(R.string.nav_guide, R.string.ph_guide, "🗓️")
         }
         composable("search") {
-            PlaceholderScreen(R.string.nav_search, R.string.ph_search, "🔍")
+            SearchScreen(onOpenTitle = onOpenTmdbTitle)
         }
         composable("mylist") {
             PlaceholderScreen(R.string.nav_mylist, R.string.ph_mylist, "⭐")

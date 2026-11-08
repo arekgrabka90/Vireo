@@ -64,6 +64,59 @@ class TmdbCatalogRepository @Inject constructor(
         return load(type, page, language, CatalogKind.TRENDING)
     }
 
+    suspend fun search(
+        query: String,
+        type: ContentType,
+        page: Int = 1,
+        language: String = DEFAULT_LANGUAGE,
+    ): Result<TmdbCatalogPage> {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Search query cannot be blank.")
+            )
+        }
+        if (type == ContentType.LIVE) {
+            return Result.failure(
+                IllegalArgumentException("TMDB search supports movies and series only.")
+            )
+        }
+        if (page !in 1..500) {
+            return Result.failure(
+                IllegalArgumentException("TMDB page must be between 1 and 500.")
+            )
+        }
+
+        val normalizedLanguage = language.trim()
+            .replace('_', '-')
+            .ifBlank { DEFAULT_LANGUAGE }
+
+        return try {
+            val response = when (type) {
+                ContentType.MOVIE ->
+                    api.searchMovies(normalizedQuery, page, normalizedLanguage)
+                ContentType.SERIES ->
+                    api.searchSeries(normalizedQuery, page, normalizedLanguage)
+                ContentType.LIVE -> error("Unsupported TMDB content type.")
+            }
+
+            Result.success(
+                TmdbCatalogPage(
+                    items = response.results.mapNotNull {
+                        TmdbCatalogMapper.map(it, type)
+                    },
+                    page = response.page,
+                    totalPages = response.totalPages,
+                    totalResults = response.totalResults,
+                )
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
     fun clearCache() {
         cache.clear()
     }

@@ -33,6 +33,28 @@ class TmdbApi @Inject constructor(
     suspend fun trendingSeries(page: Int, language: String): TmdbPageDto =
         getPopular("trending/tv/day", page, language)
 
+    suspend fun searchMovies(query: String, page: Int, language: String): TmdbPageDto =
+        search("search/movie", query, page, language)
+
+    suspend fun searchSeries(query: String, page: Int, language: String): TmdbPageDto =
+        search("search/tv", query, page, language)
+
+    private suspend fun search(
+        endpoint: String,
+        query: String,
+        page: Int,
+        language: String,
+    ): TmdbPageDto {
+        require(query.isNotBlank()) { "Search query cannot be blank." }
+        require(page in 1..500) { "TMDB page must be between 1 and 500." }
+        val request = request(endpoint, language) {
+            addQueryParameter("query", query.trim())
+            addQueryParameter("page", page.toString())
+            addQueryParameter("include_adult", "false")
+        }
+        return json.decodeFromString(execute(request))
+    }
+
     suspend fun movieDetails(id: Int, language: String): TmdbDetailDto =
         getDetails("movie/$id", id, language)
 

@@ -277,8 +277,15 @@ private fun SourceVariantRow(
     val needsReview = variant.confidence == TmdbXtreamMatchConfidence.NEEDS_REVIEW
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 7.dp)
+            .background(
+                colors.surfaceVariant.copy(alpha = 0.55f),
+                androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            )
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(sourceName, style = MaterialTheme.typography.titleMedium, color = colors.onSurface)
         Text(variant.title, color = colors.onSurfaceVariant)

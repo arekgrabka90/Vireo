@@ -11,6 +11,7 @@ import app.vireo.domain.model.Season
 import app.vireo.domain.model.Series
 import app.vireo.domain.model.SeriesDetails
 import app.vireo.domain.provider.ContentProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -36,7 +37,7 @@ class XtreamProvider(
         .let { if (it.startsWith("http://", true) || it.startsWith("https://", true)) it else "https://$it" }
         .trimEnd('/')
 
-    override suspend fun authenticate(): Result<AccountInfo> = runCatching {
+    override suspend fun authenticate(): Result<AccountInfo> = resultCatching {
         val root = fetch(null) as? JsonObject ?: error("Invalid server response")
         val info = root["user_info"] as? JsonObject ?: error("Login failed")
         if (info.str("auth") == "0") error("Invalid credentials")
@@ -47,7 +48,7 @@ class XtreamProvider(
         )
     }
 
-    override suspend fun categories(type: ContentType): Result<List<Category>> = runCatching {
+    override suspend fun categories(type: ContentType): Result<List<Category>> = resultCatching {
         val action = when (type) {
             ContentType.LIVE -> "get_live_categories"
             ContentType.MOVIE -> "get_vod_categories"
@@ -59,7 +60,7 @@ class XtreamProvider(
         }
     }
 
-    override suspend fun channels(categoryId: String?): Result<List<Channel>> = runCatching {
+    override suspend fun channels(categoryId: String?): Result<List<Channel>> = resultCatching {
         fetch("get_live_streams", categoryParams(categoryId)).objects().mapNotNull { o ->
             val id = o.str("stream_id") ?: return@mapNotNull null
             Channel(
@@ -73,7 +74,7 @@ class XtreamProvider(
         }
     }
 
-    override suspend fun movies(categoryId: String?): Result<List<Movie>> = runCatching {
+    override suspend fun movies(categoryId: String?): Result<List<Movie>> = resultCatching {
         fetch("get_vod_streams", categoryParams(categoryId)).strictObjects().mapNotNull { o ->
             val id = o.str("stream_id") ?: return@mapNotNull null
             val ext = o.str("container_extension") ?: "mp4"
@@ -88,7 +89,7 @@ class XtreamProvider(
         }
     }
 
-    override suspend fun series(categoryId: String?): Result<List<Series>> = runCatching {
+    override suspend fun series(categoryId: String?): Result<List<Series>> = resultCatching {
         fetch("get_series", categoryParams(categoryId)).strictObjects().mapNotNull { o ->
             val id = o.str("series_id") ?: return@mapNotNull null
             Series(
@@ -101,7 +102,7 @@ class XtreamProvider(
         }
     }
 
-    override suspend fun movieDetails(id: String): Result<MovieDetails> = runCatching {
+    override suspend fun movieDetails(id: String): Result<MovieDetails> = resultCatching {
         val root = fetch("get_vod_info", mapOf("vod_id" to id)) as? JsonObject
             ?: error("Invalid server response")
         val info = root["info"] as? JsonObject
@@ -123,7 +124,7 @@ class XtreamProvider(
         )
     }
 
-    override suspend fun seriesDetails(id: String): Result<SeriesDetails> = runCatching {
+    override suspend fun seriesDetails(id: String): Result<SeriesDetails> = resultCatching {
         val root = fetch("get_series_info", mapOf("series_id" to id)) as? JsonObject
             ?: error("Invalid server response")
         val info = root["info"] as? JsonObject
@@ -171,6 +172,16 @@ class XtreamProvider(
     }
 
     override fun liveUrl(id: String): String = "$base/live/$username/$password/$id.m3u8"
+
+    private suspend fun <T> resultCatching(
+        block: suspend () -> T,
+    ): Result<T> = try {
+        Result.success(block())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        Result.failure(error)
+    }
 
     private fun categoryParams(categoryId: String?): Map<String, String> =
         categoryId?.let { mapOf("category_id" to it) } ?: emptyMap()

@@ -18,6 +18,7 @@ import javax.inject.Inject
 
 data class ProfileEditState(
     val loaded: Boolean = false,
+    val loadFailed: Boolean = false,
     val isNew: Boolean = true,
     val isFirst: Boolean = false,
     val name: String = "",
@@ -50,7 +51,14 @@ class ProfileEditViewModel @Inject constructor(
                 val count = repo.count()
                 val existing = if (id != 0L) repo.get(id) else null
 
-                _state.value = if (existing != null) {
+                _state.value = if (id != 0L && existing == null) {
+                    ProfileEditState(
+                        loaded = true,
+                        isNew = false,
+                        loadFailed = true,
+                        errorRes = R.string.profile_load_error,
+                    )
+                } else if (existing != null) {
                     ProfileEditState(
                         loaded = true,
                         isNew = false,
@@ -73,6 +81,7 @@ class ProfileEditViewModel @Inject constructor(
             } catch (_: Exception) {
                 _state.value = ProfileEditState(
                     loaded = true,
+                    loadFailed = true,
                     errorRes = R.string.profile_load_error,
                 )
             }
@@ -99,6 +108,8 @@ class ProfileEditViewModel @Inject constructor(
     fun save(onDone: () -> Unit) {
         val current = _state.value
         if (
+            !current.loaded ||
+            current.loadFailed ||
             current.isSaving ||
             current.name.isBlank() ||
             !current.pinValid
@@ -117,7 +128,7 @@ class ProfileEditViewModel @Inject constructor(
                 pin = current.pin.takeIf { it.isNotEmpty() },
             )
 
-            val savedId = try {
+            try {
                 repo.save(entity)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -131,8 +142,12 @@ class ProfileEditViewModel @Inject constructor(
                 return@launch
             }
 
-            if (repo.activeId == 0L) {
-                repo.activeId = savedId
+            try {
+                repo.activeProfile()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Zapis profilu już się powiódł.
             }
 
             _state.update { it.copy(isSaving = false) }
@@ -141,7 +156,8 @@ class ProfileEditViewModel @Inject constructor(
     }
 
     fun delete(onDone: () -> Unit) {
-        if (_state.value.isSaving) return
+        val current = _state.value
+        if (!current.loaded || current.loadFailed || id == 0L || current.isSaving) return
 
         _state.update {
             it.copy(isSaving = true, errorRes = null)

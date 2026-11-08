@@ -63,4 +63,7 @@
     <string name="ph_parental">Opcje kontroli rodzicielskiej.</string>
     <string name="pin_keep_hint">Pozostaw puste, aby zachować obecny PIN.</string>
     <string name="pin_invalid">Wpisz dokładnie cztery cyfry albo pozostaw pole puste.</string>
-    <string name="profile_load_error">Nie udało się wczytać profilu.</string>\n    <string name="profile_save_error">Nie udało się zapisać profilu. Spróbuj ponownie.</string>\n    <string name="profile_delete_error">Nie udało się usunąć profilu. Spróbuj ponownie.</string>\n</resources>
+    <string name="profile_load_error">Nie udało się wczytać profilu.</string>
+    <string name="profile_save_error">Nie udało się zapisać profilu. Spróbuj ponownie.</string>
+    <string name="profile_delete_error">Nie udało się usunąć profilu. Spróbuj ponownie.</string>
+</resources>

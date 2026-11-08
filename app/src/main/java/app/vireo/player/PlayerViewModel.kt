@@ -28,6 +28,7 @@ class PlayerViewModel @Inject constructor(
     // Profil zostaje przypisany do calej sesji odtwarzania.
     // Zmiana aktywnego profilu nie przeniesie postepu do innego profilu.
     private val playbackProfileId = profiles.activeId
+    private var advancing = false
 
     private val _state = MutableStateFlow(
         PlayerUiState(item = session.current(), hasNext = session.hasNext()),
@@ -39,22 +40,52 @@ class PlayerViewModel @Inject constructor(
         return library.resumePosition(playbackProfileId, contentKey)
     }
 
+    private suspend fun persistProgress(
+        item: PlayItem?,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val target = item ?: return
+        library.saveProgress(
+            playbackProfileId,
+            target,
+            positionMs,
+            durationMs,
+        )
+    }
+
     fun saveProgress(
         item: PlayItem?,
         positionMs: Long,
         durationMs: Long,
     ) {
         val target = item ?: return
-        val profileId = playbackProfileId
         viewModelScope.launch {
-            library.saveProgress(profileId, target, positionMs, durationMs)
+            persistProgress(target, positionMs, durationMs)
         }
     }
 
     fun next(positionMs: Long, durationMs: Long) {
-        saveProgress(session.current(), positionMs, durationMs)
-        val n = session.next() ?: return
-        _state.value = PlayerUiState(item = n, hasNext = session.hasNext())
+        if (advancing) return
+
+        val current = session.current() ?: return
+        advancing = true
+
+        viewModelScope.launch {
+            try {
+                // Najpierw zapisujemy finalny postep. Dopiero potem
+                // zmieniamy pozycje w kolejce odtwarzania.
+                persistProgress(current, positionMs, durationMs)
+
+                val next = session.next() ?: return@launch
+                _state.value = PlayerUiState(
+                    item = next,
+                    hasNext = session.hasNext(),
+                )
+            } finally {
+                advancing = false
+            }
+        }
     }
 
     fun onError(message: String) {

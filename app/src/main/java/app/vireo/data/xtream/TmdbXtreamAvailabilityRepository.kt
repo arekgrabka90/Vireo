@@ -156,4 +156,43 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         playbackSession.start(items, index)
         return true
     }
+
+    fun playNextEpisode(
+        series: SeriesDetails,
+        detail: TmdbDetail,
+        watchedEpisodeKeys: Set<String>,
+    ): Boolean {
+        val episodes = series.seasons
+            .sortedBy { it.number }
+            .flatMap { season ->
+                season.episodes
+                    .sortedBy { it.number }
+                    .map { season.number to it }
+            }
+
+        if (episodes.isEmpty()) return false
+
+        val nextEpisodes = episodes.filterNot { (season, episode) ->
+            val key =
+                "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}"
+            key in watchedEpisodeKeys
+        }
+
+        if (nextEpisodes.isEmpty()) return false
+
+        val items = nextEpisodes.map { (season, episode) ->
+            PlayItem(
+                title = "${series.name} · S${season} E${episode.number} · ${episode.title}",
+                url = episode.streamUrl,
+                contentKey =
+                    "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}",
+                contentType = detail.type.name,
+                posterUrl = detail.posterUrl,
+                backdropUrl = detail.backdropUrl,
+            )
+        }
+
+        playbackSession.start(items, 0)
+        return true
+    }
 }

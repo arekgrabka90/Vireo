@@ -17,6 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ data class TmdbDetailState(
     val playbackError: String? = null,
     val playbackReady: Boolean = false,
     val inMyList: Boolean = false,
+    val watchedEpisodeKeys: Set<String> = emptySet(),
 )
 
 @HiltViewModel
@@ -62,8 +64,24 @@ class TmdbDetailViewModel @Inject constructor(
         load()
 
         viewModelScope.launch {
-            profiles.activeIdFlow.collectLatest {
-                refreshMyList()
+            profiles.activeIdFlow.collectLatest { profileId ->
+                refreshMyList(profileId)
+
+                // Statusy odcinkow sa zawsze odczytywane dla
+                // aktualnie aktywnego profilu.
+                _state.update { it.copy(watchedEpisodeKeys = emptySet()) }
+
+                library.observeAll(profileId).collect { items ->
+                    val watched = items
+                        .asSequence()
+                        .filter { it.watched }
+                        .map { it.contentKey }
+                        .toSet()
+
+                    _state.update {
+                        it.copy(watchedEpisodeKeys = watched)
+                    }
+                }
             }
         }
     }
@@ -86,6 +104,24 @@ class TmdbDetailViewModel @Inject constructor(
                                 availabilityLoading = false,
                                 availability = availability,
                             )
+
+                            // Jeden pewny wariant serialu:
+                            // odcinki pobieramy automatycznie.
+                            // Niepewne dopasowanie nadal wymaga potwierdzenia.
+                            val singleConfirmedSeries =
+                                if (detail.type == ContentType.SERIES) {
+                                    availability.match.variants.singleOrNull()
+                                        ?.takeIf {
+                                            it.confidence !=
+                                                app.vireo.data.xtream.TmdbXtreamMatchConfidence.NEEDS_REVIEW
+                                        }
+                                } else {
+                                    null
+                                }
+
+                            singleConfirmedSeries?.let {
+                                selectSeriesSource(it)
+                            }
                         }
                         .onFailure { error ->
                             _state.value = _state.value.copy(
@@ -104,9 +140,10 @@ class TmdbDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshMyList() {
+    private suspend fun refreshMyList(
+        profileId: Long = profiles.activeId,
+    ) {
         val detail = _state.value.detail ?: return
-        val profileId = profiles.activeId
         val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
         val inMyList = library.isWatchlisted(profileId, contentKey)
 
@@ -213,10 +250,31 @@ class TmdbDetailViewModel @Inject constructor(
     fun playEpisode(episodeId: String, onReady: () -> Unit) {
         val series = _state.value.selectedSeries ?: return
         if (availabilityRepository.playEpisode(series, episodeId, _state.value.detail)) {
+            _state.value = _state.value.copy(playbackError = null)
             onReady()
         } else {
             _state.value = _state.value.copy(
                 playbackError = "Nie znaleziono wybranego odcinka.",
+            )
+        }
+    }
+
+    fun playNextEpisode(onReady: () -> Unit) {
+        val series = _state.value.selectedSeries ?: return
+        val detail = _state.value.detail ?: return
+
+        val started = availabilityRepository.playNextEpisode(
+            series = series,
+            detail = detail,
+            watchedEpisodeKeys = _state.value.watchedEpisodeKeys,
+        )
+
+        if (started) {
+            _state.value = _state.value.copy(playbackError = null)
+            onReady()
+        } else {
+            _state.value = _state.value.copy(
+                playbackError = "Wszystkie odcinki tego serialu są już obejrzane.",
             )
         }
     }

@@ -64,6 +64,8 @@ internal object XtreamTitleNormalizer {
 
 internal object XtreamContentIndexMapper {
 
+    private val imdbIdPattern = Regex("(?i)^tt[0-9]{5,12}$")
+
     fun movie(
         sourceId: Long,
         item: Movie,
@@ -77,6 +79,8 @@ internal object XtreamContentIndexMapper {
             posterUrl = item.posterUrl,
             categoryId = item.categoryId,
             indexedAt = indexedAt,
+            tmdbId = item.tmdbId,
+            imdbId = item.imdbId,
         )
 
     fun series(
@@ -92,6 +96,8 @@ internal object XtreamContentIndexMapper {
             posterUrl = item.posterUrl,
             categoryId = item.categoryId,
             indexedAt = indexedAt,
+            tmdbId = item.tmdbId,
+            imdbId = item.imdbId,
         )
 
     private fun map(
@@ -102,6 +108,8 @@ internal object XtreamContentIndexMapper {
         posterUrl: String?,
         categoryId: String?,
         indexedAt: Long,
+        tmdbId: Int?,
+        imdbId: String?,
     ): XtreamContentIndexEntity? {
         val cleanId = streamId.trim()
         val cleanTitle = title.trim()
@@ -123,6 +131,9 @@ internal object XtreamContentIndexMapper {
             posterUrl = posterUrl?.takeIf { it.isNotBlank() },
             categoryId = categoryId?.takeIf { it.isNotBlank() },
             indexedAt = indexedAt,
+            tmdbId = tmdbId?.takeIf { it > 0 },
+            imdbId = imdbId?.trim()?.takeIf { imdbIdPattern.matches(it) }
+                ?.lowercase(Locale.ROOT),
         )
     }
 }

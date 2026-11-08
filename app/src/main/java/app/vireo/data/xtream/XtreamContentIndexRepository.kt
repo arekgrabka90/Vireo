@@ -285,6 +285,31 @@ class XtreamContentIndexRepository @Inject constructor(
         return results.values.toList()
     }
 
+    suspend fun findCandidatesByExternalIds(
+        tmdbId: Int?,
+        imdbId: String?,
+        type: ContentType,
+    ): List<XtreamContentIndexEntity> {
+        if (type == ContentType.LIVE) return emptyList()
+        val results = linkedMapOf<Triple<Long, String, String>, XtreamContentIndexEntity>()
+
+        if (tmdbId != null && tmdbId > 0) {
+            indexDao.findCandidatesByTmdbId(type.name, tmdbId).forEach { item ->
+                results[Triple(item.sourceId, item.contentType, item.streamId)] = item
+            }
+        }
+
+        val cleanImdbId = imdbId?.trim()?.lowercase()
+            ?.takeIf { Regex("^tt[0-9]{5,12}$").matches(it) }
+        if (cleanImdbId != null) {
+            indexDao.findCandidatesByImdbId(type.name, cleanImdbId).forEach { item ->
+                results[Triple(item.sourceId, item.contentType, item.streamId)] = item
+            }
+        }
+
+        return results.values.toList()
+    }
+
     suspend fun syncState(
         sourceId: Long,
         type: ContentType,

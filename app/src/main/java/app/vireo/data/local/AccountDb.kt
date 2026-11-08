@@ -104,7 +104,7 @@ interface AccountDao {
         XtreamContentIndexEntity::class,
         CatalogSyncStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -174,6 +174,22 @@ abstract class VireoDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE xtream_content_index ADD COLUMN tmdbId INTEGER")
+                db.execSQL("ALTER TABLE xtream_content_index ADD COLUMN imdbId TEXT")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_xtream_content_index_tmdbId_contentType " +
+                        "ON xtream_content_index(tmdbId, contentType)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_xtream_content_index_imdbId_contentType " +
+                        "ON xtream_content_index(imdbId, contentType)"
+                )
+                db.execSQL("DELETE FROM catalog_sync_state")
             }
         }
     }

@@ -39,6 +39,12 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
 
         val candidates = linkedMapOf<Pair<Long, String>, app.vireo.data.local.XtreamContentIndexEntity>()
 
+        indexRepository.findCandidatesByExternalIds(
+            tmdbId = detail.tmdbId,
+            imdbId = detail.imdbId,
+            type = detail.type,
+        ).forEach { candidates[it.sourceId to it.streamId] = it }
+
         suspend fun collect(title: String?) {
             val clean = title?.trim()?.takeIf { it.isNotBlank() } ?: return
             indexRepository.findCandidates(clean, detail.type, detail.year)
@@ -63,6 +69,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             genreIds = emptyList(),
             originalLanguage = null,
             popularity = 0.0,
+            imdbId = detail.imdbId,
         )
 
         val match = TmdbXtreamMatcher.match(catalogItem, candidates.values)

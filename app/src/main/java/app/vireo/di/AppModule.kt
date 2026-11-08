@@ -49,6 +49,7 @@ object AppModule {
                 migration2To3(crypto),
                 VireoDatabase.MIGRATION_3_4,
                 VireoDatabase.MIGRATION_4_5,
+                VireoDatabase.MIGRATION_5_6,
             )
             .build()
 

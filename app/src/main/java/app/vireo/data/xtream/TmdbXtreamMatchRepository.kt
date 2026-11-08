@@ -14,8 +14,8 @@ class TmdbXtreamMatchRepository @Inject constructor(
     /**
      * Matches one TMDB catalog item against every connected Xtream account.
      *
-     * Only exact normalized title keys are queried. No fuzzy matching is
-     * performed, preventing unrelated titles from becoming false positives.
+     * Exact TMDB/IMDb identifiers are queried first; normalized title candidates
+     * are then added for conservative title/year matching and manual review.
      */
     suspend fun match(
         item: TmdbCatalogItem,
@@ -36,6 +36,16 @@ class TmdbXtreamMatchRepository @Inject constructor(
             Triple<Long, String, String>,
             app.vireo.data.local.XtreamContentIndexEntity
         >()
+
+        val idCandidates = indexRepository.findCandidatesByExternalIds(
+            tmdbId = item.tmdbId,
+            imdbId = item.imdbId,
+            type = item.type,
+        )
+        for (candidate in idCandidates) {
+            val key = Triple(candidate.sourceId, candidate.contentType, candidate.streamId)
+            candidates[key] = candidate
+        }
 
         for (title in searchTitles) {
             val found = try {

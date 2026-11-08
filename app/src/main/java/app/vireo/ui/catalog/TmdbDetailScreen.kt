@@ -284,6 +284,7 @@ private fun SourceVariantRow(
         Text(variant.title, color = colors.onSurfaceVariant)
         Text(
             when (variant.confidence) {
+                TmdbXtreamMatchConfidence.EXACT_ID -> "Potwierdzone — zgodny identyfikator TMDB/IMDb"
                 TmdbXtreamMatchConfidence.EXACT_TITLE -> "Potwierdzone — zgodny tytuł i rok"
                 TmdbXtreamMatchConfidence.ORIGINAL_TITLE -> "Potwierdzone — zgodny tytuł oryginalny i rok"
                 TmdbXtreamMatchConfidence.NEEDS_REVIEW -> "Wymaga weryfikacji — niepełna zgodność roku"

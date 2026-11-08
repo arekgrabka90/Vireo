@@ -14,6 +14,7 @@ class TmdbXtreamMatcherTest {
         originalTitle: String? = "Dune",
         year: Int? = 2021,
         type: ContentType = ContentType.MOVIE,
+        imdbId: String? = null,
     ) = TmdbCatalogItem(
         tmdbId = 123,
         type = type,
@@ -29,6 +30,7 @@ class TmdbXtreamMatcherTest {
         genreIds = emptyList(),
         originalLanguage = null,
         popularity = 0.0,
+        imdbId = imdbId,
     )
 
     private fun indexed(
@@ -38,6 +40,8 @@ class TmdbXtreamMatcherTest {
         normalizedTitle: String = "dune",
         year: Int? = 2021,
         type: String = "MOVIE",
+        tmdbId: Int? = null,
+        imdbId: String? = null,
     ) = XtreamContentIndexEntity(
         sourceId = sourceId,
         contentType = type,
@@ -48,7 +52,39 @@ class TmdbXtreamMatcherTest {
         posterUrl = null,
         categoryId = null,
         indexedAt = 1000L,
+        tmdbId = tmdbId,
+        imdbId = imdbId,
     )
+
+    @Test
+    fun `exact TMDB ID matches despite different title and year`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(title = "", originalTitle = null, year = 2021),
+            listOf(indexed(title = "Completely different provider title", year = 1980, tmdbId = 123)),
+        )
+        assertEquals(TmdbXtreamMatchStatus.MATCHED, result.status)
+        assertEquals(TmdbXtreamMatchConfidence.EXACT_ID, result.variants.single().confidence)
+    }
+
+    @Test
+    fun `exact IMDb ID wins when TMDB IDs disagree`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(imdbId = "tt1234567"),
+            listOf(indexed(title = "Different title", tmdbId = 999, imdbId = "TT1234567")),
+        )
+        assertEquals(TmdbXtreamMatchStatus.MATCHED, result.status)
+        assertEquals(TmdbXtreamMatchConfidence.EXACT_ID, result.variants.single().confidence)
+    }
+
+    @Test
+    fun `conflicting populated external IDs block title-only match`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(imdbId = "tt1234567"),
+            listOf(indexed(tmdbId = 999, imdbId = "tt7654321")),
+        )
+        assertEquals(TmdbXtreamMatchStatus.NOT_FOUND, result.status)
+        assertTrue(result.variants.isEmpty())
+    }
 
     @Test
     fun `exact title and year produce confirmed match`() {

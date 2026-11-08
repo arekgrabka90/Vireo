@@ -15,6 +15,8 @@ import androidx.room.Transaction
     indices = [
         Index(value = ["sourceId", "contentType"]),
         Index(value = ["normalizedTitle", "year", "contentType"]),
+        Index(value = ["tmdbId", "contentType"]),
+        Index(value = ["imdbId", "contentType"]),
     ],
     foreignKeys = [
         ForeignKey(
@@ -35,6 +37,8 @@ data class XtreamContentIndexEntity(
     val posterUrl: String?,
     val categoryId: String?,
     val indexedAt: Long,
+    val tmdbId: Int? = null,
+    val imdbId: String? = null,
 )
 
 @Entity(
@@ -100,6 +104,30 @@ interface XtreamContentIndexDao {
         contentType: String,
         token: String,
         year: Int?,
+    ): List<XtreamContentIndexEntity>
+
+    @Query(
+        """
+        SELECT * FROM xtream_content_index
+        WHERE contentType = :contentType AND tmdbId = :tmdbId
+        ORDER BY sourceId
+        """
+    )
+    suspend fun findCandidatesByTmdbId(
+        contentType: String,
+        tmdbId: Int,
+    ): List<XtreamContentIndexEntity>
+
+    @Query(
+        """
+        SELECT * FROM xtream_content_index
+        WHERE contentType = :contentType AND imdbId = :imdbId
+        ORDER BY sourceId
+        """
+    )
+    suspend fun findCandidatesByImdbId(
+        contentType: String,
+        imdbId: String,
     ): List<XtreamContentIndexEntity>
 
     @Query(

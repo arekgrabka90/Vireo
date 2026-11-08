@@ -58,6 +58,7 @@ data class TmdbCatalogItem(
     val genreIds: List<Int>,
     val originalLanguage: String?,
     val popularity: Double,
+    val imdbId: String? = null,
 )
 
 data class TmdbCatalogPage(
@@ -97,6 +98,14 @@ data class TmdbDetailDto(
     @SerialName("episode_run_time")
     val episodeRunTime: List<Int> = emptyList(),
     val credits: TmdbCreditsDto? = null,
+    @SerialName("external_ids")
+    val externalIds: TmdbExternalIdsDto? = null,
+)
+
+@Serializable
+data class TmdbExternalIdsDto(
+    @SerialName("imdb_id")
+    val imdbId: String? = null,
 )
 
 @Serializable
@@ -141,4 +150,5 @@ data class TmdbDetail(
     val genres: List<String>,
     val runtimeMinutes: Int?,
     val cast: List<TmdbCastMember>,
+    val imdbId: String? = null,
 )

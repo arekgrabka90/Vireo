@@ -20,6 +20,8 @@ data class Movie(
     val categoryId: String?,
     val rating: String?,
     val streamUrl: String,
+    val tmdbId: Int? = null,
+    val imdbId: String? = null,
 )
 
 data class Series(
@@ -28,6 +30,8 @@ data class Series(
     val posterUrl: String?,
     val categoryId: String?,
     val rating: String?,
+    val tmdbId: Int? = null,
+    val imdbId: String? = null,
 )
 
 data class AccountInfo(

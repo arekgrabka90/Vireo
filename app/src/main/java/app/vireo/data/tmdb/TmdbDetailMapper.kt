@@ -56,6 +56,9 @@ internal object TmdbDetailMapper {
                     )
                 }
                 .toList(),
+            imdbId = dto.externalIds?.imdbId?.trim()
+                ?.takeIf { Regex("(?i)^tt[0-9]{5,12}$").matches(it) }
+                ?.lowercase(),
         )
     }
 

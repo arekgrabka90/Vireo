@@ -19,6 +19,8 @@ class XtreamContentIndexMapperTest {
                 categoryId = "5",
                 rating = "8.1",
                 streamUrl = "https://example.test/movie/user/password/42.mp4",
+                tmdbId = 123,
+                imdbId = "TT1234567",
             ),
             indexedAt = 1234L,
         )
@@ -28,6 +30,8 @@ class XtreamContentIndexMapperTest {
         assertEquals("42", result?.streamId)
         assertEquals("dune", result?.normalizedTitle)
         assertEquals(2021, result?.year)
+        assertEquals(123, result?.tmdbId)
+        assertEquals("tt1234567", result?.imdbId)
         assertEquals(1234L, result?.indexedAt)
     }
 

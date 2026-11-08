@@ -58,7 +58,7 @@ class TmdbApi @Inject constructor(
     ): TmdbDetailDto {
         require(id > 0) { "TMDB ID must be positive." }
         val request = request(endpoint, language) {
-            addQueryParameter("append_to_response", "credits")
+            addQueryParameter("append_to_response", "credits,external_ids")
         }
         return json.decodeFromString(execute(request))
     }

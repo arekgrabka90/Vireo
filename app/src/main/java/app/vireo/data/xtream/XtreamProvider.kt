@@ -25,6 +25,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 
+private val IMDb_ID_PATTERN = Regex("(?i)^tt[0-9]{5,12}$")
+
 class XtreamProvider(
     server: String,
     private val username: String,
@@ -85,6 +87,10 @@ class XtreamProvider(
                 categoryId = o.str("category_id"),
                 rating = o.str("rating"),
                 streamUrl = "$base/movie/$username/$password/$id.$ext",
+                tmdbId = o.firstInt("tmdb_id", "tmdb", "tmdbid")?.takeIf { it > 0 },
+                imdbId = o.firstString("imdb_id", "imdb", "imdbid")
+                    ?.takeIf { IMDb_ID_PATTERN.matches(it) }
+                    ?.lowercase(),
             )
         }
     }
@@ -98,6 +104,10 @@ class XtreamProvider(
                 posterUrl = o.str("cover"),
                 categoryId = o.str("category_id"),
                 rating = o.str("rating"),
+                tmdbId = o.firstInt("tmdb_id", "tmdb", "tmdbid")?.takeIf { it > 0 },
+                imdbId = o.firstString("imdb_id", "imdb", "imdbid")
+                    ?.takeIf { IMDb_ID_PATTERN.matches(it) }
+                    ?.lowercase(),
             )
         }
     }
@@ -218,6 +228,12 @@ class XtreamProvider(
 
     private fun JsonObject.str(key: String): String? =
         (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+
+    private fun JsonObject.firstString(vararg keys: String): String? =
+        keys.firstNotNullOfOrNull { key -> str(key)?.trim()?.takeIf { it.isNotEmpty() } }
+
+    private fun JsonObject.firstInt(vararg keys: String): Int? =
+        firstString(*keys)?.toIntOrNull()
 
     private fun JsonObject.firstUrl(key: String): String? = when (val v = this[key]) {
         is JsonArray -> v.firstNotNullOfOrNull { el ->

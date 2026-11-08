@@ -29,5 +29,17 @@ class PlayerViewModel @Inject constructor(
         _state.value = PlayerUiState(item = n, hasNext = session.hasNext())
     }
 
-    fun onError(message: String) = _state.update { st -> st.copy(error = message) }
+    fun onError(message: String) {
+        val withoutUrls = message.replace(
+            Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE),
+            "[ukryty adres strumienia]",
+        )
+        val safeMessage = withoutUrls.replace(
+            Regex(
+                "(?i)(username|user|password|pass|token|api_key)=([^&\\s]+)",
+            ),
+            "$1=[ukryte]",
+        )
+        _state.update { st -> st.copy(error = safeMessage) }
+    }
 }

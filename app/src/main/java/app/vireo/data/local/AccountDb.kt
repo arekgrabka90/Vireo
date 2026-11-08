@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.RoomDatabase
 
 @Entity(tableName = "accounts")
@@ -27,9 +28,15 @@ interface AccountDao {
 
     @Query("DELETE FROM accounts")
     suspend fun clear()
+
+    @Transaction
+    suspend fun replaceAccount(account: AccountEntity) {
+        clear()
+        insert(account)
+    }
 }
 
-@Database(entities = [AccountEntity::class, ProfileEntity::class], version = 2, exportSchema = false)
+@Database(entities = [AccountEntity::class, ProfileEntity::class], version = 3, exportSchema = false)
 abstract class VireoDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun profileDao(): ProfileDao

@@ -117,8 +117,21 @@ fun ProfileEditScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (!state.isNew && state.pin.isEmpty()) {
+                Text(
+                    stringResource(R.string.pin_keep_hint),
+                    color = colors.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else if (!state.pinValid) {
+                Text(
+                    stringResource(R.string.pin_invalid),
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { vm.save(onDone) }, enabled = state.name.isNotBlank()) {
+                Button(onClick = { vm.save(onDone) }, enabled = state.name.isNotBlank() && state.pinValid) {
                     Text(stringResource(R.string.save))
                 }
                 if (!state.isFirst) {

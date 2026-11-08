@@ -112,12 +112,17 @@ fun ProfileSelectScreen(
 
     pinTarget?.let { target ->
         PinDialog(
-            pin = target.pin.orEmpty(),
             onDismiss = { pinTarget = null },
-            onOk = {
-                vm.select(target)
-                pinTarget = null
-                onSelected()
+            onVerify = { entered, result ->
+                vm.verifyPin(target, entered) { valid ->
+                    if (valid) {
+                        vm.select(target)
+                        pinTarget = null
+                        onSelected()
+                    } else {
+                        result(false)
+                    }
+                }
             },
         )
     }
@@ -194,7 +199,10 @@ private fun AddTile(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PinDialog(pin: String, onDismiss: () -> Unit, onOk: () -> Unit) {
+private fun PinDialog(
+    onDismiss: () -> Unit,
+    onVerify: (String, (Boolean) -> Unit) -> Unit,
+) {
     var input by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     AlertDialog(
@@ -218,7 +226,9 @@ private fun PinDialog(pin: String, onDismiss: () -> Unit, onOk: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (input == pin) onOk() else wrong = true }) {
+            TextButton(onClick = {
+                onVerify(input) { valid -> wrong = !valid }
+            }) {
                 Text(stringResource(R.string.confirm))
             }
         },

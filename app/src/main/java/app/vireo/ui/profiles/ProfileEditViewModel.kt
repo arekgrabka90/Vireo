@@ -22,7 +22,10 @@ data class ProfileEditState(
     val kids: Boolean = false,
     val pin: String = "",
     val canDelete: Boolean = false,
-)
+) {
+    val pinValid: Boolean
+        get() = pin.isEmpty() || pin.length == 4
+}
 
 @HiltViewModel
 class ProfileEditViewModel @Inject constructor(
@@ -46,7 +49,7 @@ class ProfileEditViewModel @Inject constructor(
                     name = existing.name,
                     color = existing.color,
                     kids = existing.kids,
-                    pin = existing.pin.orEmpty(),
+                    pin = "",
                     canDelete = count > 1,
                 )
             } else {
@@ -62,7 +65,7 @@ class ProfileEditViewModel @Inject constructor(
 
     fun save(onDone: () -> Unit) {
         val st = _state.value
-        if (st.name.isBlank()) return
+        if (st.name.isBlank() || !st.pinValid) return
         viewModelScope.launch {
             val entity = ProfileEntity(
                 id = id,

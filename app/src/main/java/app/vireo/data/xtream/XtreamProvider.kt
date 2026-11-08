@@ -33,7 +33,7 @@ class XtreamProvider(
 ) : ContentProvider {
 
     private val base: String = server.trim()
-        .let { if (it.startsWith("http://") || it.startsWith("https://")) it else "http://$it" }
+        .let { if (it.startsWith("http://", true) || it.startsWith("https://", true)) it else "https://$it" }
         .trimEnd('/')
 
     override suspend fun authenticate(): Result<AccountInfo> = runCatching {

@@ -61,4 +61,6 @@
     <string name="ph_appearance">Look and feel options.</string>
     <string name="ph_epg">EPG options.</string>
     <string name="ph_parental">Parental control options.</string>
+    <string name="pin_keep_hint">Leave blank to keep the current PIN.</string>
+    <string name="pin_invalid">Enter exactly four digits or leave the field blank.</string>
 </resources>

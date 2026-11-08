@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.ProfileRepository
 import app.vireo.data.local.ProfileEntity
+import kotlinx.coroutines.launch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,5 +37,15 @@ class ProfilesViewModel @Inject constructor(
 
     fun select(profile: ProfileEntity) {
         repo.activeId = profile.id
+    }
+
+    fun verifyPin(
+        profile: ProfileEntity,
+        entered: String,
+        onResult: (Boolean) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onResult(repo.verifyPin(profile, entered))
+        }
     }
 }

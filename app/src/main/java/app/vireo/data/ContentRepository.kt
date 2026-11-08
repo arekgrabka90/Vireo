@@ -3,6 +3,7 @@ package app.vireo.data
 import app.vireo.data.local.AccountDao
 import app.vireo.data.local.AccountEntity
 import app.vireo.data.xtream.XtreamProvider
+import app.vireo.data.security.CryptoManager
 import app.vireo.domain.model.AccountInfo
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
@@ -20,6 +21,7 @@ class ContentRepository @Inject constructor(
     private val dao: AccountDao,
     private val client: OkHttpClient,
     private val json: Json,
+    private val crypto: CryptoManager,
 ) {
     private var cached: ContentProvider? = null
     private val categoryCache = mutableMapOf<ContentType, List<Category>>()
@@ -31,30 +33,41 @@ class ContentRepository @Inject constructor(
 
     suspend fun hasAccount(): Boolean = dao.getActive() != null
 
-    suspend fun activeAccount(): AccountEntity? = dao.getActive()
+    suspend fun activeAccount(): AccountEntity? = dao.getActive()?.copy(password = "")
 
     suspend fun provider(): ContentProvider? {
         cached?.let { return it }
         val account = dao.getActive() ?: return null
-        return XtreamProvider(account.server, account.username, account.password, client, json)
+        return XtreamProvider(account.server, account.username, crypto.decrypt(account.password), client, json)
             .also { cached = it }
     }
 
     suspend fun login(server: String, username: String, password: String): Result<AccountInfo> {
-        val provider = XtreamProvider(server, username.trim(), password, client, json)
-        val result = provider.authenticate()
+        val newProvider = XtreamProvider(server, username.trim(), password, client, json)
+        val result = newProvider.authenticate()
+
         if (result.isSuccess) {
-            dao.clear()
-            clearCaches()
-            dao.insert(
-                AccountEntity(
-                    name = "Xtream",
-                    server = server.trim(),
-                    username = username.trim(),
-                    password = password,
-                ),
+            val encryptedPassword = try {
+                crypto.encrypt(password)
+            } catch (error: Exception) {
+                return Result.failure(error)
+            }
+
+            val account = AccountEntity(
+                name = "Xtream",
+                server = server.trim(),
+                username = username.trim(),
+                password = encryptedPassword,
             )
-            cached = provider
+
+            try {
+                dao.replaceAccount(account)
+            } catch (error: Exception) {
+                return Result.failure(error)
+            }
+
+            clearCaches()
+            cached = newProvider
         }
         return result
     }

@@ -61,4 +61,6 @@
     <string name="ph_appearance">Opcje wyglądu.</string>
     <string name="ph_epg">Opcje EPG.</string>
     <string name="ph_parental">Opcje kontroli rodzicielskiej.</string>
+    <string name="pin_keep_hint">Pozostaw puste, aby zachować obecny PIN.</string>
+    <string name="pin_invalid">Wpisz dokładnie cztery cyfry albo pozostaw pole puste.</string>
 </resources>

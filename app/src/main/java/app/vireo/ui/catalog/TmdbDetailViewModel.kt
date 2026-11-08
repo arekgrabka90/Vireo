@@ -11,6 +11,7 @@ import app.vireo.data.xtream.TmdbXtreamMatchVariant
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.SeriesDetails
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ data class TmdbDetailState(
     val availability: TmdbXtreamAvailability? = null,
     val selectedSeries: SeriesDetails? = null,
     val selectedSourceId: Long? = null,
+    val seriesLoading: Boolean = false,
     val playbackError: String? = null,
     val playbackReady: Boolean = false,
 )
@@ -45,6 +47,8 @@ class TmdbDetailViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(TmdbDetailState())
     val state: StateFlow<TmdbDetailState> = _state.asStateFlow()
+
+    private var seriesLoadJob: Job? = null
 
     init { load() }
 
@@ -99,20 +103,33 @@ class TmdbDetailViewModel @Inject constructor(
     }
 
     fun selectSeriesSource(variant: TmdbXtreamMatchVariant) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(
-                selectedSeries = null,
-                selectedSourceId = variant.sourceId,
-                playbackError = null,
-            )
+        seriesLoadJob?.cancel()
+
+        _state.value = _state.value.copy(
+            selectedSeries = null,
+            selectedSourceId = variant.sourceId,
+            seriesLoading = true,
+            playbackError = null,
+        )
+
+        seriesLoadJob = viewModelScope.launch {
             availabilityRepository.loadSeries(variant)
-                .onSuccess {
-                    _state.value = _state.value.copy(selectedSeries = it)
+                .onSuccess { series ->
+                    if (_state.value.selectedSourceId == variant.sourceId) {
+                        _state.value = _state.value.copy(
+                            selectedSeries = series,
+                            seriesLoading = false,
+                        )
+                    }
                 }
-                .onFailure {
-                    _state.value = _state.value.copy(
-                        playbackError = it.message ?: "Nie udało się pobrać odcinków.",
-                    )
+                .onFailure { error ->
+                    if (_state.value.selectedSourceId == variant.sourceId) {
+                        _state.value = _state.value.copy(
+                            seriesLoading = false,
+                            playbackError = error.message
+                                ?: "Nie udało się pobrać odcinków.",
+                        )
+                    }
                 }
         }
     }

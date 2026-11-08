@@ -223,6 +223,20 @@ fun TmdbDetailScreen(
 
                 state.playbackError?.let { Text(it, color = colors.error) }
 
+                if (state.seriesLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Text(
+                            "Pobieranie odcinków z wybranego źródła...",
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+                }
+
                 state.selectedSeries?.let { series ->
                     Text(
                         "Odcinki — ${series.name}",

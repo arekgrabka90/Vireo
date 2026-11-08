@@ -69,3 +69,76 @@ data class TmdbCatalogPage(
     val hasMore: Boolean
         get() = page < totalPages
 }
+
+@Serializable
+data class TmdbDetailDto(
+    val id: Int = 0,
+    val title: String? = null,
+    val name: String? = null,
+    @SerialName("original_title")
+    val originalTitle: String? = null,
+    @SerialName("original_name")
+    val originalName: String? = null,
+    val overview: String? = null,
+    @SerialName("release_date")
+    val releaseDate: String? = null,
+    @SerialName("first_air_date")
+    val firstAirDate: String? = null,
+    @SerialName("poster_path")
+    val posterPath: String? = null,
+    @SerialName("backdrop_path")
+    val backdropPath: String? = null,
+    @SerialName("vote_average")
+    val voteAverage: Double = 0.0,
+    @SerialName("vote_count")
+    val voteCount: Int = 0,
+    val genres: List<TmdbGenreDto> = emptyList(),
+    val runtime: Int? = null,
+    @SerialName("episode_run_time")
+    val episodeRunTime: List<Int> = emptyList(),
+    val credits: TmdbCreditsDto? = null,
+)
+
+@Serializable
+data class TmdbGenreDto(
+    val id: Int = 0,
+    val name: String = "",
+)
+
+@Serializable
+data class TmdbCreditsDto(
+    val cast: List<TmdbCastDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbCastDto(
+    val id: Int = 0,
+    val name: String = "",
+    val character: String = "",
+    @SerialName("profile_path")
+    val profilePath: String? = null,
+)
+
+data class TmdbCastMember(
+    val id: Int,
+    val name: String,
+    val character: String,
+    val profileUrl: String?,
+)
+
+data class TmdbDetail(
+    val tmdbId: Int,
+    val type: ContentType,
+    val title: String,
+    val originalTitle: String?,
+    val overview: String?,
+    val releaseDate: String?,
+    val year: Int?,
+    val posterUrl: String?,
+    val backdropUrl: String?,
+    val rating: Double?,
+    val voteCount: Int,
+    val genres: List<String>,
+    val runtimeMinutes: Int?,
+    val cast: List<TmdbCastMember>,
+)

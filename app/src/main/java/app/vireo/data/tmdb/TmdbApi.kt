@@ -21,25 +21,23 @@ class TmdbApi @Inject constructor(
     private val client: OkHttpClient,
     private val json: Json,
 ) {
-    suspend fun popularMovies(
-        page: Int,
-        language: String,
-    ): TmdbPageDto = getPopular("movie/popular", page, language)
+    suspend fun popularMovies(page: Int, language: String): TmdbPageDto =
+        getPopular("movie/popular", page, language)
 
-    suspend fun popularSeries(
-        page: Int,
-        language: String,
-    ): TmdbPageDto = getPopular("tv/popular", page, language)
+    suspend fun popularSeries(page: Int, language: String): TmdbPageDto =
+        getPopular("tv/popular", page, language)
 
-    suspend fun trendingMovies(
-        page: Int,
-        language: String,
-    ): TmdbPageDto = getPopular("trending/movie/day", page, language)
+    suspend fun trendingMovies(page: Int, language: String): TmdbPageDto =
+        getPopular("trending/movie/day", page, language)
 
-    suspend fun trendingSeries(
-        page: Int,
-        language: String,
-    ): TmdbPageDto = getPopular("trending/tv/day", page, language)
+    suspend fun trendingSeries(page: Int, language: String): TmdbPageDto =
+        getPopular("trending/tv/day", page, language)
+
+    suspend fun movieDetails(id: Int, language: String): TmdbDetailDto =
+        getDetails("movie/$id", id, language)
+
+    suspend fun seriesDetails(id: Int, language: String): TmdbDetailDto =
+        getDetails("tv/$id", id, language)
 
     private suspend fun getPopular(
         endpoint: String,
@@ -47,7 +45,29 @@ class TmdbApi @Inject constructor(
         language: String,
     ): TmdbPageDto {
         require(page in 1..500) { "TMDB page must be between 1 and 500." }
+        val request = request(endpoint, language) {
+            addQueryParameter("page", page.toString())
+        }
+        return json.decodeFromString(execute(request))
+    }
 
+    private suspend fun getDetails(
+        endpoint: String,
+        id: Int,
+        language: String,
+    ): TmdbDetailDto {
+        require(id > 0) { "TMDB ID must be positive." }
+        val request = request(endpoint, language) {
+            addQueryParameter("append_to_response", "credits")
+        }
+        return json.decodeFromString(execute(request))
+    }
+
+    private fun request(
+        endpoint: String,
+        language: String,
+        configure: okhttp3.HttpUrl.Builder.() -> Unit,
+    ): Request {
         val apiKey = BuildConfig.TMDB_API_KEY.trim()
         check(apiKey.isNotEmpty()) {
             "TMDB API key is not configured. Add TMDB_API_KEY to Gradle properties."
@@ -57,20 +77,17 @@ class TmdbApi @Inject constructor(
             .replace('_', '-')
             .ifBlank { DEFAULT_LANGUAGE }
 
-        val url = "$BASE_URL/$endpoint".toHttpUrl().newBuilder()
+        val builder = "$BASE_URL/$endpoint".toHttpUrl().newBuilder()
             .addQueryParameter("api_key", apiKey)
             .addQueryParameter("language", normalizedLanguage)
-            .addQueryParameter("page", page.toString())
-            .build()
 
-        val request = Request.Builder()
-            .url(url)
+        builder.configure()
+
+        return Request.Builder()
+            .url(builder.build())
             .get()
             .header("Accept", "application/json")
             .build()
-
-        val body = execute(request)
-        return json.decodeFromString<TmdbPageDto>(body)
     }
 
     private suspend fun execute(request: Request): String =

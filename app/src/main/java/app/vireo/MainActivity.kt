@@ -112,9 +112,6 @@ private fun VireoNav() {
             val id = entry.arguments?.getString("id")?.toIntOrNull() ?: 0
             val name = entry.arguments?.getString("name").orEmpty()
             TmdbDetailScreen(
-                type = type,
-                tmdbId = id,
-                name = name,
                 onBack = { nav.popBackStack() },
             )
         }

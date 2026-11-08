@@ -6,6 +6,13 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+val tmdbApiKey = providers.gradleProperty("TMDB_API_KEY")
+    .orElse(providers.environmentVariable("TMDB_API_KEY"))
+    .getOrElse("")
+val escapedTmdbApiKey = tmdbApiKey
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "app.vireo"
     compileSdk = 34
@@ -14,19 +21,43 @@ android {
         applicationId = "app.vireo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
+        versionCode = 1000 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
         versionName = "0.1.0"
+        buildConfigField("String", "TMDB_API_KEY", "\"$escapedTmdbApiKey\"")
+
+    }
+
+
+    signingConfigs {
+        create("stable") {
+            storeFile = file(
+                System.getenv("VIREO_KEYSTORE_PATH")
+                    ?: error("Missing VIREO_KEYSTORE_PATH")
+            )
+            storePassword = System.getenv("VIREO_KEYSTORE_PASSWORD")
+                ?: error("Missing VIREO_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("VIREO_KEY_ALIAS")
+                ?: error("Missing VIREO_KEY_ALIAS")
+            keyPassword = System.getenv("VIREO_KEY_PASSWORD")
+                ?: error("Missing VIREO_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
-        release { isMinifyEnabled = false }
+        debug {
+            signingConfig = signingConfigs.getByName("stable")
+        }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }

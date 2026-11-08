@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Vireo</string>
+    <string name="login_subtitle">Sign in with your Xtream Codes account</string>
+    <string name="server">Server address (e.g. http://host:port)</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="login">Sign in</string>
+    <string name="logout">Sign out</string>
+    <string name="tab_movies">Movies</string>
+    <string name="tab_series">Series</string>
+    <string name="tab_live">Live TV</string>
+    <string name="retry">Retry</string>
+    <string name="empty">No categories</string>
+</resources>

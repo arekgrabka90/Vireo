@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Vireo" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/graphite</item>
+        <item name="android:statusBarColor">@color/graphite</item>
+        <item name="android:navigationBarColor">@color/graphite</item>
+    </style>
+</resources>

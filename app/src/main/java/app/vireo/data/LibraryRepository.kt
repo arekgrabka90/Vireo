@@ -52,6 +52,56 @@ class LibraryRepository @Inject constructor(
         )
     }
 
+    suspend fun isWatchlisted(profileId: Long, contentKey: String): Boolean {
+        if (profileId <= 0L) return false
+        return dao.get(profileId, contentKey)?.watchlisted == true
+    }
+
+    suspend fun setWatchlisted(
+        profileId: Long,
+        contentKey: String,
+        title: String,
+        contentType: String,
+        posterUrl: String?,
+        backdropUrl: String?,
+        enabled: Boolean,
+    ) {
+        if (profileId <= 0L || contentKey.isBlank()) return
+
+        val old = dao.get(profileId, contentKey)
+        dao.upsert(
+            LibraryItemEntity(
+                profileId = profileId,
+                contentKey = contentKey,
+                title = title,
+                contentType = contentType,
+                posterUrl = posterUrl ?: old?.posterUrl,
+                backdropUrl = backdropUrl ?: old?.backdropUrl,
+                positionMs = old?.positionMs ?: 0L,
+                durationMs = old?.durationMs ?: 0L,
+                watchlisted = enabled,
+                watched = old?.watched ?: false,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    suspend fun setWatched(
+        profileId: Long,
+        contentKey: String,
+        watched: Boolean,
+    ) {
+        if (profileId <= 0L) return
+        val old = dao.get(profileId, contentKey) ?: return
+        dao.upsert(
+            old.copy(
+                watched = watched,
+                positionMs = if (watched) 0L else old.positionMs,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
     suspend fun remove(profileId: Long, contentKey: String) {
         dao.delete(profileId, contentKey)
     }

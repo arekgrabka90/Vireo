@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +28,9 @@ import app.vireo.ui.browse.Hero
 import app.vireo.ui.browse.RowData
 import app.vireo.ui.browse.TitleRow
 import app.vireo.ui.components.Wordmark
+import app.vireo.ui.components.PosterCard
+import app.vireo.ui.library.LibraryViewModel
+import app.vireo.ui.library.tmdbTarget
 
 @Composable
 fun HomeScreen(
@@ -34,6 +39,8 @@ fun HomeScreen(
     vm: TmdbHomeViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val libraryVm: LibraryViewModel = hiltViewModel()
+    val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
 
     val movieTitles = state.movies.map { it.toHomeTitle() }
@@ -73,6 +80,56 @@ fun HomeScreen(
                     backdropUrl = heroItem?.backdropUrl,
                     overview = heroItem?.overview,
                 )
+            }
+        }
+
+        val resumable = libraryState.continueWatching.mapNotNull { item ->
+            val target = item.tmdbTarget() ?: return@mapNotNull null
+            Triple(item, target, Title(
+                id = item.contentKey,
+                name = item.title,
+                posterUrl = item.posterUrl,
+                rating = null,
+                type = target.type,
+                categoryId = null,
+            ))
+        }
+
+        if (resumable.isNotEmpty()) {
+            item(key = "continue-watching") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Kontynuuj oglądanie",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.onBackground,
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(resumable, key = { it.first.contentKey }) { entry ->
+                            val item = entry.first
+                            val progress = if (item.durationMs > 0L) {
+                                (item.positionMs.toFloat() / item.durationMs.toFloat())
+                                    .coerceIn(0f, 1f)
+                            } else 0f
+
+                            Column {
+                                PosterCard(
+                                    title = entry.third,
+                                    onClick = {
+                                        onOpenTitle(
+                                            entry.second.type,
+                                            entry.second.id,
+                                            item.title,
+                                        )
+                                    },
+                                )
+                                LinearProgressIndicator(
+                                    progress = progress,
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

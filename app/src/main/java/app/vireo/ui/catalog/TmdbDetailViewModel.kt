@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.tmdb.TmdbDetail
 import app.vireo.data.tmdb.TmdbDetailRepository
+import app.vireo.data.LibraryRepository
+import app.vireo.data.ProfileRepository
 import app.vireo.data.xtream.TmdbXtreamAvailability
 import app.vireo.data.xtream.TmdbXtreamAvailabilityRepository
 import app.vireo.data.xtream.TmdbXtreamMatchVariant
@@ -30,6 +32,7 @@ data class TmdbDetailState(
     val seriesLoading: Boolean = false,
     val playbackError: String? = null,
     val playbackReady: Boolean = false,
+    val inMyList: Boolean = false,
 )
 
 @HiltViewModel
@@ -37,6 +40,8 @@ class TmdbDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: TmdbDetailRepository,
     private val availabilityRepository: TmdbXtreamAvailabilityRepository,
+    private val library: LibraryRepository,
+    private val profiles: ProfileRepository,
 ) : ViewModel() {
     val type: ContentType = runCatching {
         ContentType.valueOf(savedStateHandle.get<String>("type") ?: "MOVIE")
@@ -58,10 +63,13 @@ class TmdbDetailViewModel @Inject constructor(
             _state.value = TmdbDetailState(loading = true)
             repository.details(type, tmdbId)
                 .onSuccess { detail ->
+                    val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
+                    val inMyList = library.isWatchlisted(profiles.activeId, contentKey)
                     _state.value = TmdbDetailState(
                         loading = false,
                         detail = detail,
                         availabilityLoading = true,
+                        inMyList = inMyList,
                     )
                     availabilityRepository.find(detail)
                         .onSuccess { availability ->
@@ -84,6 +92,26 @@ class TmdbDetailViewModel @Inject constructor(
                         error = it.message ?: "Nie udało się pobrać szczegółów TMDB.",
                     )
                 }
+        }
+    }
+
+    fun toggleMyList() {
+        val detail = _state.value.detail ?: return
+        val enabled = !_state.value.inMyList
+        val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
+        val profileId = profiles.activeId
+
+        viewModelScope.launch {
+            library.setWatchlisted(
+                profileId = profileId,
+                contentKey = contentKey,
+                title = detail.title,
+                contentType = detail.type.name,
+                posterUrl = detail.posterUrl,
+                backdropUrl = detail.backdropUrl,
+                enabled = enabled,
+            )
+            _state.value = _state.value.copy(inMyList = enabled)
         }
     }
 

@@ -35,6 +35,7 @@ import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
 import app.vireo.ui.components.PlaceholderScreen
 import app.vireo.ui.home.HomeScreen
+import app.vireo.ui.library.LibraryScreen
 import app.vireo.ui.live.LiveTvScreen
 import app.vireo.ui.more.MoreScreen
 import app.vireo.ui.settings.SettingsScreen
@@ -176,7 +177,7 @@ private fun ShellNavHost(
             SearchScreen(onOpenTitle = onOpenTmdbTitle)
         }
         composable("mylist") {
-            PlaceholderScreen(R.string.nav_mylist, R.string.ph_mylist, "⭐")
+            LibraryScreen(onOpenTitle = onOpenTmdbTitle)
         }
         composable("recordings") {
             PlaceholderScreen(R.string.nav_recordings, R.string.ph_recordings, "⏺️")

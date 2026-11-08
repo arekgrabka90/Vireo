@@ -128,6 +128,15 @@ fun TmdbDetailScreen(
                 }
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Button(onClick = vm::toggleMyList) {
+                    Text(if (state.inMyList) "Usuń z Mojej listy" else "Dodaj do Mojej listy")
+                }
+            }
+
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

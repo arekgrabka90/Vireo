@@ -4,12 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -20,71 +21,85 @@ import app.vireo.R
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
-import app.vireo.ui.browse.BrowseViewModel
 import app.vireo.ui.browse.ErrorBlock
 import app.vireo.ui.browse.Hero
-import app.vireo.ui.browse.NoSourceCard
-import app.vireo.ui.browse.SectionPlaceholder
+import app.vireo.ui.browse.RowData
 import app.vireo.ui.browse.TitleRow
 import app.vireo.ui.components.Wordmark
 
 @Composable
 fun HomeScreen(
-    onOpenCategory: (ContentType, Category) -> Unit,
-    onOpenTitle: (Title) -> Unit,
-    onOpenSources: () -> Unit,
-    vm: BrowseViewModel = hiltViewModel(),
+    onOpenTitle: (ContentType, Int, String) -> Unit,
+    onOpenCatalog: (ContentType) -> Unit,
+    vm: TmdbHomeViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) {
-        vm.ensure(ContentType.MOVIE)
-        vm.ensure(ContentType.SERIES)
-    }
     val colors = MaterialTheme.colorScheme
-    val movieRows = state.rows[ContentType.MOVIE].orEmpty()
-    val seriesRows = state.rows[ContentType.SERIES].orEmpty()
-    val hero = movieRows.firstNotNullOfOrNull { r -> r.titles.firstOrNull { !it.posterUrl.isNullOrBlank() } }
-        ?: seriesRows.firstNotNullOfOrNull { r -> r.titles.firstOrNull { !it.posterUrl.isNullOrBlank() } }
-    val nothingYet = movieRows.isEmpty() && seriesRows.isEmpty()
-    val error = state.errors[ContentType.MOVIE] ?: state.errors[ContentType.SERIES]
+
+    val movieTitles = state.movies.map { it.toHomeTitle() }
+    val seriesTitles = state.series.map { it.toHomeTitle() }
+    val hero = movieTitles.firstOrNull { !it.posterUrl.isNullOrBlank() }
+        ?: seriesTitles.firstOrNull { !it.posterUrl.isNullOrBlank() }
+
+    fun open(title: Title) {
+        val id = title.id.toIntOrNull() ?: return
+        onOpenTitle(title.type, id, title.name)
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item { Wordmark() }
-        when {
-            state.noSource -> item { NoSourceCard(onOpenSources) }
-            nothingYet && state.loading.isNotEmpty() -> item { CircularProgressIndicator() }
-            nothingYet && error != null -> item {
-                ErrorBlock(error) {
-                    vm.retry(ContentType.MOVIE)
-                    vm.retry(ContentType.SERIES)
-                }
+
+        if (state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
+            item { CircularProgressIndicator() }
+        }
+
+        if (state.error != null && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
+            item {
+                ErrorBlock(state.error ?: "TMDB error", vm::refresh)
             }
-            else -> {
-                if (hero != null) item { Hero(hero) }
-                item {
-                    SectionPlaceholder(
-                        stringResource(R.string.continue_watching),
-                        stringResource(R.string.continue_hint),
-                    )
-                }
-                items(movieRows.take(3), key = { "m_" + it.category.id }) { row ->
-                    TitleRow(
-                        row = row,
-                        onSeeAll = { onOpenCategory(ContentType.MOVIE, row.category) },
-                        onTitle = onOpenTitle,
-                    )
-                }
-                items(seriesRows.take(3), key = { "s_" + it.category.id }) { row ->
-                    TitleRow(
-                        row = row,
-                        onSeeAll = { onOpenCategory(ContentType.SERIES, row.category) },
-                        onTitle = onOpenTitle,
-                    )
-                }
+        }
+
+        if (hero != null) {
+            item { Hero(hero) }
+        }
+
+        if (movieTitles.isNotEmpty()) {
+            item {
+                TitleRow(
+                    row = RowData(
+                        Category("tmdb-trending-movies", "Na czasie — Filmy", ContentType.MOVIE),
+                        movieTitles.take(20),
+                    ),
+                    onSeeAll = { onOpenCatalog(ContentType.MOVIE) },
+                    onTitle = ::open,
+                )
+            }
+        }
+
+        if (seriesTitles.isNotEmpty()) {
+            item {
+                TitleRow(
+                    row = RowData(
+                        Category("tmdb-trending-series", "Na czasie — Seriale", ContentType.SERIES),
+                        seriesTitles.take(20),
+                    ),
+                    onSeeAll = { onOpenCatalog(ContentType.SERIES) },
+                    onTitle = ::open,
+                )
+            }
+        }
+
+        if (!state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
+            item {
+                Text(
+                    state.error ?: stringResource(R.string.empty_titles),
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

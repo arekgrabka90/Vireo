@@ -33,7 +33,6 @@ import app.vireo.R
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
-import app.vireo.ui.browse.BrowseScreen
 import app.vireo.ui.components.PlaceholderScreen
 import app.vireo.ui.home.HomeScreen
 import app.vireo.ui.live.LiveTvScreen
@@ -45,8 +44,6 @@ private data class Dest(val route: String, val label: Int, val icon: String)
 
 private val SearchDest = Dest("search", R.string.nav_search, "🔍")
 private val HomeDest = Dest("home", R.string.nav_home, "🏠")
-private val MoviesDest = Dest("movies", R.string.nav_movies, "🎬")
-private val SeriesDest = Dest("series", R.string.nav_series, "🎞️")
 private val LiveDest = Dest("live", R.string.nav_live, "📺")
 private val GuideDest = Dest("guide", R.string.nav_guide, "🗓️")
 private val MyListDest = Dest("mylist", R.string.nav_mylist, "⭐")
@@ -56,18 +53,20 @@ private val MoreDest = Dest("more", R.string.nav_more, "☰")
 
 /** Telewizor/tablet: boczne menu ze wszystkimi sekcjami. */
 private val RailItems = listOf(
-    SearchDest, HomeDest, MoviesDest, SeriesDest, LiveDest,
+    SearchDest, HomeDest, LiveDest,
     GuideDest, MyListDest, RecordingsDest, SettingsDest,
 )
 
 /** Telefon: dolny pasek, reszta sekcji pod "Więcej". */
-private val BottomItems = listOf(HomeDest, MoviesDest, SeriesDest, LiveDest, MoreDest)
+private val BottomItems = listOf(HomeDest, LiveDest, MoreDest)
 private val MoreRoutes = listOf("more", "search", "guide", "mylist", "recordings", "settings")
 
 @Composable
 fun MainShell(
     onOpenCategory: (ContentType, Category) -> Unit,
     onOpenTitle: (Title) -> Unit,
+    onOpenTmdbTitle: (ContentType, Int, String) -> Unit,
+    onOpenTmdbCatalog: (ContentType) -> Unit,
     onSwitchProfile: () -> Unit,
 ) {
     val inner = rememberNavController()
@@ -116,13 +115,15 @@ fun MainShell(
                 }
             }
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                ShellNavHost(inner, go, onOpenCategory, onOpenTitle, onSwitchProfile)
+                ShellNavHost(inner, go, onOpenCategory, onOpenTitle,
+                    onOpenTmdbTitle, onOpenTmdbCatalog, onSwitchProfile)
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                ShellNavHost(inner, go, onOpenCategory, onOpenTitle, onSwitchProfile)
+                ShellNavHost(inner, go, onOpenCategory, onOpenTitle,
+                    onOpenTmdbTitle, onOpenTmdbCatalog, onSwitchProfile)
             }
             NavigationBar(containerColor = colors.surface) {
                 BottomItems.forEach { d ->
@@ -150,6 +151,8 @@ private fun ShellNavHost(
     go: (String) -> Unit,
     onOpenCategory: (ContentType, Category) -> Unit,
     onOpenTitle: (Title) -> Unit,
+    onOpenTmdbTitle: (ContentType, Int, String) -> Unit,
+    onOpenTmdbCatalog: (ContentType) -> Unit,
     onSwitchProfile: () -> Unit,
 ) {
     val openSources: () -> Unit = { inner.navigate("settings/sources") }
@@ -157,13 +160,10 @@ private fun ShellNavHost(
 
     NavHost(navController = inner, startDestination = "home") {
         composable("home") {
-            HomeScreen(onOpenCategory, onOpenTitle, openSources)
-        }
-        composable("movies") {
-            BrowseScreen(ContentType.MOVIE, onOpenCategory, onOpenTitle, openSources)
-        }
-        composable("series") {
-            BrowseScreen(ContentType.SERIES, onOpenCategory, onOpenTitle, openSources)
+            HomeScreen(
+                onOpenTitle = onOpenTmdbTitle,
+                onOpenCatalog = onOpenTmdbCatalog,
+            )
         }
         composable("live") {
             LiveTvScreen(onOpenCategory, openSources)

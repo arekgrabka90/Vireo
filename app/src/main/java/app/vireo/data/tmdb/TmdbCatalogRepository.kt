@@ -10,10 +10,13 @@ import javax.inject.Singleton
 class TmdbCatalogRepository @Inject constructor(
     private val api: TmdbApi,
 ) {
+    private enum class CatalogKind { POPULAR, TRENDING }
+
     private data class CacheKey(
         val type: ContentType,
         val page: Int,
         val language: String,
+        val kind: CatalogKind,
     )
 
     private data class CacheEntry(
@@ -26,12 +29,14 @@ class TmdbCatalogRepository @Inject constructor(
     suspend fun popularMovies(
         page: Int = 1,
         language: String = DEFAULT_LANGUAGE,
-    ): Result<TmdbCatalogPage> = load(ContentType.MOVIE, page, language)
+    ): Result<TmdbCatalogPage> =
+        load(ContentType.MOVIE, page, language, CatalogKind.POPULAR)
 
     suspend fun popularSeries(
         page: Int = 1,
         language: String = DEFAULT_LANGUAGE,
-    ): Result<TmdbCatalogPage> = load(ContentType.SERIES, page, language)
+    ): Result<TmdbCatalogPage> =
+        load(ContentType.SERIES, page, language, CatalogKind.POPULAR)
 
     suspend fun popular(
         type: ContentType,
@@ -43,7 +48,20 @@ class TmdbCatalogRepository @Inject constructor(
                 IllegalArgumentException("TMDB catalog supports movies and series, not Live TV.")
             )
         }
-        return load(type, page, language)
+        return load(type, page, language, CatalogKind.POPULAR)
+    }
+
+    suspend fun trending(
+        type: ContentType,
+        page: Int = 1,
+        language: String = DEFAULT_LANGUAGE,
+    ): Result<TmdbCatalogPage> {
+        if (type == ContentType.LIVE) {
+            return Result.failure(
+                IllegalArgumentException("TMDB catalog supports movies and series, not Live TV.")
+            )
+        }
+        return load(type, page, language, CatalogKind.TRENDING)
     }
 
     fun clearCache() {
@@ -54,6 +72,7 @@ class TmdbCatalogRepository @Inject constructor(
         type: ContentType,
         page: Int,
         language: String,
+        kind: CatalogKind,
     ): Result<TmdbCatalogPage> {
         if (page !in 1..500) {
             return Result.failure(
@@ -65,7 +84,7 @@ class TmdbCatalogRepository @Inject constructor(
             .replace('_', '-')
             .ifBlank { DEFAULT_LANGUAGE }
 
-        val key = CacheKey(type, page, normalizedLanguage)
+        val key = CacheKey(type, page, normalizedLanguage, kind)
         val now = System.currentTimeMillis()
 
         cache[key]?.let { entry ->
@@ -76,10 +95,17 @@ class TmdbCatalogRepository @Inject constructor(
         }
 
         return try {
-            val response = when (type) {
-                ContentType.MOVIE -> api.popularMovies(page, normalizedLanguage)
-                ContentType.SERIES -> api.popularSeries(page, normalizedLanguage)
-                ContentType.LIVE -> error("Unsupported TMDB content type.")
+            val response = when (kind) {
+                CatalogKind.POPULAR -> when (type) {
+                    ContentType.MOVIE -> api.popularMovies(page, normalizedLanguage)
+                    ContentType.SERIES -> api.popularSeries(page, normalizedLanguage)
+                    ContentType.LIVE -> error("Unsupported TMDB content type.")
+                }
+                CatalogKind.TRENDING -> when (type) {
+                    ContentType.MOVIE -> api.trendingMovies(page, normalizedLanguage)
+                    ContentType.SERIES -> api.trendingSeries(page, normalizedLanguage)
+                    ContentType.LIVE -> error("Unsupported TMDB content type.")
+                }
             }
 
             val result = TmdbCatalogPage(

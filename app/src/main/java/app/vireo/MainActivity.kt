@@ -12,6 +12,9 @@ import androidx.navigation.compose.rememberNavController
 import app.vireo.domain.model.Title
 import app.vireo.player.PlayerScreen
 import app.vireo.ui.detail.DetailScreen
+import app.vireo.ui.catalog.TmdbCatalogScreen
+import app.vireo.ui.catalog.TmdbDetailScreen
+import app.vireo.domain.model.ContentType
 import app.vireo.ui.list.TitleListScreen
 import app.vireo.ui.profiles.ProfileEditScreen
 import app.vireo.ui.profiles.ProfileSelectScreen
@@ -69,6 +72,12 @@ private fun VireoNav() {
                     nav.navigate("list/${type.name}/${Uri.encode(category.id)}/${Uri.encode(category.name)}")
                 },
                 onOpenTitle = { t -> nav.openDetail(t) },
+                onOpenTmdbTitle = { type, id, name ->
+                    nav.navigate("tmdb_detail/${type.name}/$id/${Uri.encode(name)}")
+                },
+                onOpenTmdbCatalog = { type ->
+                    nav.navigate("tmdb_catalog/${type.name}")
+                },
                 onSwitchProfile = {
                     nav.navigate("profiles") { popUpTo("main") { inclusive = true } }
                 },
@@ -85,6 +94,28 @@ private fun VireoNav() {
             DetailScreen(
                 onBack = { nav.popBackStack() },
                 onPlay = { nav.navigate("player") },
+            )
+        }
+
+        composable("tmdb_catalog/{type}") {
+            TmdbCatalogScreen(
+                onBack = { nav.popBackStack() },
+                onOpenTitle = { type, id, name ->
+                    nav.navigate("tmdb_detail/${type.name}/$id/${Uri.encode(name)}")
+                },
+            )
+        }
+        composable("tmdb_detail/{type}/{id}/{name}") { entry ->
+            val type = runCatching {
+                ContentType.valueOf(entry.arguments?.getString("type") ?: "MOVIE")
+            }.getOrDefault(ContentType.MOVIE)
+            val id = entry.arguments?.getString("id")?.toIntOrNull() ?: 0
+            val name = entry.arguments?.getString("name").orEmpty()
+            TmdbDetailScreen(
+                type = type,
+                tmdbId = id,
+                name = name,
+                onBack = { nav.popBackStack() },
             )
         }
         composable("player") {

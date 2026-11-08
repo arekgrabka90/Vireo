@@ -31,6 +31,16 @@ class TmdbApi @Inject constructor(
         language: String,
     ): TmdbPageDto = getPopular("tv/popular", page, language)
 
+    suspend fun trendingMovies(
+        page: Int,
+        language: String,
+    ): TmdbPageDto = getPopular("trending/movie/day", page, language)
+
+    suspend fun trendingSeries(
+        page: Int,
+        language: String,
+    ): TmdbPageDto = getPopular("trending/tv/day", page, language)
+
     private suspend fun getPopular(
         endpoint: String,
         page: Int,

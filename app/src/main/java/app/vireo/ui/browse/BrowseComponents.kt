@@ -57,9 +57,10 @@ fun Hero(
     val colors = MaterialTheme.colorScheme
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val heroHeight = when {
-        screenWidth >= 1200 -> 430.dp
-        screenWidth >= 840 -> 370.dp
-        else -> 300.dp
+        screenWidth >= 1200 -> 500.dp
+        screenWidth >= 840 -> 460.dp
+        screenWidth >= 600 -> 410.dp
+        else -> 350.dp
     }
     val interaction = onClick?.let { action ->
         Modifier.clickable(onClick = action)
@@ -68,7 +69,6 @@ fun Hero(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight)
-            .clip(RoundedCornerShape(20.dp))
             .background(colors.surfaceVariant)
             .then(interaction),
     ) {
@@ -151,11 +151,19 @@ fun Hero(
 }
 
 @Composable
-fun TitleRow(row: RowData, onSeeAll: () -> Unit, onTitle: (Title) -> Unit) {
+fun TitleRow(
+    row: RowData,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 20.dp,
+    onSeeAll: () -> Unit,
+    onTitle: (Title) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding)
+                .padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -175,10 +183,11 @@ fun TitleRow(row: RowData, onSeeAll: () -> Unit, onTitle: (Title) -> Unit) {
             }
         }
         LazyRow(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(
-                start = 6.dp,
-                end = 28.dp,
+                start = horizontalPadding + 6.dp,
+                end = horizontalPadding + 20.dp,
                 top = 10.dp,
                 bottom = 14.dp,
             ),

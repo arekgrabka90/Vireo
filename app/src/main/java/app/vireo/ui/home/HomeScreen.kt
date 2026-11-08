@@ -2,6 +2,7 @@ package app.vireo.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -123,20 +124,41 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(
-            horizontal = horizontalPadding,
             vertical = if (screenWidth < 600) 16.dp else 24.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        item { Wordmark() }
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = horizontalPadding),
+            ) {
+                Wordmark()
+            }
+        }
 
         if (state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
-            item { CircularProgressIndicator() }
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalPadding),
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
         }
 
         if (state.error != null && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
             item {
-                ErrorBlock(state.error ?: "TMDB error", vm::refresh)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalPadding),
+                ) {
+                    ErrorBlock(state.error ?: "TMDB error", vm::refresh)
+                }
             }
         }
 
@@ -182,12 +204,14 @@ fun HomeScreen(
                         "Kontynuuj oglądanie",
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.onBackground,
+                        modifier = Modifier.padding(horizontal = horizontalPadding),
                     )
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(
-                            start = 6.dp,
-                            end = 28.dp,
+                            start = horizontalPadding + 6.dp,
+                            end = horizontalPadding + 20.dp,
                             top = 8.dp,
                             bottom = 14.dp,
                         ),
@@ -232,12 +256,14 @@ fun HomeScreen(
                         "Moja lista",
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.onBackground,
+                        modifier = Modifier.padding(horizontal = horizontalPadding),
                     )
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(
-                            start = 6.dp,
-                            end = 28.dp,
+                            start = horizontalPadding + 6.dp,
+                            end = horizontalPadding + 20.dp,
                             top = 8.dp,
                             bottom = 14.dp,
                         ),
@@ -269,6 +295,7 @@ fun HomeScreen(
                         Category("tmdb-trending-movies", "Na czasie — Filmy", ContentType.MOVIE),
                         movieTitles.take(20),
                     ),
+                    horizontalPadding = horizontalPadding,
                     onSeeAll = { onOpenCatalog(ContentType.MOVIE) },
                     onTitle = ::open,
                 )
@@ -282,6 +309,7 @@ fun HomeScreen(
                         Category("tmdb-trending-series", "Na czasie — Seriale", ContentType.SERIES),
                         seriesTitles.take(20),
                     ),
+                    horizontalPadding = horizontalPadding,
                     onSeeAll = { onOpenCatalog(ContentType.SERIES) },
                     onTitle = ::open,
                 )
@@ -293,7 +321,9 @@ fun HomeScreen(
                 Text(
                     state.error ?: stringResource(R.string.empty_titles),
                     color = colors.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalPadding),
                 )
             }
         }

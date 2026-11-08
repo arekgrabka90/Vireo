@@ -115,8 +115,12 @@ class TmdbCatalogRepository @Inject constructor(
                 totalResults = response.totalResults,
             )
 
-            cache[key] = CacheEntry(result, System.currentTimeMillis())
-            trimCache()
+            // Nie przechowujemy pustych odpowiedzi:
+            // kolejna próba może wtedy ponownie pobrać katalog.
+            if (result.items.isNotEmpty()) {
+                cache[key] = CacheEntry(result, System.currentTimeMillis())
+                trimCache()
+            }
 
             Result.success(result)
         } catch (cancelled: CancellationException) {

@@ -74,7 +74,7 @@ class XtreamProvider(
     }
 
     override suspend fun movies(categoryId: String?): Result<List<Movie>> = runCatching {
-        fetch("get_vod_streams", categoryParams(categoryId)).objects().mapNotNull { o ->
+        fetch("get_vod_streams", categoryParams(categoryId)).strictObjects().mapNotNull { o ->
             val id = o.str("stream_id") ?: return@mapNotNull null
             val ext = o.str("container_extension") ?: "mp4"
             Movie(
@@ -89,7 +89,7 @@ class XtreamProvider(
     }
 
     override suspend fun series(categoryId: String?): Result<List<Series>> = runCatching {
-        fetch("get_series", categoryParams(categoryId)).objects().mapNotNull { o ->
+        fetch("get_series", categoryParams(categoryId)).strictObjects().mapNotNull { o ->
             val id = o.str("series_id") ?: return@mapNotNull null
             Series(
                 id = id,
@@ -191,6 +191,15 @@ class XtreamProvider(
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             json.parseToJsonElement(resp.body?.string().orEmpty())
         }
+    }
+
+    private fun JsonElement.strictObjects(): List<JsonObject> {
+        val array = this as? JsonArray
+            ?: throw IOException("Invalid Xtream list response")
+        if (array.any { it !is JsonObject }) {
+            throw IOException("Invalid Xtream list response")
+        }
+        return array.map { it as JsonObject }
     }
 
     private fun JsonElement.objects(): List<JsonObject> =

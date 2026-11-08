@@ -4,6 +4,9 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.OnConflictStrategy
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
@@ -94,10 +97,20 @@ interface AccountDao {
     }
 }
 
-@Database(entities = [AccountEntity::class, ProfileEntity::class], version = 4, exportSchema = false)
+@Database(
+    entities = [
+        AccountEntity::class,
+        ProfileEntity::class,
+        XtreamContentIndexEntity::class,
+        CatalogSyncStateEntity::class,
+    ],
+    version = 5,
+    exportSchema = false,
+)
 abstract class VireoDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun profileDao(): ProfileDao
+    abstract fun xtreamContentIndexDao(): XtreamContentIndexDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -111,6 +124,55 @@ abstract class VireoDatabase : RoomDatabase() {
                 db.execSQL(
                     "UPDATE accounts SET isActive = 1 " +
                         "WHERE id = (SELECT id FROM accounts ORDER BY id DESC LIMIT 1)"
+                )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS xtream_content_index (
+                        sourceId INTEGER NOT NULL,
+                        contentType TEXT NOT NULL,
+                        streamId TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        normalizedTitle TEXT NOT NULL,
+                        year INTEGER,
+                        posterUrl TEXT,
+                        categoryId TEXT,
+                        indexedAt INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, contentType, streamId),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_content_index_sourceId_contentType " +
+                        "ON xtream_content_index(sourceId, contentType)"
+                )
+
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_content_index_normalizedTitle_year_contentType " +
+                        "ON xtream_content_index(normalizedTitle, year, contentType)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS catalog_sync_state (
+                        sourceId INTEGER NOT NULL,
+                        contentType TEXT NOT NULL,
+                        lastSuccessfulSyncAt INTEGER NOT NULL,
+                        itemCount INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, contentType),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
                 )
             }
         }

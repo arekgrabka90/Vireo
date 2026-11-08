@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import app.vireo.data.local.AccountDao
 import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.VireoDatabase
+import app.vireo.data.local.XtreamContentIndexDao
 import app.vireo.data.security.CryptoManager
 import dagger.Module
 import dagger.Provides
@@ -47,6 +48,7 @@ object AppModule {
             .addMigrations(
                 migration2To3(crypto),
                 VireoDatabase.MIGRATION_3_4,
+                VireoDatabase.MIGRATION_4_5,
             )
             .build()
 
@@ -89,4 +91,8 @@ object AppModule {
 
     @Provides
     fun profileDao(db: VireoDatabase): ProfileDao = db.profileDao()
+
+    @Provides
+    fun xtreamContentIndexDao(db: VireoDatabase): XtreamContentIndexDao =
+        db.xtreamContentIndexDao()
 }

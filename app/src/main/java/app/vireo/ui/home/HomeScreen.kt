@@ -13,9 +13,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -34,6 +39,7 @@ import app.vireo.ui.components.Wordmark
 import app.vireo.ui.components.PosterCard
 import app.vireo.ui.library.LibraryViewModel
 import app.vireo.ui.library.tmdbTarget
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -67,10 +73,34 @@ fun HomeScreen(
             categoryId = null,
         )
     }
-    val heroItem = state.movies.firstOrNull { !it.backdropUrl.isNullOrBlank() }
-        ?: state.series.firstOrNull { !it.backdropUrl.isNullOrBlank() }
-        ?: state.movies.firstOrNull { !it.posterUrl.isNullOrBlank() }
-        ?: state.series.firstOrNull { !it.posterUrl.isNullOrBlank() }
+    val allTrending = (state.movies + state.series)
+        .distinctBy { "${it.type.name}:${it.tmdbId}" }
+
+    val heroItems = allTrending
+        .filter { !it.backdropUrl.isNullOrBlank() }
+        .sortedByDescending { it.popularity }
+        .take(5)
+        .ifEmpty {
+            allTrending
+                .filter { !it.posterUrl.isNullOrBlank() }
+                .sortedByDescending { it.popularity }
+                .take(5)
+        }
+
+    val heroKeys = heroItems.map { "${it.type.name}:${it.tmdbId}" }
+    val heroIndex = remember(heroKeys) { mutableIntStateOf(0) }
+
+    LaunchedEffect(heroKeys) {
+        if (heroKeys.size > 1) {
+            while (true) {
+                delay(10_000L)
+                heroIndex.intValue =
+                    (heroIndex.intValue + 1) % heroKeys.size
+            }
+        }
+    }
+
+    val heroItem = heroItems.getOrNull(heroIndex.intValue)
     val hero = heroItem?.toHomeTitle()
 
     fun open(title: Title) {
@@ -98,14 +128,26 @@ fun HomeScreen(
             }
         }
 
-        if (hero != null) {
-            item {
-                Hero(
-                    title = hero,
-                    backdropUrl = heroItem?.backdropUrl,
-                    overview = heroItem?.overview,
-                    onClick = { open(hero) },
-                )
+        if (hero != null && heroItem != null) {
+            item(key = "home-cinematic-hero") {
+                Crossfade(
+                    targetState = heroIndex.intValue,
+                    animationSpec = tween(durationMillis = 1000),
+                    label = "home-hero-crossfade",
+                ) { index ->
+                    val activeItem = heroItems.getOrNull(index)
+                    if (activeItem != null) {
+                        val activeTitle = activeItem.toHomeTitle()
+                        Hero(
+                            title = activeTitle,
+                            backdropUrl = activeItem.backdropUrl,
+                            overview = activeItem.overview,
+                            position = index + 1,
+                            total = heroItems.size,
+                            onClick = { open(activeTitle) },
+                        )
+                    }
+                }
             }
         }
 

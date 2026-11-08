@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,16 +50,24 @@ fun Hero(
     title: Title,
     backdropUrl: String? = null,
     overview: String? = null,
+    position: Int = 1,
+    total: Int = 1,
     onClick: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+    val heroHeight = when {
+        screenWidth >= 1200 -> 430.dp
+        screenWidth >= 840 -> 370.dp
+        else -> 300.dp
+    }
     val interaction = onClick?.let { action ->
         Modifier.clickable(onClick = action)
     } ?: Modifier
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
+            .height(heroHeight)
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surfaceVariant)
             .then(interaction),
@@ -89,6 +99,11 @@ fun Hero(
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
+                "TOP 5  ·  $position / $total",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.78f),
+            )
+            Text(
                 title.name,
                 style = MaterialTheme.typography.headlineMedium,
                 color = colors.onBackground,
@@ -107,7 +122,29 @@ fun Hero(
             }
             val rating = title.rating?.takeIf { it.isNotBlank() && it != "0" }
             if (rating != null) {
-                Text("★ $rating", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+                Text(
+                    "★ $rating",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.9f),
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(total.coerceAtMost(5)) { index ->
+                    Box(
+                        modifier = Modifier
+                            .width(if (index == position - 1) 24.dp else 8.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                if (index == position - 1) Color.White
+                                else Color.White.copy(alpha = 0.42f)
+                            ),
+                    )
+                }
             }
         }
     }

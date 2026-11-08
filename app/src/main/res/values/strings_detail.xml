@@ -1,0 +1,7 @@
+<resources>
+    <string name="play">Play</string>
+    <string name="season">Season %1$d</string>
+    <string name="cast">Cast: %1$s</string>
+    <string name="director">Director: %1$s</string>
+    <string name="next_episode">Next</string>
+</resources>

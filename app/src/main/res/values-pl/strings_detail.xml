@@ -1,0 +1,7 @@
+<resources>
+    <string name="play">Odtwórz</string>
+    <string name="season">Sezon %1$d</string>
+    <string name="cast">Obsada: %1$s</string>
+    <string name="director">Reżyseria: %1$s</string>
+    <string name="next_episode">Następny</string>
+</resources>

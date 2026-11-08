@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +44,8 @@ fun PosterCard(
     title: Title,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    topProgress: Float? = null,
+    belowPosterText: String? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -87,6 +90,16 @@ fun PosterCard(
                     onClick = onClick,
                 ),
         ) {
+            if (topProgress != null) {
+                LinearProgressIndicator(
+                    progress = topProgress.coerceIn(0f, 1f),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(4.dp),
+                )
+            }
+
             if (!title.posterUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = title.posterUrl,
@@ -103,7 +116,19 @@ fun PosterCard(
                 )
             }
         }
-        Spacer(Modifier.height(7.dp))
+        if (!belowPosterText.isNullOrBlank()) {
+            Text(
+                belowPosterText,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(3.dp))
+        } else {
+            Spacer(Modifier.height(7.dp))
+        }
+
         Text(
             title.name,
             style = MaterialTheme.typography.labelLarge,

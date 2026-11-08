@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Text
@@ -40,6 +39,19 @@ import app.vireo.ui.components.PosterCard
 import app.vireo.ui.library.LibraryViewModel
 import app.vireo.ui.library.tmdbTarget
 import kotlinx.coroutines.delay
+
+private fun formatRemainingDuration(durationMs: Long): String {
+    val totalMinutes = ((durationMs + 59_999L) / 60_000L)
+        .coerceAtLeast(0L)
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+
+    return when {
+        hours > 0L && minutes > 0L -> "$hours godz. $minutes min"
+        hours > 0L -> "$hours godz."
+        else -> "$minutes min"
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -187,22 +199,26 @@ fun HomeScreen(
                                     .coerceIn(0f, 1f)
                             } else 0f
 
-                            Column {
-                                PosterCard(
-                                    title = entry.third,
-                                    onClick = {
-                                        onOpenTitle(
-                                            entry.second.type,
-                                            entry.second.id,
-                                            item.title,
-                                        )
-                                    },
-                                )
-                                LinearProgressIndicator(
-                                    progress = progress,
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                )
+                            val remainingMs = (item.durationMs - item.positionMs)
+                                .coerceAtLeast(0L)
+                            val remainingText = if (item.durationMs > 0L) {
+                                "Pozostało ${formatRemainingDuration(remainingMs)}"
+                            } else {
+                                null
                             }
+
+                            PosterCard(
+                                title = entry.third,
+                                topProgress = progress,
+                                belowPosterText = remainingText,
+                                onClick = {
+                                    onOpenTitle(
+                                        entry.second.type,
+                                        entry.second.id,
+                                        item.title,
+                                    )
+                                },
+                            )
                         }
                     }
                 }

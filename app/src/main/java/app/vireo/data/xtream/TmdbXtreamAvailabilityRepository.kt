@@ -29,9 +29,13 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             error("Nieobsługiwany typ treści.")
         }
 
-        // Odśwież indeksy przed wyszukiwaniem. Polityka TTL zapobiega
-        // niepotrzebnym pobraniom, a raport ujawnia nieosiągalne źródła.
-        val syncReport = indexRepository.syncAll()
+        // Odśwież wyłącznie indeks odpowiadający aktualnemu typowi TMDB.
+        // Polityka TTL ogranicza pobrania, a raport ujawnia niedostępne źródła.
+        val syncReport = when (detail.type) {
+            ContentType.MOVIE -> indexRepository.syncMovies()
+            ContentType.SERIES -> indexRepository.syncSeries()
+            ContentType.LIVE -> error("Nieobsługiwany typ treści.")
+        }
 
         val candidates = linkedMapOf<Pair<Long, String>, app.vireo.data.local.XtreamContentIndexEntity>()
 

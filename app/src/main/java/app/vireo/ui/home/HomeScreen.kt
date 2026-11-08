@@ -2,103 +2,88 @@ package app.vireo.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
+import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
-import app.vireo.ui.components.FocusableBox
-
-private fun ContentType.labelRes(): Int = when (this) {
-    ContentType.MOVIE -> R.string.tab_movies
-    ContentType.SERIES -> R.string.tab_series
-    ContentType.LIVE -> R.string.tab_live
-}
+import app.vireo.domain.model.Title
+import app.vireo.ui.browse.BrowseViewModel
+import app.vireo.ui.browse.ErrorBlock
+import app.vireo.ui.browse.Hero
+import app.vireo.ui.browse.NoSourceCard
+import app.vireo.ui.browse.SectionPlaceholder
+import app.vireo.ui.browse.TitleRow
+import app.vireo.ui.components.Wordmark
 
 @Composable
 fun HomeScreen(
-    onLogout: () -> Unit,
-    vm: HomeViewModel = hiltViewModel(),
+    onOpenCategory: (ContentType, Category) -> Unit,
+    onOpenTitle: (Title) -> Unit,
+    onOpenSources: () -> Unit,
+    vm: BrowseViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        vm.ensure(ContentType.MOVIE)
+        vm.ensure(ContentType.SERIES)
+    }
     val colors = MaterialTheme.colorScheme
+    val movieRows = state.rows[ContentType.MOVIE].orEmpty()
+    val seriesRows = state.rows[ContentType.SERIES].orEmpty()
+    val hero = movieRows.firstNotNullOfOrNull { r -> r.titles.firstOrNull { !it.posterUrl.isNullOrBlank() } }
+        ?: seriesRows.firstNotNullOfOrNull { r -> r.titles.firstOrNull { !it.posterUrl.isNullOrBlank() } }
+    val nothingYet = movieRows.isEmpty() && seriesRows.isEmpty()
+    val error = state.errors[ContentType.MOVIE] ?: state.errors[ContentType.SERIES]
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = 32.dp, vertical = 24.dp),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(colors.background),
+        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Vireo",
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.primary,
-                modifier = Modifier.weight(1f),
-            )
-            FocusableBox(onClick = { vm.logout(onLogout) }) {
-                Text(stringResource(R.string.logout), color = colors.onSurface)
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(ContentType.MOVIE, ContentType.SERIES, ContentType.LIVE).forEach { type ->
-                FocusableBox(onClick = { vm.selectTab(type) }, selected = state.tab == type) {
-                    Text(stringResource(type.labelRes()), color = colors.onSurface)
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-
-        val error = state.error
+        item { Wordmark() }
         when {
-            state.loading -> CircularProgressIndicator()
-            error != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(error, color = colors.error)
-                FocusableBox(onClick = vm::load) {
-                    Text(stringResource(R.string.retry), color = colors.onSurface)
+            state.noSource -> item { NoSourceCard(onOpenSources) }
+            nothingYet && state.loading.isNotEmpty() -> item { CircularProgressIndicator() }
+            nothingYet && error != null -> item {
+                ErrorBlock(error) {
+                    vm.retry(ContentType.MOVIE)
+                    vm.retry(ContentType.SERIES)
                 }
             }
             else -> {
-                val categories = state.categories[state.tab].orEmpty()
-                if (categories.isEmpty()) {
-                    Text(stringResource(R.string.empty), color = colors.onSurfaceVariant)
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(220.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(categories, key = { it.id }) { category ->
-                            FocusableBox(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    category.name,
-                                    color = colors.onSurface,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
+                if (hero != null) item { Hero(hero) }
+                item {
+                    SectionPlaceholder(
+                        stringResource(R.string.continue_watching),
+                        stringResource(R.string.continue_hint),
+                    )
+                }
+                items(movieRows.take(3), key = { "m_" + it.category.id }) { row ->
+                    TitleRow(
+                        row = row,
+                        onSeeAll = { onOpenCategory(ContentType.MOVIE, row.category) },
+                        onTitle = onOpenTitle,
+                    )
+                }
+                items(seriesRows.take(3), key = { "s_" + it.category.id }) { row ->
+                    TitleRow(
+                        row = row,
+                        onSeeAll = { onOpenCategory(ContentType.SERIES, row.category) },
+                        onTitle = onOpenTitle,
+                    )
                 }
             }
         }

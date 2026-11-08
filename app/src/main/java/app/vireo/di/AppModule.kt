@@ -3,6 +3,7 @@ package app.vireo.di
 import android.content.Context
 import androidx.room.Room
 import app.vireo.data.local.AccountDao
+import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.VireoDatabase
 import dagger.Module
 import dagger.Provides
@@ -32,8 +33,13 @@ object AppModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): VireoDatabase =
-        Room.databaseBuilder(context, VireoDatabase::class.java, "vireo.db").build()
+        Room.databaseBuilder(context, VireoDatabase::class.java, "vireo.db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
     fun accountDao(db: VireoDatabase): AccountDao = db.accountDao()
+
+    @Provides
+    fun profileDao(db: VireoDatabase): ProfileDao = db.profileDao()
 }

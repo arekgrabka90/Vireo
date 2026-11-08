@@ -29,7 +29,8 @@ interface AccountDao {
     suspend fun clear()
 }
 
-@Database(entities = [AccountEntity::class], version = 1, exportSchema = false)
+@Database(entities = [AccountEntity::class, ProfileEntity::class], version = 2, exportSchema = false)
 abstract class VireoDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
+    abstract fun profileDao(): ProfileDao
 }

@@ -44,7 +44,10 @@ object AppModule {
         crypto: CryptoManager,
     ): VireoDatabase =
         Room.databaseBuilder(context, VireoDatabase::class.java, "vireo.db")
-            .addMigrations(migration2To3(crypto))
+            .addMigrations(
+                migration2To3(crypto),
+                VireoDatabase.MIGRATION_3_4,
+            )
             .build()
 
     private fun migration2To3(crypto: CryptoManager) = object : Migration(2, 3) {

@@ -3,7 +3,6 @@ package app.vireo.data
 import app.vireo.data.local.AccountDao
 import app.vireo.data.local.AccountEntity
 import app.vireo.data.security.CryptoManager
-import app.vireo.data.xtream.XtreamProvider
 import app.vireo.domain.model.AccountInfo
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
@@ -13,17 +12,14 @@ import app.vireo.domain.model.Title
 import app.vireo.domain.provider.ContentProvider
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ContentRepository @Inject constructor(
     private val dao: AccountDao,
-    private val client: OkHttpClient,
-    private val json: Json,
     private val crypto: CryptoManager,
+    private val providers: ProviderRegistry,
 ) {
     private val stateMutex = Mutex()
 
@@ -40,6 +36,29 @@ class ContentRepository @Inject constructor(
     suspend fun activeAccount(): AccountEntity? =
         dao.getActive()?.copy(password = "")
 
+    suspend fun accounts(): List<AccountEntity> =
+        dao.getAll().map { it.copy(password = "") }
+
+    suspend fun selectAccount(id: Long): Boolean =
+        stateMutex.withLock {
+            val selected = dao.activate(id)
+            if (selected) {
+                cached = null
+                clearCachesLocked()
+            }
+            selected
+        }
+
+    suspend fun deleteAccount(id: Long): Boolean =
+        stateMutex.withLock {
+            if (dao.getById(id) == null) return@withLock false
+
+            dao.deleteAndSelectFallback(id)
+            cached = null
+            clearCachesLocked()
+            true
+        }
+
     private suspend fun providerSnapshot(): Pair<Long, ContentProvider?> =
         stateMutex.withLock {
             cached?.let { return@withLock sourceVersion to it }
@@ -47,13 +66,7 @@ class ContentRepository @Inject constructor(
             val account = dao.getActive()
                 ?: return@withLock sourceVersion to null
 
-            val provider = XtreamProvider(
-                account.server,
-                account.username,
-                crypto.decrypt(account.password),
-                client,
-                json,
-            )
+            val provider = providers.create(account)
 
             cached = provider
             sourceVersion to provider
@@ -79,13 +92,7 @@ class ContentRepository @Inject constructor(
         username: String,
         password: String,
     ): Result<AccountInfo> {
-        val newProvider = XtreamProvider(
-            server,
-            username.trim(),
-            password,
-            client,
-            json,
-        )
+        val newProvider = providers.createXtream(server, username.trim(), password)
 
         val result = newProvider.authenticate()
         if (result.isFailure) return result
@@ -105,7 +112,7 @@ class ContentRepository @Inject constructor(
 
         return try {
             stateMutex.withLock {
-                dao.replaceAccount(account)
+                dao.insertAndActivate(account)
                 cached = newProvider
                 clearCachesLocked()
             }
@@ -117,7 +124,7 @@ class ContentRepository @Inject constructor(
 
     suspend fun logout() {
         stateMutex.withLock {
-            dao.clear()
+            dao.deleteActiveAndSelectFallback()
             cached = null
             clearCachesLocked()
         }

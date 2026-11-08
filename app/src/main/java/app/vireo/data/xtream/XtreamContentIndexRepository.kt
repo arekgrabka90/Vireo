@@ -7,6 +7,8 @@ import app.vireo.data.local.XtreamContentIndexDao
 import app.vireo.data.local.XtreamContentIndexEntity
 import app.vireo.domain.model.ContentType
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,14 +30,71 @@ data class XtreamIndexSyncReport(
         get() = failures.isEmpty()
 }
 
+internal fun isXtreamIndexFresh(
+    lastSuccessfulSyncAt: Long?,
+    now: Long,
+    ttlMs: Long,
+): Boolean {
+    if (lastSuccessfulSyncAt == null || ttlMs <= 0L) return false
+    if (lastSuccessfulSyncAt > now) return false
+
+    return now - lastSuccessfulSyncAt < ttlMs
+}
+
 @Singleton
 class XtreamContentIndexRepository @Inject constructor(
     private val accountDao: AccountDao,
     private val indexDao: XtreamContentIndexDao,
     private val providers: ProviderRegistry,
 ) {
+    private val movieSyncMutex = Mutex()
+    private val seriesSyncMutex = Mutex()
 
-    suspend fun syncAll(): XtreamIndexSyncReport {
+    suspend fun syncMovies(
+        forceRefresh: Boolean = false,
+    ): XtreamIndexSyncReport = sync(ContentType.MOVIE, forceRefresh)
+
+    suspend fun syncSeries(
+        forceRefresh: Boolean = false,
+    ): XtreamIndexSyncReport = sync(ContentType.SERIES, forceRefresh)
+
+    suspend fun syncAll(
+        forceRefresh: Boolean = false,
+    ): XtreamIndexSyncReport {
+        val movies = syncMovies(forceRefresh)
+        val series = syncSeries(forceRefresh)
+
+        return XtreamIndexSyncReport(
+            accountCount = maxOf(movies.accountCount, series.accountCount),
+            indexedMovieCount = movies.indexedMovieCount,
+            indexedSeriesCount = series.indexedSeriesCount,
+            successfulMovieSources = movies.successfulMovieSources,
+            successfulSeriesSources = series.successfulSeriesSources,
+            failures = movies.failures + series.failures,
+        )
+    }
+
+    private suspend fun sync(
+        type: ContentType,
+        forceRefresh: Boolean,
+    ): XtreamIndexSyncReport {
+        if (type == ContentType.LIVE) return emptyReport()
+
+        val mutex = when (type) {
+            ContentType.MOVIE -> movieSyncMutex
+            ContentType.SERIES -> seriesSyncMutex
+            ContentType.LIVE -> return emptyReport()
+        }
+
+        return mutex.withLock {
+            syncLocked(type, forceRefresh)
+        }
+    }
+
+    private suspend fun syncLocked(
+        type: ContentType,
+        forceRefresh: Boolean,
+    ): XtreamIndexSyncReport {
         val accounts = accountDao.getAll()
         val failures = mutableListOf<XtreamIndexSyncFailure>()
 
@@ -45,68 +104,118 @@ class XtreamContentIndexRepository @Inject constructor(
         var seriesSources = 0
 
         for (account in accounts) {
-            val provider = try {
-                providers.create(account)
+            try {
+                val previousState = indexDao.getSyncState(account.id, type.name)
+                val now = System.currentTimeMillis()
+
+                if (
+                    !forceRefresh &&
+                    isXtreamIndexFresh(
+                        lastSuccessfulSyncAt = previousState?.lastSuccessfulSyncAt,
+                        now = now,
+                        ttlMs = INDEX_TTL_MS,
+                    )
+                ) {
+                    val existingCount = indexDao
+                        .getForSource(account.id, type.name)
+                        .size
+
+                    when (type) {
+                        ContentType.MOVIE -> {
+                            movieCount += existingCount
+                            movieSources++
+                        }
+                        ContentType.SERIES -> {
+                            seriesCount += existingCount
+                            seriesSources++
+                        }
+                        ContentType.LIVE -> Unit
+                    }
+                    continue
+                }
+
+                val provider = try {
+                    providers.create(account)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    failures += failure(account.id, type)
+                    continue
+                }
+
+                when (type) {
+                    ContentType.MOVIE -> {
+                        val result = request { provider.movies(null) }
+
+                        if (result.isSuccess) {
+                            try {
+                                val syncedAt = System.currentTimeMillis()
+                                val entries = result.getOrThrow().mapNotNull {
+                                    XtreamContentIndexMapper.movie(
+                                        account.id,
+                                        it,
+                                        syncedAt,
+                                    )
+                                }
+
+                                indexDao.replaceForSourceAndType(
+                                    sourceId = account.id,
+                                    contentType = type.name,
+                                    items = entries,
+                                    syncedAt = syncedAt,
+                                )
+
+                                movieCount += entries.size
+                                movieSources++
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                failures += failure(account.id, type)
+                            }
+                        } else {
+                            failures += failure(account.id, type)
+                        }
+                    }
+
+                    ContentType.SERIES -> {
+                        val result = request { provider.series(null) }
+
+                        if (result.isSuccess) {
+                            try {
+                                val syncedAt = System.currentTimeMillis()
+                                val entries = result.getOrThrow().mapNotNull {
+                                    XtreamContentIndexMapper.series(
+                                        account.id,
+                                        it,
+                                        syncedAt,
+                                    )
+                                }
+
+                                indexDao.replaceForSourceAndType(
+                                    sourceId = account.id,
+                                    contentType = type.name,
+                                    items = entries,
+                                    syncedAt = syncedAt,
+                                )
+
+                                seriesCount += entries.size
+                                seriesSources++
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                failures += failure(account.id, type)
+                            }
+                        } else {
+                            failures += failure(account.id, type)
+                        }
+                    }
+
+                    ContentType.LIVE -> Unit
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                failures += failure(account.id, ContentType.MOVIE)
-                failures += failure(account.id, ContentType.SERIES)
-                continue
-            }
-
-            val movies = request { provider.movies(null) }
-
-            if (movies.isSuccess) {
-                try {
-                    val now = System.currentTimeMillis()
-                    val entries = movies.getOrThrow().mapNotNull {
-                        XtreamContentIndexMapper.movie(account.id, it, now)
-                    }
-
-                    indexDao.replaceForSourceAndType(
-                        sourceId = account.id,
-                        contentType = ContentType.MOVIE.name,
-                        items = entries,
-                        syncedAt = now,
-                    )
-
-                    movieCount += entries.size
-                    movieSources++
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    failures += failure(account.id, ContentType.MOVIE)
-                }
-            } else {
-                failures += failure(account.id, ContentType.MOVIE)
-            }
-
-            val series = request { provider.series(null) }
-
-            if (series.isSuccess) {
-                try {
-                    val now = System.currentTimeMillis()
-                    val entries = series.getOrThrow().mapNotNull {
-                        XtreamContentIndexMapper.series(account.id, it, now)
-                    }
-
-                    indexDao.replaceForSourceAndType(
-                        sourceId = account.id,
-                        contentType = ContentType.SERIES.name,
-                        items = entries,
-                        syncedAt = now,
-                    )
-
-                    seriesCount += entries.size
-                    seriesSources++
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    failures += failure(account.id, ContentType.SERIES)
-                }
-            } else {
-                failures += failure(account.id, ContentType.SERIES)
+                failures += failure(account.id, type)
             }
         }
 
@@ -162,6 +271,15 @@ class XtreamContentIndexRepository @Inject constructor(
         message = "Index synchronization failed",
     )
 
+    private fun emptyReport() = XtreamIndexSyncReport(
+        accountCount = 0,
+        indexedMovieCount = 0,
+        indexedSeriesCount = 0,
+        successfulMovieSources = 0,
+        successfulSeriesSources = 0,
+        failures = emptyList(),
+    )
+
     private suspend fun <T> request(
         block: suspend () -> Result<T>,
     ): Result<T> = try {
@@ -170,5 +288,9 @@ class XtreamContentIndexRepository @Inject constructor(
         throw cancelled
     } catch (error: Exception) {
         Result.failure(error)
+    }
+
+    companion object {
+        private const val INDEX_TTL_MS = 6 * 60 * 60 * 1000L
     }
 }

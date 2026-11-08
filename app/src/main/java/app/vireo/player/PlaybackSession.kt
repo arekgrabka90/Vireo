@@ -3,7 +3,14 @@ package app.vireo.player
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class PlayItem(val title: String, val url: String)
+data class PlayItem(
+    val title: String,
+    val url: String,
+    val contentKey: String? = null,
+    val contentType: String? = null,
+    val posterUrl: String? = null,
+    val backdropUrl: String? = null,
+)
 
 @Singleton
 class PlaybackSession @Inject constructor() {

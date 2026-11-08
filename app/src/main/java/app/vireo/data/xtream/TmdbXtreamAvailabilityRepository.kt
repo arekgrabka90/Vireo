@@ -88,14 +88,26 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         Result.failure(error)
     }
 
-    suspend fun playMovie(variant: TmdbXtreamMatchVariant): Result<Unit> = try {
+    suspend fun playMovie(
+        variant: TmdbXtreamMatchVariant,
+        detail: TmdbDetail?,
+    ): Result<Unit> = try {
         val account = accountDao.getById(variant.sourceId)
             ?: error("Konto źródłowe nie jest już dostępne.")
         val provider = providers.create(account)
         val movie = provider.movieDetails(variant.streamId).getOrThrow()
 
         playbackSession.start(
-            listOf(PlayItem(movie.name, movie.streamUrl)),
+            listOf(
+                PlayItem(
+                    title = movie.name,
+                    url = movie.streamUrl,
+                    contentKey = detail?.let { "tmdb:${it.type.name}:${it.tmdbId}" },
+                    contentType = detail?.type?.name ?: "MOVIE",
+                    posterUrl = detail?.posterUrl,
+                    backdropUrl = detail?.backdropUrl,
+                )
+            ),
             0,
         )
         Result.success(Unit)
@@ -118,7 +130,11 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         Result.failure(error)
     }
 
-    fun playEpisode(series: SeriesDetails, episodeId: String): Boolean {
+    fun playEpisode(
+        series: SeriesDetails,
+        episodeId: String,
+        detail: TmdbDetail?,
+    ): Boolean {
         val episodes = series.seasons.flatMap { season ->
             season.episodes.map { season.number to it }
         }
@@ -129,6 +145,12 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             PlayItem(
                 title = "${series.name} · S${season} E${episode.number} · ${episode.title}",
                 url = episode.streamUrl,
+                contentKey = detail?.let {
+                    "tmdb:${it.type.name}:${it.tmdbId}:S${season}E${episode.number}"
+                },
+                contentType = detail?.type?.name ?: "SERIES",
+                posterUrl = detail?.posterUrl,
+                backdropUrl = detail?.backdropUrl,
             )
         }
         playbackSession.start(items, index)

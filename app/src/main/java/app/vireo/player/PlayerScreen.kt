@@ -16,6 +16,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,6 +66,25 @@ fun PlayerScreen(
         onDispose {
             exoPlayer.removeListener(listener)
             exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(state.item?.url) {
+        while (true) {
+            delay(15_000)
+            val duration = exoPlayer.duration
+            if (duration > 0L) {
+                vm.saveProgress(exoPlayer.currentPosition, duration)
+            }
+        }
+    }
+
+    DisposableEffect(exoPlayer, state.item?.contentKey) {
+        onDispose {
+            val duration = exoPlayer.duration
+            if (duration > 0L) {
+                vm.saveProgress(exoPlayer.currentPosition, duration)
+            }
         }
     }
 

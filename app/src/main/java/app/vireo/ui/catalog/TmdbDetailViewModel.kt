@@ -90,7 +90,7 @@ class TmdbDetailViewModel @Inject constructor(
     fun playMovie(variant: TmdbXtreamMatchVariant, onReady: () -> Unit) {
         viewModelScope.launch {
             _state.value = _state.value.copy(playbackError = null, playbackReady = false)
-            availabilityRepository.playMovie(variant)
+            availabilityRepository.playMovie(variant, _state.value.detail)
                 .onSuccess {
                     _state.value = _state.value.copy(playbackReady = true)
                     onReady()
@@ -144,7 +144,7 @@ class TmdbDetailViewModel @Inject constructor(
 
     fun playEpisode(episodeId: String, onReady: () -> Unit) {
         val series = _state.value.selectedSeries ?: return
-        if (availabilityRepository.playEpisode(series, episodeId)) {
+        if (availabilityRepository.playEpisode(series, episodeId, _state.value.detail)) {
             onReady()
         } else {
             _state.value = _state.value.copy(

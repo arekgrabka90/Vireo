@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.vireo.data.local.AccountDao
+import app.vireo.data.local.LibraryDao
 import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.VireoDatabase
 import app.vireo.data.local.XtreamContentIndexDao
@@ -50,6 +51,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_3_4,
                 VireoDatabase.MIGRATION_4_5,
                 VireoDatabase.MIGRATION_5_6,
+                VireoDatabase.MIGRATION_6_7,
             )
             .build()
 
@@ -96,4 +98,7 @@ object AppModule {
     @Provides
     fun xtreamContentIndexDao(db: VireoDatabase): XtreamContentIndexDao =
         db.xtreamContentIndexDao()
+
+    @Provides
+    fun libraryDao(db: VireoDatabase): LibraryDao = db.libraryDao()
 }

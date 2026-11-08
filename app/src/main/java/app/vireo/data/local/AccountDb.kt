@@ -103,14 +103,16 @@ interface AccountDao {
         ProfileEntity::class,
         XtreamContentIndexEntity::class,
         CatalogSyncStateEntity::class,
+        LibraryItemEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun profileDao(): ProfileDao
     abstract fun xtreamContentIndexDao(): XtreamContentIndexDao
+    abstract fun libraryDao(): LibraryDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -173,6 +175,37 @@ abstract class VireoDatabase : RoomDatabase() {
                             ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                     """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS library_items (
+                        profileId INTEGER NOT NULL,
+                        contentKey TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        contentType TEXT NOT NULL,
+                        posterUrl TEXT,
+                        backdropUrl TEXT,
+                        positionMs INTEGER NOT NULL,
+                        durationMs INTEGER NOT NULL,
+                        watchlisted INTEGER NOT NULL,
+                        watched INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(profileId, contentKey)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_library_items_profileId_updatedAt " +
+                        "ON library_items(profileId, updatedAt)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_library_items_profileId_watchlisted " +
+                        "ON library_items(profileId, watchlisted)"
                 )
             }
         }

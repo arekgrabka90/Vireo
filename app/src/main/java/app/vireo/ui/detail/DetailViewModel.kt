@@ -72,7 +72,19 @@ class DetailViewModel @Inject constructor(
 
     fun playMovie() {
         val m = _state.value.movie ?: return
-        session.start(listOf(PlayItem(m.name, m.streamUrl)), 0)
+        session.start(
+            listOf(
+                PlayItem(
+                    title = m.name,
+                    url = m.streamUrl,
+                    contentKey = "xtream:${type.name}:${m.id}",
+                    contentType = type.name,
+                    posterUrl = m.posterUrl,
+                    backdropUrl = m.backdropUrl,
+                )
+            ),
+            0,
+        )
     }
 
     fun playEpisode(season: Int, episodeId: String) {
@@ -83,6 +95,10 @@ class DetailViewModel @Inject constructor(
             PlayItem(
                 title = "${s.name} · S${pair.first} E${pair.second.number} · ${pair.second.title}",
                 url = pair.second.streamUrl,
+                contentKey = "xtream:${type.name}:${s.id}:S${pair.first}E${pair.second.number}",
+                contentType = type.name,
+                posterUrl = s.posterUrl,
+                backdropUrl = s.backdropUrl,
             )
         }
         session.start(items, idx.coerceAtLeast(0))

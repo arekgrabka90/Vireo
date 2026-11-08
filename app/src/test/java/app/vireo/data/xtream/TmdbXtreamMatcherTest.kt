@@ -90,6 +90,36 @@ class TmdbXtreamMatcherTest {
     }
 
     @Test
+    fun `short title is not matched inside an unrelated word`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(
+                title = "It",
+                originalTitle = "It",
+                year = 2017,
+            ),
+            listOf(
+                indexed(
+                    title = "Little Women (2017)",
+                    normalizedTitle = "little women",
+                    year = 2017,
+                )
+            ),
+        )
+
+        assertEquals(TmdbXtreamMatchStatus.NOT_FOUND, result.status)
+    }
+
+    @Test
+    fun `one year difference remains available for manual review`() {
+        val result = TmdbXtreamMatcher.match(
+            tmdb(title = "Dune", originalTitle = "Dune", year = 2021),
+            listOf(indexed(title = "Dune (2020)", year = 2020)),
+        )
+
+        assertEquals(TmdbXtreamMatchStatus.NEEDS_REVIEW, result.status)
+    }
+
+    @Test
     fun `different release year rejects candidate`() {
         val result = TmdbXtreamMatcher.match(
             tmdb(year = 2021),

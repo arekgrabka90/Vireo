@@ -137,7 +137,10 @@ internal object TmdbXtreamMatcher {
         if (provider == wanted) return 120
 
         // Provider titles often add a subtitle or edition label.
-        if (provider.contains(wanted)) return 90
+        if (
+            wanted.length >= 5 &&
+            Regex("(^| )${Regex.escape(wanted)}( |$)").containsMatchIn(provider)
+        ) return 90
 
         val providerWords = provider.split(' ')
             .filter { it.isNotBlank() && it !in stopWords }

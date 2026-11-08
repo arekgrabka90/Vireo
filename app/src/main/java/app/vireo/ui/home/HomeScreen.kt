@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,7 +124,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(vertical = 0.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
 
         if (state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
@@ -190,8 +191,9 @@ fun HomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Kontynuuj oglądanie",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         color = colors.onBackground,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = horizontalPadding),
                     )
                     LazyRow(
@@ -242,8 +244,9 @@ fun HomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Moja lista",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         color = colors.onBackground,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = horizontalPadding),
                     )
                     LazyRow(

@@ -1,6 +1,13 @@
 package app.vireo.ui.catalog
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -219,7 +228,11 @@ fun TmdbDetailScreen(
                     Text(
                         detail.title,
                         color = Color.White,
-                        style = MaterialTheme.typography.displaySmall,
+                        style = if (screenWidth >= 840) {
+                            MaterialTheme.typography.displaySmall
+                        } else {
+                            MaterialTheme.typography.headlineMedium
+                        },
                         fontWeight = FontWeight.Bold,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
@@ -259,36 +272,28 @@ fun TmdbDetailScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(20.dp))
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Button(
-                            onClick = { watch() },
-                            enabled = canWatch,
-                            modifier = Modifier.widthIn(min = 148.dp),
-                        ) {
-                            if (state.availabilityLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                            }
+                    detail.overview
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { overview ->
+                            Spacer(Modifier.height(12.dp))
                             Text(
-                                if (isSeries) "▶  WATCH NEXT" else "▶  WATCH",
-                                fontWeight = FontWeight.Bold,
+                                overview,
+                                color = Color.White.copy(alpha = 0.90f),
+                                style = if (screenWidth >= 840) {
+                                    MaterialTheme.typography.bodyLarge
+                                } else {
+                                    MaterialTheme.typography.bodyMedium
+                                },
+                                maxLines = if (screenWidth >= 840) 4 else 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(
+                                    if (screenWidth >= 840) 0.78f else 0.96f
+                                ),
                             )
                         }
 
-                        OutlinedButton(onClick = vm::toggleMyList) {
-                            Text(
-                                if (state.inMyList) "✓  MY LIST" else "+  MY LIST",
-                            )
-                        }
-                    }
+                    Spacer(Modifier.height(12.dp))
 
                     if (!state.availabilityLoading && variants.isEmpty()) {
                         Spacer(Modifier.height(8.dp))
@@ -305,6 +310,34 @@ fun TmdbDetailScreen(
                 }
             }
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = if (screenWidth >= 840) 48.dp else 20.dp,
+                        vertical = 16.dp,
+                    )
+                    .widthIn(max = 520.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetailActionButton(
+                    label = if (isSeries) "▶  WATCH NEXT" else "▶  WATCH",
+                    primary = true,
+                    enabled = canWatch,
+                    modifier = Modifier.weight(1.15f),
+                    onClick = { watch() },
+                )
+
+                DetailActionButton(
+                    label = if (state.inMyList) "✓  MY LIST" else "+  MY LIST",
+                    primary = false,
+                    enabled = true,
+                    modifier = Modifier.weight(1f),
+                    onClick = vm::toggleMyList,
+                )
+            }
+
             // DETAIL CONTENT
             Column(
                 modifier = Modifier
@@ -312,20 +345,6 @@ fun TmdbDetailScreen(
                     .padding(horizontal = 24.dp, vertical = 22.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Text(
-                    "O filmie",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onBackground,
-                )
-
-                Text(
-                    detail.overview?.takeIf { it.isNotBlank() }
-                        ?: "Opis tego tytułu nie jest jeszcze dostępny.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurface,
-                )
-
                 // SERIES: SEASONS AND EPISODES
                 if (detail.type.name == "SERIES") {
                     SeriesEpisodes(
@@ -537,6 +556,77 @@ fun TmdbDetailScreen(
                     Text("Anuluj")
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun DetailActionButton(
+    label: String,
+    primary: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val pressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = when {
+            focused || hovered -> 1.035f
+            pressed -> 0.975f
+            else -> 1f
+        },
+        label = "detail-action-focus",
+    )
+
+    val shape = RoundedCornerShape(14.dp)
+    val backgroundColor = when {
+        primary -> Color.White
+        focused || hovered -> Color(0xFF343B48)
+        else -> Color(0xFF1D222B)
+    }
+    val foregroundColor = if (primary) Color(0xFF111318) else Color.White
+    val outlineColor = when {
+        focused || hovered -> Color.White
+        else -> Color.White.copy(alpha = 0.12f)
+    }
+
+    Box(
+        modifier = modifier
+            .height(54.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = if (enabled) 1f else 0.48f
+            }
+            .hoverable(interactionSource)
+            .onFocusChanged { focused = it.hasFocus }
+            .clip(shape)
+            .background(backgroundColor)
+            .border(
+                width = if (focused || hovered) 1.7.dp else 1.dp,
+                color = outlineColor,
+                shape = shape,
+            )
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = foregroundColor,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -113,7 +113,10 @@ fun Hero(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(horizontal = 28.dp, vertical = 25.dp),
+                .padding(
+                    horizontal = if (screenWidth >= 840) 56.dp else 28.dp,
+                    vertical = if (screenWidth >= 840) 34.dp else 25.dp,
+                ),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text(
@@ -123,8 +126,13 @@ fun Hero(
             )
             Text(
                 title.name,
-                style = MaterialTheme.typography.headlineMedium,
+                style = if (screenWidth >= 840) {
+                    MaterialTheme.typography.displaySmall
+                } else {
+                    MaterialTheme.typography.headlineMedium
+                },
                 color = Color.White,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -134,7 +142,7 @@ fun Hero(
                     summary,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.88f),
-                    maxLines = 2,
+                    maxLines = if (screenWidth >= 840) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -188,6 +196,7 @@ fun TitleRow(
                 row.category.name,
                 style = MaterialTheme.typography.titleLarge,
                 color = colors.onBackground,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),

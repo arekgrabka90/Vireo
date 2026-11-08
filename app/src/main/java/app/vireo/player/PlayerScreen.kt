@@ -55,7 +55,9 @@ fun PlayerScreen(
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) vm.next()
+                if (playbackState == Player.STATE_ENDED) {
+                    vm.next(exoPlayer.currentPosition, exoPlayer.duration)
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -70,20 +72,22 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(state.item?.url) {
+        val item = state.item ?: return@LaunchedEffect
         while (true) {
             delay(15_000)
             val duration = exoPlayer.duration
             if (duration > 0L) {
-                vm.saveProgress(exoPlayer.currentPosition, duration)
+                vm.saveProgress(item, exoPlayer.currentPosition, duration)
             }
         }
     }
 
-    DisposableEffect(exoPlayer, state.item?.contentKey) {
+    DisposableEffect(exoPlayer, state.item?.contentKey, state.item?.url) {
+        val item = state.item
         onDispose {
             val duration = exoPlayer.duration
             if (duration > 0L) {
-                vm.saveProgress(exoPlayer.currentPosition, duration)
+                vm.saveProgress(item, exoPlayer.currentPosition, duration)
             }
         }
     }
@@ -124,7 +128,7 @@ fun PlayerScreen(
                 modifier = Modifier.weight(1f),
             )
             if (state.hasNext) {
-                FocusableBox(onClick = vm::next) {
+                FocusableBox(onClick = { vm.next(exoPlayer.currentPosition, exoPlayer.duration) }) {
                     Text(stringResource(R.string.next_episode), color = MaterialTheme.colorScheme.onSurface)
                 }
             }

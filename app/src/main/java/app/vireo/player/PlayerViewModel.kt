@@ -30,15 +30,20 @@ class PlayerViewModel @Inject constructor(
     )
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
-    fun saveProgress(positionMs: Long, durationMs: Long) {
-        val item = session.current() ?: return
+    fun saveProgress(
+        item: PlayItem?,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        val target = item ?: return
         val profileId = profiles.activeId
         viewModelScope.launch {
-            library.saveProgress(profileId, item, positionMs, durationMs)
+            library.saveProgress(profileId, target, positionMs, durationMs)
         }
     }
 
-    fun next() {
+    fun next(positionMs: Long, durationMs: Long) {
+        saveProgress(session.current(), positionMs, durationMs)
         val n = session.next() ?: return
         _state.value = PlayerUiState(item = n, hasNext = session.hasNext())
     }

@@ -49,8 +49,6 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     onOpenTitle: (ContentType, Int, String) -> Unit,
     onOpenCatalog: (ContentType) -> Unit,
-    showContinueWatching: Boolean = true,
-    modifier: Modifier = Modifier,
     vm: TmdbHomeViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -173,7 +171,7 @@ fun HomeScreen(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().background(colors.background),
+        modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(vertical = 0.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
@@ -227,7 +225,7 @@ fun HomeScreen(
             }
         }
 
-        if (showContinueWatching && resumable.isNotEmpty()) {
+        if (resumable.isNotEmpty()) {
             item(key = "continue-watching") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(

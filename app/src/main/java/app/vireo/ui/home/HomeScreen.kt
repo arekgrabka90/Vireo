@@ -13,8 +13,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
@@ -33,7 +31,6 @@ import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
 import app.vireo.ui.browse.ErrorBlock
-import app.vireo.ui.browse.Hero
 import app.vireo.ui.browse.RowData
 import app.vireo.ui.browse.TitleRow
 import app.vireo.ui.components.PosterCard
@@ -90,15 +87,12 @@ fun HomeScreen(
         .distinctBy { "${it.type.name}:${it.tmdbId}" }
 
     val heroItems = allTrending
-        .filter { !it.backdropUrl.isNullOrBlank() }
+        .filter {
+            !it.backdropUrl.isNullOrBlank() ||
+                !it.posterUrl.isNullOrBlank()
+        }
         .sortedByDescending { it.popularity }
         .take(5)
-        .ifEmpty {
-            allTrending
-                .filter { !it.posterUrl.isNullOrBlank() }
-                .sortedByDescending { it.popularity }
-                .take(5)
-        }
 
     val heroKeys = heroItems.map { "${it.type.name}:${it.tmdbId}" }
     val heroIndex = remember(heroKeys) { mutableIntStateOf(0) }
@@ -112,9 +106,6 @@ fun HomeScreen(
             }
         }
     }
-
-    val heroItem = heroItems.getOrNull(heroIndex.intValue)
-    val hero = heroItem?.toHomeTitle()
 
     fun open(title: Title) {
         val id = title.id.toIntOrNull() ?: return
@@ -151,26 +142,26 @@ fun HomeScreen(
             }
         }
 
-        if (hero != null && heroItem != null) {
-            item(key = "home-cinematic-hero") {
-                Crossfade(
-                    targetState = heroIndex.intValue,
-                    animationSpec = tween(durationMillis = 1000),
-                    label = "home-hero-crossfade",
-                ) { index ->
-                    val activeItem = heroItems.getOrNull(index)
-                    if (activeItem != null) {
-                        val activeTitle = activeItem.toHomeTitle()
-                        Hero(
-                            title = activeTitle,
-                            backdropUrl = activeItem.backdropUrl,
-                            overview = activeItem.overview,
-                            position = index + 1,
-                            total = heroItems.size,
-                            onClick = { open(activeTitle) },
+        if (heroItems.isNotEmpty()) {
+            item(key = "home-featured-poster-strip") {
+                FeaturedPosterStrip(
+                    items = heroItems,
+                    activeIndex = heroIndex.intValue.coerceIn(
+                        0,
+                        heroItems.lastIndex,
+                    ),
+                    horizontalPadding = horizontalPadding,
+                    onActivate = { index ->
+                        heroIndex.intValue = index
+                    },
+                    onOpen = { item ->
+                        onOpenTitle(
+                            item.type,
+                            item.tmdbId,
+                            item.title,
                         )
-                    }
-                }
+                    },
+                )
             }
         }
 

@@ -1,6 +1,7 @@
 package app.vireo.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -32,6 +36,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.vireo.R
+import app.vireo.ui.components.FocusableBox
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
@@ -76,89 +81,98 @@ fun MainShell(
     val inner = rememberNavController()
     val entry by inner.currentBackStackEntryAsState()
     val route = entry?.destination?.route.orEmpty()
-    val wide = LocalConfiguration.current.screenWidthDp >= 840
     val colors = MaterialTheme.colorScheme
 
-    val go: (String) -> Unit = { r ->
-        inner.navigate(r) {
-            popUpTo(inner.graph.findStartDestination().id) { saveState = true }
+    val go: (String) -> Unit = { destination ->
+        inner.navigate(destination) {
+            popUpTo(inner.graph.findStartDestination().id) {
+                saveState = true
+            }
             launchSingleTop = true
             restoreState = true
         }
     }
 
-    fun selected(d: Dest): Boolean =
-        if (!wide && d.route == "more") {
-            MoreRoutes.any { r -> route == r || route.startsWith("$r/") }
+    val topItems = listOf(
+        HomeDest,
+        LiveDest,
+        GuideDest,
+        MyListDest,
+        RecordingsDest,
+        SearchDest,
+        SettingsDest,
+        MoreDest,
+    )
+
+    fun selected(destination: Dest): Boolean =
+        if (destination.route == "more") {
+            route == "more" || route.startsWith("more/")
         } else {
-            route == d.route || route.startsWith(d.route + "/")
+            route == destination.route ||
+                route.startsWith(destination.route + "/")
         }
 
-    if (wide) {
-        Row(modifier = Modifier.fillMaxSize().background(colors.background)) {
-            NavigationRail(containerColor = colors.surface) {
-                Column(
-                    modifier = Modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    RailItems.forEach { d ->
-                        NavigationRailItem(
-                            selected = selected(d),
-                            onClick = { go(d.route) },
-                            colors = NavigationRailItemDefaults.colors(
-                                selectedIconColor = colors.primary,
-                                selectedTextColor = colors.onSurface,
-                                indicatorColor = colors.primaryContainer,
-                                unselectedIconColor = colors.onSurfaceVariant,
-                                unselectedTextColor = colors.onSurfaceVariant,
-                            ),
-                            icon = { Text(d.icon, fontSize = 20.sp) },
-                            label = {
-                                Text(
-                                    stringResource(d.label),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "VIREO",
+                color = colors.onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(end = 24.dp),
+            )
+
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                topItems.forEach { destination ->
+                    FocusableBox(
+                        onClick = { go(destination.route) },
+                        selected = selected(destination),
+                    ) {
+                        Text(
+                            text = "${destination.icon}  ${stringResource(destination.label)}",
+                            color = if (selected(destination)) {
+                                colors.onSurface
+                            } else {
+                                colors.onSurfaceVariant
                             },
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
                         )
                     }
                 }
             }
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                ShellNavHost(inner, go, onOpenCategory, onOpenTitle,
-                    onOpenTmdbTitle, onOpenTmdbCatalog, onSwitchProfile)
-            }
         }
-    } else {
-        Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                ShellNavHost(inner, go, onOpenCategory, onOpenTitle,
-                    onOpenTmdbTitle, onOpenTmdbCatalog, onSwitchProfile)
-            }
-            NavigationBar(containerColor = colors.surface) {
-                BottomItems.forEach { d ->
-                    NavigationBarItem(
-                        selected = selected(d),
-                        onClick = { go(d.route) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = colors.primary,
-                            selectedTextColor = colors.onSurface,
-                            indicatorColor = colors.primaryContainer,
-                            unselectedIconColor = colors.onSurfaceVariant,
-                            unselectedTextColor = colors.onSurfaceVariant,
-                        ),
-                        icon = { Text(d.icon, fontSize = 20.sp) },
-                        label = {
-                            Text(
-                                stringResource(d.label),
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                            )
-                        },
-                    )
-                }
-            }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            ShellNavHost(
+                inner,
+                go,
+                onOpenCategory,
+                onOpenTitle,
+                onOpenTmdbTitle,
+                onOpenTmdbCatalog,
+                onSwitchProfile,
+            )
         }
     }
 }

@@ -182,6 +182,7 @@ fun TitleRow(
     horizontalPadding: androidx.compose.ui.unit.Dp = 20.dp,
     onSeeAll: () -> Unit,
     onTitle: (Title) -> Unit,
+    watchedKeys: Set<String> = emptySet(),
 ) {
     val colors = MaterialTheme.colorScheme
     Column {
@@ -220,7 +221,11 @@ fun TitleRow(
             ),
         ) {
             items(row.titles, key = { it.id }) { t ->
-                PosterCard(title = t, onClick = { onTitle(t) })
+                PosterCard(
+                    title = t,
+                    onClick = { onTitle(t) },
+                    isWatched = "tmdb:${t.type.name}:${t.id}" in watchedKeys,
+                )
             }
         }
     }

@@ -79,7 +79,11 @@ fun FeaturedPosterStrip(
             )
 
             val backdropAlpha by animateFloatAsState(
-                targetValue = if (active && hasBackdrop) 1f else 0f,
+                targetValue = when {
+                    active && hasBackdrop -> 1f
+                    item.posterUrl.isNullOrBlank() && hasBackdrop -> 1f
+                    else -> 0f
+                },
                 animationSpec = tween(durationMillis = 850),
                 label = "featured-backdrop-fade",
             )

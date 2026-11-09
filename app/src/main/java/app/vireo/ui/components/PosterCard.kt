@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     topProgress: Float? = null,
     belowPosterText: String? = null,
+    isWatched: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -114,6 +116,23 @@ fun PosterCard(
                     color = colors.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
+            }
+
+            if (isWatched) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp),
+                    color = Color.White.copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(7.dp),
+                ) {
+                    Text(
+                        "✓",
+                        color = Color(0xFF17191E),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    )
+                }
             }
         }
         if (!belowPosterText.isNullOrBlank()) {

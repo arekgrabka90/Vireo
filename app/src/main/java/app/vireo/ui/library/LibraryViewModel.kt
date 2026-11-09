@@ -19,6 +19,7 @@ import javax.inject.Inject
 data class LibraryUiState(
     val watchlist: List<LibraryItemEntity> = emptyList(),
     val continueWatching: List<LibraryItemEntity> = emptyList(),
+    val watchedContentKeys: Set<String> = emptySet(),
 )
 
 data class TmdbLibraryTarget(
@@ -55,10 +56,16 @@ class LibraryViewModel @Inject constructor(
                         combine(
                             library.observeWatchlist(profileId),
                             library.observeContinueWatching(profileId),
-                        ) { watchlist, continueWatching ->
+                            library.observeAll(profileId),
+                        ) { watchlist, continueWatching, allItems ->
                             LibraryUiState(
                                 watchlist = watchlist,
                                 continueWatching = continueWatching,
+                                watchedContentKeys = allItems
+                                    .asSequence()
+                                    .filter { it.watched }
+                                    .map { it.contentKey }
+                                    .toSet(),
                             )
                         }
                     } else {
@@ -87,7 +94,15 @@ class LibraryViewModel @Inject constructor(
     fun markWatched(item: LibraryItemEntity) {
         val profileId = profiles.activeId
         viewModelScope.launch {
-            library.setWatched(profileId, item.contentKey, true)
+            library.setWatched(
+                profileId = profileId,
+                contentKey = item.contentKey,
+                watched = !item.watched,
+                title = item.title,
+                contentType = item.contentType,
+                posterUrl = item.posterUrl,
+                backdropUrl = item.backdropUrl,
+            )
         }
     }
 }

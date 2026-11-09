@@ -30,6 +30,7 @@ import app.vireo.R
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.components.PosterCard
 import app.vireo.ui.home.toHomeTitle
+import app.vireo.ui.library.LibraryViewModel
 
 @Composable
 fun SearchScreen(
@@ -37,6 +38,8 @@ fun SearchScreen(
     vm: SearchViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val libraryVm: LibraryViewModel = hiltViewModel()
+    val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
 
     Column(
@@ -117,6 +120,8 @@ fun SearchScreen(
                 ) { item ->
                     PosterCard(
                         title = item.toHomeTitle(),
+                        isWatched = "tmdb:${item.type.name}:${item.tmdbId}" in
+                            libraryState.watchedContentKeys,
                         onClick = {
                             onOpenTitle(item.type, item.tmdbId, item.title)
                         },

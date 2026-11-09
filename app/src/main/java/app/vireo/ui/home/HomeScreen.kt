@@ -216,6 +216,7 @@ fun HomeScreen(
                                 title = entry.third,
                                 topProgress = progress,
                                 belowPosterText = remainingText,
+                                isWatched = item.watched,
                                 onClick = {
                                     onOpenTitle(
                                         entry.second.type,
@@ -256,6 +257,7 @@ fun HomeScreen(
                         ) { entry ->
                             PosterCard(
                                 title = entry.second,
+                                isWatched = entry.first.watched,
                                 onClick = {
                                     onOpenTitle(
                                         entry.first.type,
@@ -280,6 +282,7 @@ fun HomeScreen(
                     horizontalPadding = horizontalPadding,
                     onSeeAll = { onOpenCatalog(ContentType.MOVIE) },
                     onTitle = ::open,
+                    watchedKeys = libraryState.watchedContentKeys,
                 )
             }
         }
@@ -294,6 +297,7 @@ fun HomeScreen(
                     horizontalPadding = horizontalPadding,
                     onSeeAll = { onOpenCatalog(ContentType.SERIES) },
                     onTitle = ::open,
+                    watchedKeys = libraryState.watchedContentKeys,
                 )
             }
         }

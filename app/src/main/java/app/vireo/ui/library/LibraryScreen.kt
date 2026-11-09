@@ -77,6 +77,7 @@ fun LibraryScreen(
                                     onOpenTitle(target.type, target.id, item.title)
                                 }
                             },
+                            isWatched = item.watched,
                         )
 
                         Column(
@@ -99,7 +100,7 @@ fun LibraryScreen(
                             ) {
                                 FocusableBox(onClick = { vm.markWatched(item) }) {
                                     Text(
-                                        "Obejrzane",
+                                        if (item.watched) "Cofnij status" else "Oznacz jako obejrzane",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = colors.onSurface,
                                     )

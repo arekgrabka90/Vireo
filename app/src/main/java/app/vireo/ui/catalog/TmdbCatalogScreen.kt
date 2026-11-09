@@ -30,6 +30,7 @@ import app.vireo.domain.model.ContentType
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.components.PosterCard
 import app.vireo.ui.home.toHomeTitle
+import app.vireo.ui.library.LibraryViewModel
 
 @Composable
 fun TmdbCatalogScreen(
@@ -38,6 +39,8 @@ fun TmdbCatalogScreen(
     vm: TmdbCatalogViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val libraryVm: LibraryViewModel = hiltViewModel()
+    val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val title = if (vm.type == ContentType.SERIES) "Na czasie — Seriale"
         else "Na czasie — Filmy"
@@ -76,7 +79,11 @@ fun TmdbCatalogScreen(
                     key = { "${it.type.name}_${it.tmdbId}" },
                 ) { item ->
                     val mapped = item.toHomeTitle()
-                    PosterCard(title = mapped, onClick = {
+                    PosterCard(
+                        title = mapped,
+                        isWatched = "tmdb:${item.type.name}:${item.tmdbId}" in
+                            libraryState.watchedContentKeys,
+                        onClick = {
                         onOpenTitle(item.type, item.tmdbId, item.title)
                     })
                 }

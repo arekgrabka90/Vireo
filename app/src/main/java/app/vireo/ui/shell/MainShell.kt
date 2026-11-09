@@ -6,19 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,16 +51,6 @@ private val MyListDest = Dest("mylist", R.string.nav_mylist, "⭐")
 private val RecordingsDest = Dest("recordings", R.string.nav_recordings, "⏺️")
 private val SettingsDest = Dest("settings", R.string.nav_settings, "⚙️")
 private val MoreDest = Dest("more", R.string.nav_more, "☰")
-
-/** Telewizor/tablet: boczne menu ze wszystkimi sekcjami. */
-private val RailItems = listOf(
-    SearchDest, HomeDest, LiveDest,
-    GuideDest, MyListDest, RecordingsDest, SettingsDest,
-)
-
-/** Telefon: dolny pasek, reszta sekcji pod "Więcej". */
-private val BottomItems = listOf(HomeDest, LiveDest, MoreDest)
-private val MoreRoutes = listOf("more", "search", "guide", "mylist", "recordings", "settings")
 
 @Composable
 fun MainShell(

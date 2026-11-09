@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -479,13 +480,17 @@ private fun ExpandedCinematicHero(
                         }
                     }
 
-                    if (focused) {
+                    if (focused || selected) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .border(
-                                    width = 3.dp,
-                                    color = Color.White,
+                                    width = if (focused) 3.dp else 1.dp,
+                                    color = if (focused) {
+                                        Color.White
+                                    } else {
+                                        Color.White.copy(alpha = 0.86f)
+                                    },
                                     shape = shape,
                                 ),
                         )

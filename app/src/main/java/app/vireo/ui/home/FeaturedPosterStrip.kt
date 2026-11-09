@@ -1,4 +1,9 @@
 package app.vireo.ui.home
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 
 import android.content.res.Configuration
 import androidx.compose.animation.Crossfade
@@ -146,16 +151,45 @@ private fun ExpandedCinematicHero(
     ) {
         val contentWidth = maxWidth - horizontalPadding * 2
         val activeWidth = contentWidth * homeHeroPosterWidthFraction(0)
-        val nearWidth = contentWidth * homeHeroPosterWidthFraction(1)
-        val farWidth = contentWidth * homeHeroPosterWidthFraction(2)
         val cardAreaHeight = heroHeight - 62.dp
+
+        // Side posters use a fixed portrait aspect ratio of 2:3.
+        val baseNearHeight =
+            cardAreaHeight * homeHeroPosterHeightFraction(1)
+        val baseFarHeight =
+            cardAreaHeight * homeHeroPosterHeightFraction(2)
+
+        val baseNearWidth = baseNearHeight * (2f / 3f)
+        val baseFarWidth = baseFarHeight * (2f / 3f)
+
+        // Keep the entire fan inside the horizontal content margins.
+        val sideAllowance = (contentWidth - activeWidth) / 2
+        val requiredSideWidth =
+            (baseNearWidth + baseFarWidth) * 0.72f
+
+        val sideScale = if (
+            requiredSideWidth > sideAllowance &&
+            requiredSideWidth > 0.dp
+        ) {
+            (sideAllowance / requiredSideWidth).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
+
+        val nearHeight = baseNearHeight * sideScale
+        val farHeight = baseFarHeight * sideScale
+        val nearWidth = nearHeight * (2f / 3f)
+        val farWidth = farHeight * (2f / 3f)
+
         val activeLeft = (maxWidth - activeWidth) / 2
 
-        // Side posters overlap progressively, creating a layered depth effect.
+        // Symmetrical layered fan with a visible margin on both sides.
         val nearLeft = activeLeft - nearWidth * 0.72f
         val farLeft = nearLeft - farWidth * 0.72f
         val nearRight = activeLeft + activeWidth - nearWidth * 0.28f
-        val farRight = nearRight + nearWidth * 0.72f
+        val farRight =
+            activeLeft + activeWidth + nearWidth * 0.72f -
+                farWidth * 0.28f
 
         // Draw distant posters first, then near posters, and the active Hero last.
         val slots = listOf(-2, 2, -1, 1, 0)
@@ -169,7 +203,39 @@ private fun ExpandedCinematicHero(
             modifier = Modifier
                 .fillMaxSize()
                 .onFocusChanged { onHeroFocusChanged(it.hasFocus) }
-                .focusGroup(),
+                .focusGroup()
+                .pointerInput(items, activeIndex) {
+                    var dragDistance = 0f
+                    var gestureHandled = false
+                    val swipeThreshold = 56.dp.toPx()
+
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragDistance = 0f
+                            gestureHandled = false
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            dragDistance += dragAmount
+                            change.consume()
+
+                            if (
+                                items.size > 1 &&
+                                !gestureHandled &&
+                                kotlin.math.abs(dragDistance) >= swipeThreshold
+                            ) {
+                                val direction =
+                                    if (dragDistance < 0f) 1 else -1
+
+                                val nextIndex =
+                                    (activeIndex + direction + items.size) %
+                                        items.size
+
+                                onActivate(nextIndex)
+                                gestureHandled = true
+                            }
+                        },
+                    )
+                },
         ) {
             slots.forEach { (index, relative, item) ->
                 val distance = kotlin.math.abs(relative)
@@ -179,13 +245,17 @@ private fun ExpandedCinematicHero(
                     mutableStateOf(false)
                 }
                 val focused = focusedState.value
-                val cardWidth = when (distance) {
-                    0 -> activeWidth
-                    1 -> nearWidth
-                    else -> farWidth
+                val cardHeight = when (distance) {
+                    0 -> cardAreaHeight
+                    1 -> nearHeight
+                    else -> farHeight
                 }
-                val cardHeight = cardAreaHeight *
-                    homeHeroPosterHeightFraction(distance)
+
+                val cardWidth = if (selected) {
+                    activeWidth
+                } else {
+                    cardHeight * (2f / 3f)
+                }
 
                 val left = when (relative) {
                     -2 -> farLeft
@@ -194,14 +264,59 @@ private fun ExpandedCinematicHero(
                     1 -> nearRight
                     else -> farRight
                 }
+
                 val top = 62.dp + (cardAreaHeight - cardHeight) / 2
                 val shape = RoundedCornerShape(if (selected) 22.dp else 16.dp)
 
+                // ARVIO-style smooth movement between carousel positions.
+                val animationSpec = tween<Dp>(
+                    durationMillis = 900,
+                    easing = FastOutSlowInEasing,
+                )
+
+                val animatedLeft by animateDpAsState(
+                    targetValue = left,
+                    animationSpec = animationSpec,
+                    label = "hero-card-left",
+                )
+                val animatedTop by animateDpAsState(
+                    targetValue = top,
+                    animationSpec = animationSpec,
+                    label = "hero-card-top",
+                )
+                val animatedWidth by animateDpAsState(
+                    targetValue = cardWidth,
+                    animationSpec = animationSpec,
+                    label = "hero-card-width",
+                )
+                val animatedHeight by animateDpAsState(
+                    targetValue = cardHeight,
+                    animationSpec = animationSpec,
+                    label = "hero-card-height",
+                )
+
+                val targetElevation = when (distance) {
+                    0 -> 20.dp
+                    1 -> 14.dp
+                    else -> 9.dp
+                }
+
+                val animatedElevation by animateDpAsState(
+                    targetValue = targetElevation,
+                    animationSpec = animationSpec,
+                    label = "hero-card-elevation",
+                )
+
                 Box(
                     modifier = Modifier
-                        .offset(x = left, y = top)
-                        .width(cardWidth)
-                        .height(cardHeight)
+                        .shadow(
+                            elevation = animatedElevation,
+                            shape = shape,
+                            clip = false,
+                        )
+                        .offset(x = animatedLeft, y = animatedTop)
+                        .width(animatedWidth)
+                        .height(animatedHeight)
                         .zIndex(
                             when (distance) {
                                 0 -> 5f
@@ -235,6 +350,11 @@ private fun ExpandedCinematicHero(
                             ContentScale.Crop
                         } else {
                             ContentScale.Fit
+                        },
+                        backgroundColor = if (selected) {
+                            Color(0xFF17191D)
+                        } else {
+                            Color(0xFF08090B)
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -556,6 +676,7 @@ private fun HeroArtwork(
     imageUrl: String?,
     title: String,
     contentScale: ContentScale,
+    backgroundColor: Color = Color(0xFF17191D),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -599,7 +720,7 @@ private fun HeroArtwork(
     }
 
     Box(
-        modifier = modifier.background(Color(0xFF17191D)),
+        modifier = modifier.background(backgroundColor),
         contentAlignment = Alignment.Center,
     ) {
         if (!imageUrl.isNullOrBlank()) {

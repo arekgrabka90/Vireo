@@ -2,38 +2,44 @@ package app.vireo.ui.home
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomePresentationPolicyTest {
 
     @Test
-    fun phoneUsesSingleHeroEvenInLandscape() {
-        assertFalse(shouldUseExpandedHomeHero(393, false))
+    fun phoneUsesSingleHeroInPortraitAndLandscape() {
+        assertFalse(shouldUseExpandedHomeHero(393, 852, 393, false))
+        assertFalse(shouldUseExpandedHomeHero(852, 393, 393, false))
     }
 
     @Test
-    fun tabletUsesExpandedHero() {
-        assertTrue(shouldUseExpandedHomeHero(600, false))
-        assertTrue(shouldUseExpandedHomeHero(800, false))
+    fun tabletUsesExpandedHeroInPortraitAndLandscape() {
+        assertTrue(shouldUseExpandedHomeHero(800, 1280, 800, false))
+        assertTrue(shouldUseExpandedHomeHero(1280, 800, 800, false))
+    }
+
+    @Test
+    fun largeWindowUsesExpandedHeroWhenBothDimensionsAreTabletSized() {
+        assertTrue(shouldUseExpandedHomeHero(700, 720, 560, false))
     }
 
     @Test
     fun televisionAlwaysUsesExpandedHero() {
-        assertTrue(shouldUseExpandedHomeHero(320, true))
+        assertTrue(shouldUseExpandedHomeHero(320, 240, 320, true))
+    }
+
+    @Test
+    fun heroKeyIncludesMediaTypeAndTmdbId() {
+        assertEquals("MOVIE:42", homeHeroKey(app.vireo.domain.model.ContentType.MOVIE, 42))
+        assertEquals("SERIES:42", homeHeroKey(app.vireo.domain.model.ContentType.SERIES, 42))
     }
 
     @Test
     fun heroKeepsActiveKeyAfterReordering() {
-        assertEquals(
-            0,
-            resolveHomeHeroIndex(listOf("b", "a", "c"), "b"),
-        )
-        assertEquals(
-            1,
-            resolveHomeHeroIndex(listOf("b", "a", "c"), "a"),
-        )
+        assertEquals(0, resolveHomeHeroIndex(listOf("b", "a", "c"), "b"))
+        assertEquals(1, resolveHomeHeroIndex(listOf("b", "a", "c"), "a"))
     }
 
     @Test

@@ -214,6 +214,7 @@ fun HomeScreen(
                     onHeroFocusChanged = { focused ->
                         heroFocused.value = focused
                     },
+                    details = state.heroDetails,
                     onOpen = { item ->
                         onOpenTitle(
                             item.type,

@@ -1,9 +1,19 @@
 package app.vireo.ui.home
 
+import app.vireo.domain.model.ContentType
+
 internal fun shouldUseExpandedHomeHero(
+    screenWidthDp: Int,
+    screenHeightDp: Int,
     smallestScreenWidthDp: Int,
     isTelevision: Boolean,
-): Boolean = isTelevision || smallestScreenWidthDp >= 600
+): Boolean =
+    isTelevision ||
+        smallestScreenWidthDp >= 600 ||
+        (screenWidthDp >= 600 && screenHeightDp >= 600)
+
+internal fun homeHeroKey(type: ContentType, tmdbId: Int): String =
+    "${type.name}:$tmdbId"
 
 internal fun resolveHomeHeroIndex(
     keys: List<String>,

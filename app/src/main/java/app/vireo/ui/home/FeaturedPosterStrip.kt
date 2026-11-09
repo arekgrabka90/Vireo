@@ -7,10 +7,9 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import kotlinx.coroutines.delay
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -70,6 +69,7 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 fun CinematicHero(
@@ -99,8 +99,8 @@ fun CinematicHero(
 
     if (expandedLayout) {
         ExpandedCinematicHero(
-            items = items,
-            activeIndex = safeIndex,
+            items = items.take(5),
+            activeIndex = safeIndex.coerceAtMost(items.take(5).lastIndex),
             onActivate = onActivate,
             onOpen = onOpen,
             onHeroFocusChanged = onHeroFocusChanged,
@@ -132,10 +132,6 @@ private fun ExpandedCinematicHero(
 ) {
     if (items.isEmpty()) return
 
-    val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
-    val item = items[safeIndex]
-    val detail = details[homeHeroKey(item.type, item.tmdbId)]
-
     val heroHeight = when {
         isTelevision -> 560.dp
         screenWidth >= 1200 -> 500.dp
@@ -152,78 +148,67 @@ private fun ExpandedCinematicHero(
         .asPaddingValues()
         .calculateTopPadding()
 
-    var detailsVisible by remember(item.type, item.tmdbId) {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(item.type, item.tmdbId) {
-        detailsVisible = false
-        delay(1_000L)
-        detailsVisible = true
-    }
-
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight),
     ) {
-        val contentWidth = (maxWidth - horizontalPadding * 2)
-            .coerceAtLeast(1.dp)
+        val contentWidth = maxWidth - horizontalPadding * 2
+        val activeWidth = contentWidth * homeHeroPosterWidthFraction(0)
+        val cardAreaHeight = heroHeight - 62.dp
 
-        val posterGap = 14.dp
-        val posterWidth = minOf(
-            92.dp,
-            (
-                contentWidth -
-                    posterGap * (items.size - 1).toFloat()
-                ) / items.size.toFloat(),
-        )
-        val posterHeight = posterWidth * 1.5f
+        // Side posters use a fixed portrait aspect ratio of 2:3.
+        val baseNearHeight =
+            cardAreaHeight * homeHeroPosterHeightFraction(1)
+        val baseFarHeight =
+            cardAreaHeight * homeHeroPosterHeightFraction(2)
 
-        val rowWidth =
-            posterWidth * items.size.toFloat() +
-                posterGap * (items.size - 1).toFloat()
+        val baseNearWidth = baseNearHeight * (2f / 3f)
+        val baseFarWidth = baseFarHeight * (2f / 3f)
 
-        val rowLeft = (maxWidth - rowWidth) / 2
+        // Keep the entire fan inside the horizontal content margins.
+        val sideAllowance = (contentWidth - activeWidth) / 2
+        val requiredSideWidth =
+            (baseNearWidth + baseFarWidth) * 0.72f
 
-        val heroWidth = minOf(contentWidth * 0.68f, 760.dp)
-        val heroTop = 48.dp
+        val sideScale = if (
+            requiredSideWidth > sideAllowance &&
+            requiredSideWidth > 0.dp
+        ) {
+            (sideAllowance / requiredSideWidth).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
 
-        val heroCardHeight = (
-            heroHeight - posterHeight - 110.dp
-        ).coerceIn(230.dp, 340.dp)
+        val nearHeight = baseNearHeight * sideScale
+        val farHeight = baseFarHeight * sideScale
+        val nearWidth = nearHeight * (2f / 3f)
+        val farWidth = farHeight * (2f / 3f)
 
-        val posterRowTop = heroHeight - posterHeight - 14.dp
+        val activeLeft = (maxWidth - activeWidth) / 2
 
-        val selectedPosterCenter =
-            rowLeft +
-                posterWidth / 2 +
-                (posterWidth + posterGap) * safeIndex.toFloat()
+        // Symmetrical layered fan with a visible margin on both sides.
+        val nearLeft = activeLeft - nearWidth * 0.72f
+        val farLeft = nearLeft - farWidth * 0.72f
+        val nearRight = activeLeft + activeWidth - nearWidth * 0.28f
+        val farRight =
+            activeLeft + activeWidth + nearWidth * 0.72f -
+                farWidth * 0.28f
 
-        val targetLeft = (
-            selectedPosterCenter - heroWidth / 2
-        ).coerceIn(
-            horizontalPadding,
-            maxWidth - horizontalPadding - heroWidth,
-        )
-
-        val animatedLeft by animateDpAsState(
-            targetValue = targetLeft,
-            animationSpec = tween(
-                durationMillis = 1550,
-                easing = FastOutSlowInEasing,
-            ),
-            label = "vireo-hero-horizontal-travel",
-        )
+        // Draw distant posters first, then near posters, and the active Hero last.
+        val slots = listOf(-2, 2, -1, 1, 0)
+            .map { relative ->
+                val index = (activeIndex + relative + items.size) % items.size
+                Triple(index, relative, items[index])
+            }
+            .distinctBy { it.first }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .onFocusChanged {
-                    onHeroFocusChanged(it.hasFocus)
-                }
+                .onFocusChanged { onHeroFocusChanged(it.hasFocus) }
                 .focusGroup()
-                .pointerInput(items, safeIndex) {
+                .pointerInput(items, activeIndex) {
                     var dragDistance = 0f
                     var gestureHandled = false
                     val swipeThreshold = 56.dp.toPx()
@@ -245,224 +230,286 @@ private fun ExpandedCinematicHero(
                                 val direction =
                                     if (dragDistance < 0f) 1 else -1
 
-                                val nextIndex = (
-                                    safeIndex + direction
-                                ).coerceIn(0, items.lastIndex)
+                                val nextIndex =
+                                    (activeIndex + direction + items.size) %
+                                        items.size
 
-                                if (nextIndex != safeIndex) {
-                                    onActivate(nextIndex)
-                                }
-
+                                onActivate(nextIndex)
                                 gestureHandled = true
                             }
                         },
                     )
                 },
         ) {
-            // Duzy panel porusza sie nad nieruchomym rzedem plakatow.
-            Box(
-                modifier = Modifier
-                    .offset(x = animatedLeft, y = heroTop)
-                    .width(heroWidth)
-                    .height(heroCardHeight)
-                    .shadow(
-                        elevation = 24.dp,
-                        shape = RoundedCornerShape(24.dp),
-                        clip = false,
-                    )
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF111318))
-                    .clickable { onOpen(item) }
-                    .zIndex(2f),
-            ) {
-                val backdropUrl = detail?.backdropUrl ?: item.backdropUrl
-                val posterUrl = detail?.posterUrl ?: item.posterUrl
-                val hasBackdrop = !backdropUrl.isNullOrBlank()
+            slots.forEach { (index, relative, item) ->
+                val distance = kotlin.math.abs(relative)
+                val selected = relative == 0
+                val detail = details[homeHeroKey(item.type, item.tmdbId)]
+                val focusedState = remember(item.type, item.tmdbId) {
+                    mutableStateOf(false)
+                }
+                val focused = focusedState.value
+                var detailsVisible by remember(item.type, item.tmdbId) {
+                    mutableStateOf(false)
+                }
 
-                HeroArtwork(
-                    imageUrl = homeHeroArtworkUrl(
-                        backdropUrl = backdropUrl,
-                        posterUrl = posterUrl,
-                        selected = true,
-                    ),
-                    title = item.title,
-                    contentScale = if (hasBackdrop) {
-                        ContentScale.Crop
-                    } else {
-                        ContentScale.Fit
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.12f),
-                                    0.42f to Color.Black.copy(alpha = 0.08f),
-                                    1.0f to Color.Black.copy(alpha = 0.94f),
-                                ),
-                            ),
-                        ),
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.30f),
-                                    0.60f to Color.Transparent,
-                                    1.0f to Color.Transparent,
-                                ),
-                            ),
-                        ),
-                )
-
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Text(
-                        text = "POLECANE",
-                        color = Color.White.copy(alpha = 0.84f),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 2.sp,
-                    )
-
-                    // Tytul jest widoczny od razu.
-                    HeroTitleLogo(
-                        title = item.title,
-                        logoUrl = detail?.logoUrl,
-                        maxHeight = if (screenWidth >= 1200) 88.dp else 72.dp,
-                    )
-
-                    // Metadane i opis pojawiaja sie po sekundzie.
-                    AnimatedVisibility(
-                        visible = detailsVisible,
-                        enter = fadeIn(
-                            animationSpec = tween(durationMillis = 850),
-                        ),
-                        exit = fadeOut(
-                            animationSpec = tween(durationMillis = 180),
-                        ),
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(9.dp),
-                        ) {
-                            HeroMetadataChips(item, detail)
-
-                            (detail?.overview ?: item.overview)
-                                ?.trim()
-                                ?.takeIf { it.isNotBlank() }
-                                ?.let { overview ->
-                                    Text(
-                                        text = overview,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = if (screenWidth >= 1200) 3 else 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                        }
+                LaunchedEffect(selected, item.type, item.tmdbId) {
+                    detailsVisible = false
+                    if (selected) {
+                        delay(1_000L)
+                        detailsVisible = true
+                        delay(8_000L)
+                        detailsVisible = false
                     }
                 }
-            }
 
-            // Statyczny rzad plakatow - pozycje nie zmieniaja kolejnosci.
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = posterRowTop)
-                    .width(rowWidth),
-                horizontalArrangement = Arrangement.spacedBy(posterGap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                items.forEachIndexed { index, posterItem ->
-                    val posterDetail = details[
-                        homeHeroKey(posterItem.type, posterItem.tmdbId)
-                    ]
+                val cardHeight = when (distance) {
+                    0 -> cardAreaHeight
+                    1 -> nearHeight
+                    else -> farHeight
+                }
 
-                    val posterFocused = remember(
-                        posterItem.type,
-                        posterItem.tmdbId,
-                    ) {
-                        mutableStateOf(false)
-                    }
+                val cardWidth = if (selected) {
+                    activeWidth
+                } else {
+                    cardHeight * (2f / 3f)
+                }
 
-                    val selected = index == safeIndex
-                    val posterShape = RoundedCornerShape(12.dp)
+                val left = when (relative) {
+                    -2 -> farLeft
+                    -1 -> nearLeft
+                    0 -> activeLeft
+                    1 -> nearRight
+                    else -> farRight
+                }
+
+                val top = 62.dp + (cardAreaHeight - cardHeight) / 2
+                val shape = RoundedCornerShape(if (selected) 22.dp else 16.dp)
+
+                // ARVIO-style smooth movement between carousel positions.
+                val animationSpec = tween<Dp>(
+                    durationMillis = 1550,
+                    easing = FastOutSlowInEasing,
+                )
+
+                val animatedLeft by animateDpAsState(
+                    targetValue = left,
+                    animationSpec = animationSpec,
+                    label = "hero-card-left",
+                )
+                val animatedTop by animateDpAsState(
+                    targetValue = top,
+                    animationSpec = animationSpec,
+                    label = "hero-card-top",
+                )
+                val animatedWidth by animateDpAsState(
+                    targetValue = cardWidth,
+                    animationSpec = animationSpec,
+                    label = "hero-card-width",
+                )
+                val animatedHeight by animateDpAsState(
+                    targetValue = cardHeight,
+                    animationSpec = animationSpec,
+                    label = "hero-card-height",
+                )
+
+                val targetElevation = when (distance) {
+                    0 -> 20.dp
+                    1 -> 14.dp
+                    else -> 9.dp
+                }
+
+                val animatedElevation by animateDpAsState(
+                    targetValue = targetElevation,
+                    animationSpec = animationSpec,
+                    label = "hero-card-elevation",
+                )
+
+                Box(
+                    modifier = Modifier
+                        .shadow(
+                            elevation = animatedElevation,
+                            shape = shape,
+                            clip = false,
+                        )
+                        .offset(x = animatedLeft, y = animatedTop)
+                        .width(animatedWidth)
+                        .height(animatedHeight)
+                        .zIndex(
+                            when (distance) {
+                                0 -> 5f
+                                1 -> 3f
+                                else -> 1f
+                            } + if (relative > 0) 0.1f else 0f
+                        )
+                        .clip(shape)
+                        .background(Color(0xFF111318))
+                        .onFocusChanged { focusedState.value = it.isFocused }
+                        .clickable {
+                            if (shouldOpenHomeHeroOnClick(selected)) {
+                                onOpen(item)
+                            } else {
+                                onActivate(index)
+                            }
+                        },
+                ) {
+                    val backdropUrl = detail?.backdropUrl ?: item.backdropUrl
+                    val posterUrl = detail?.posterUrl ?: item.posterUrl
+                    val hasBackdrop = selected && !backdropUrl.isNullOrBlank()
+
+                    HeroArtwork(
+                        imageUrl = homeHeroArtworkUrl(
+                            backdropUrl = backdropUrl,
+                            posterUrl = posterUrl,
+                            selected = selected,
+                        ),
+                        title = item.title,
+                        contentScale = if (hasBackdrop) {
+                            ContentScale.Crop
+                        } else {
+                            ContentScale.Fit
+                        },
+                        backgroundColor = if (selected) {
+                            Color(0xFF17191D)
+                        } else {
+                            Color(0xFF08090B)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
                     Box(
                         modifier = Modifier
-                            .width(posterWidth)
-                            .height(posterHeight)
-                            .shadow(
-                                elevation = if (selected) 12.dp else 5.dp,
-                                shape = posterShape,
-                            )
-                            .clip(posterShape)
-                            .background(Color(0xFF111318))
-                            .onFocusChanged {
-                                posterFocused.value = it.isFocused
-                            }
-                            .clickable {
-                                if (selected) {
-                                    onOpen(posterItem)
-                                } else {
-                                    onActivate(index)
-                                }
-                            },
-                    ) {
-                        HeroArtwork(
-                            imageUrl = posterDetail?.posterUrl
-                                ?: posterItem.posterUrl,
-                            title = posterItem.title,
-                            contentScale = ContentScale.Crop,
-                            backgroundColor = Color(0xFF17191D),
-                            modifier = Modifier.fillMaxSize(),
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Black.copy(
+                                            alpha = if (selected) 0.12f else 0.18f
+                                        ),
+                                        0.45f to Color.Black.copy(
+                                            alpha = if (selected) 0.10f else 0.12f
+                                        ),
+                                        1.0f to Color.Black.copy(
+                                            alpha = if (selected) 0.96f else 0.30f
+                                        ),
+                                    ),
+                                ),
+                            ),
+                    )
+
+                    if (selected) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colorStops = arrayOf(
+                                            0.0f to Color.Black.copy(alpha = 0.38f),
+                                            0.62f to Color.Transparent,
+                                            1.0f to Color.Transparent,
+                                        ),
+                                    ),
+                                ),
                         )
 
-                        if (selected || posterFocused.value) {
-                            Box(
+                        AnimatedVisibility(
+                            visible = selected && detailsVisible,
+                            enter = fadeIn(
+                                animationSpec = tween(durationMillis = 1000)
+                            ),
+                            exit = fadeOut(
+                                animationSpec = tween(durationMillis = 1000)
+                            ),
+                            modifier = Modifier.align(Alignment.BottomStart),
+                        ) {
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .border(
-                                        width = if (posterFocused.value) 3.dp else 2.dp,
-                                        color = Color.White.copy(
-                                            alpha = if (posterFocused.value) 1f else 0.88f,
-                                        ),
-                                        shape = posterShape,
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = 24.dp,
+                                        vertical = 24.dp,
                                     ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = "POLECANE",
+                                    color = Color.White.copy(alpha = 0.82f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 2.sp,
+                                )
+
+                                HeroTitleLogo(
+                                    title = item.title,
+                                    logoUrl = detail?.logoUrl,
+                                    maxHeight = if (screenWidth >= 1200) 92.dp else 78.dp,
+                                )
+
+                                HeroMetadataChips(item, detail)
+
+                                (detail?.overview ?: item.overview)
+                                    ?.trim()
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let { overview ->
+                                        Text(
+                                            text = overview,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = if (screenWidth >= 1200) 3 else 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.Black.copy(alpha = 0.58f))
+                                .padding(horizontal = 9.dp, vertical = 5.dp),
+                        ) {
+                            Text(
+                                text = "${index + 1}",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
                             )
                         }
                     }
+
+                    if (focused) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(
+                                    width = 3.dp,
+                                    color = Color.White,
+                                    shape = shape,
+                                ),
+                        )
+                    }
                 }
             }
-
-            Text(
-                text = "VIREO",
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(
-                        start = horizontalPadding,
-                        top = safeTop + 12.dp,
-                    ),
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 5.sp,
-            )
         }
+
+        Text(
+            text = "VIREO",
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    start = horizontalPadding,
+                    top = safeTop + 12.dp,
+                ),
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 5.sp,
+        )
     }
 }
+
 
 @Composable
 private fun SinglePanelCinematicHero(

@@ -459,11 +459,8 @@ private fun ExpandedCinematicHero(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(
-                                        horizontal = 24.dp,
-                                        top = 24.dp,
-                                        bottom = if (compactLandscapePhone) 34.dp else 24.dp,
-                                    ),
+                                    .padding(horizontal = 24.dp, vertical = 24.dp)
+                                    .offset(y = if (compactLandscapePhone) (-10).dp else 0.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
 

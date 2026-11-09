@@ -116,15 +116,19 @@ fun CinematicHero(
             details = details,
         )
     } else if (isCompactPhone && isLandscape) {
-        // Landscape phones use the existing cinematic single-panel Hero.
-        // Tablet and TV layouts remain governed by the original policy below.
-        SinglePanelCinematicHero(
+        // Landscape phones use the layered tablet-style Hero.
+        // Its height is independently fitted to the phone's available height.
+        ExpandedCinematicHero(
             items = items,
             activeIndex = safeIndex,
+            onActivate = onActivate,
             onOpen = onOpen,
             onHeroFocusChanged = onHeroFocusChanged,
+            isTelevision = false,
+            screenWidth = screenWidth,
+            screenHeightDp = configuration.screenHeightDp,
             details = details,
-            centerContent = false,
+            compactLandscapePhone = true,
         )
     } else if (expandedLayout) {
         ExpandedCinematicHero(
@@ -158,11 +162,15 @@ private fun ExpandedCinematicHero(
     onHeroFocusChanged: (Boolean) -> Unit,
     isTelevision: Boolean,
     screenWidth: Int,
+    screenHeightDp: Int = 0,
     details: Map<String, TmdbDetail>,
+    compactLandscapePhone: Boolean = false,
 ) {
     if (items.isEmpty()) return
 
     val heroHeight = when {
+        compactLandscapePhone ->
+            (screenHeightDp.dp * 0.78f).coerceIn(280.dp, 340.dp)
         isTelevision -> 560.dp
         screenWidth >= 1200 -> 500.dp
         else -> 460.dp

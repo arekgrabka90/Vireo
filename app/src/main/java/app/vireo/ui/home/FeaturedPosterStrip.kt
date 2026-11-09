@@ -670,15 +670,25 @@ private fun HeroTitleLogo(
                         .crossfade(500)
                         .build()
                 }
-                AsyncImage(
-                    model = request,
-                    contentDescription = "$title logo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .height(maxHeight)
-                        .widthIn(max = logoMaxWidth)
-                        .wrapContentWidth(alignment),
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = if (
+                        alignment == Alignment.CenterHorizontally
+                    ) {
+                        Alignment.Center
+                    } else {
+                        Alignment.CenterStart
+                    },
+                ) {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = "$title logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .height(maxHeight)
+                            .widthIn(max = logoMaxWidth),
+                    )
+                }
             } else {
                 Text(
                     text = title,

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.tmdb.TmdbDetail
 import app.vireo.data.tmdb.TmdbDetailRepository
+import app.vireo.data.tmdb.TmdbEpisodeItem
+import app.vireo.data.tmdb.TmdbSeasonSummary
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
 import app.vireo.data.xtream.TmdbXtreamAvailability
@@ -37,6 +39,11 @@ data class TmdbDetailState(
     val playbackReady: Boolean = false,
     val inMyList: Boolean = false,
     val watchedEpisodeKeys: Set<String> = emptySet(),
+    val tmdbSeasons: List<TmdbSeasonSummary> = emptyList(),
+    val tmdbEpisodes: List<TmdbEpisodeItem> = emptyList(),
+    val selectedTmdbSeasonNumber: Int? = null,
+    val tmdbSeasonLoading: Boolean = false,
+    val tmdbSeasonError: String? = null,
 )
 
 @HiltViewModel
@@ -59,6 +66,8 @@ class TmdbDetailViewModel @Inject constructor(
 
     private var seriesLoadJob: Job? = null
     private var seriesRequestId: Long = 0L
+    private var tmdbSeasonJob: Job? = null
+    private var tmdbSeasonRequestId: Long = 0L
 
     init {
         load()
@@ -98,6 +107,15 @@ class TmdbDetailViewModel @Inject constructor(
                     )
                     refreshMyList()
 
+                    // Katalog TMDB jest niezależny od Xtream.
+                    // Pierwszy sezon zaczyna ładować się od razu po szczegółach serialu.
+                    if (detail.type == ContentType.SERIES) {
+                        (detail.seasons.firstOrNull { it.seasonNumber == 1 }
+                        ?: detail.seasons.firstOrNull())?.let {
+                            selectTmdbSeason(it.seasonNumber)
+                        }
+                    }
+
                     availabilityRepository.find(detail)
                         .onSuccess { availability ->
                             _state.value = _state.value.copy(
@@ -136,6 +154,57 @@ class TmdbDetailViewModel @Inject constructor(
                         loading = false,
                         error = it.message ?: "Nie udało się pobrać szczegółów TMDB.",
                     )
+                }
+        }
+    }
+
+    fun selectTmdbSeason(seasonNumber: Int) {
+        val detail = _state.value.detail ?: return
+        if (detail.type != ContentType.SERIES) return
+        if (detail.seasons.none { it.seasonNumber == seasonNumber }) return
+
+        tmdbSeasonJob?.cancel()
+        val requestId = ++tmdbSeasonRequestId
+
+        _state.update {
+            it.copy(
+                selectedTmdbSeasonNumber = seasonNumber,
+                tmdbEpisodes = emptyList(),
+                tmdbSeasonLoading = true,
+                tmdbSeasonError = null,
+            )
+        }
+
+        tmdbSeasonJob = viewModelScope.launch {
+            repository.seasonEpisodes(detail.tmdbId, seasonNumber)
+                .onSuccess { episodes ->
+                    if (
+                        requestId == tmdbSeasonRequestId &&
+                        _state.value.detail?.tmdbId == detail.tmdbId &&
+                        _state.value.selectedTmdbSeasonNumber == seasonNumber
+                    ) {
+                        _state.update {
+                            it.copy(
+                                tmdbEpisodes = episodes,
+                                tmdbSeasonLoading = false,
+                                tmdbSeasonError = null,
+                            )
+                        }
+                    }
+                }
+                .onFailure { error ->
+                    if (
+                        requestId == tmdbSeasonRequestId &&
+                        _state.value.detail?.tmdbId == detail.tmdbId
+                    ) {
+                        _state.update {
+                            it.copy(
+                                tmdbSeasonLoading = false,
+                                tmdbSeasonError = error.message
+                                    ?: "Nie udało się pobrać odcinków z TMDB.",
+                            )
+                        }
+                    }
                 }
         }
     }
@@ -244,6 +313,40 @@ class TmdbDetailViewModel @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+
+    fun playEpisodeByNumber(
+        seasonNumber: Int,
+        episodeNumber: Int,
+        onReady: () -> Unit,
+    ) {
+        val series = _state.value.selectedSeries
+        val detail = _state.value.detail
+        if (series == null || detail == null) {
+            _state.update {
+                it.copy(playbackError = "Wybierz i załaduj źródło Xtream dla tego serialu.")
+            }
+            return
+        }
+
+        val started = availabilityRepository.playEpisodeByNumber(
+            series = series,
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
+            detail = detail,
+        )
+
+        if (started) {
+            _state.update { it.copy(playbackError = null) }
+            onReady()
+        } else {
+            _state.update {
+                it.copy(
+                    playbackError =
+                        "Wybranego odcinka S${seasonNumber}E${episodeNumber} nie ma w tym źródle.",
+                )
+            }
         }
     }
 

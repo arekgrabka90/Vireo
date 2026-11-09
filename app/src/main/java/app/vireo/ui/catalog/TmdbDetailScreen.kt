@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -61,7 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
 import app.vireo.data.xtream.TmdbXtreamMatchConfidence
 import app.vireo.data.xtream.TmdbXtreamMatchVariant
-import app.vireo.domain.model.SeriesDetails
+import app.vireo.data.tmdb.TmdbEpisodeItem
 import app.vireo.ui.components.FocusableBox
 import coil.compose.AsyncImage
 
@@ -348,12 +350,16 @@ fun TmdbDetailScreen(
                 // SERIES: SEASONS AND EPISODES
                 if (detail.type.name == "SERIES") {
                     SeriesEpisodes(
-                        series = state.selectedSeries,
-                        loading = state.seriesLoading,
+                        seasons = detail.seasons,
+                        episodes = state.tmdbEpisodes,
+                        selectedSeasonNumber = state.selectedTmdbSeasonNumber,
+                        loading = state.tmdbSeasonLoading,
+                        error = state.tmdbSeasonError,
                         tmdbId = detail.tmdbId,
                         watchedEpisodeKeys = state.watchedEpisodeKeys,
-                        onPlayEpisode = { episodeId ->
-                            vm.playEpisode(episodeId, onPlay)
+                        onSelectSeason = vm::selectTmdbSeason,
+                        onPlayEpisode = { seasonNumber, episodeNumber ->
+                            vm.playEpisodeByNumber(seasonNumber, episodeNumber, onPlay)
                         },
                     )
                 }
@@ -375,14 +381,14 @@ fun TmdbDetailScreen(
                             key = { it.id },
                         ) { member ->
                             Column(
-                                modifier = Modifier.width(116.dp),
+                                modifier = Modifier.width(104.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(5.dp),
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(150.dp)
-                                        .clip(RoundedCornerShape(14.dp))
+                                        .size(82.dp)
+                                        .clip(CircleShape)
                                         .background(colors.surfaceVariant),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -396,7 +402,7 @@ fun TmdbDetailScreen(
                                     } else {
                                         Text(
                                             member.name.take(1).uppercase(),
-                                            style = MaterialTheme.typography.headlineLarge,
+                                            style = MaterialTheme.typography.headlineMedium,
                                             color = colors.onSurfaceVariant,
                                         )
                                     }
@@ -408,6 +414,7 @@ fun TmdbDetailScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 )
 
                                 if (member.character.isNotBlank()) {
@@ -417,6 +424,7 @@ fun TmdbDetailScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     )
                                 }
                             }
@@ -633,25 +641,54 @@ private fun DetailActionButton(
 
 @Composable
 private fun SeriesEpisodes(
-    series: SeriesDetails?,
+    seasons: List<app.vireo.data.tmdb.TmdbSeasonSummary>,
+    episodes: List<TmdbEpisodeItem>,
+    selectedSeasonNumber: Int?,
     loading: Boolean,
+    error: String?,
     tmdbId: Int,
     watchedEpisodeKeys: Set<String>,
-    onPlayEpisode: (String) -> Unit,
+    onSelectSeason: (Int) -> Unit,
+    onPlayEpisode: (Int, Int) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-
-    var selectedSeasonNumber by remember(series?.id) {
-        mutableStateOf(series?.seasons?.firstOrNull()?.number ?: 0)
-    }
+    val selectedSeason = selectedSeasonNumber
+        ?: seasons.firstOrNull { it.seasonNumber == 1 }?.seasonNumber
+        ?: seasons.firstOrNull()?.seasonNumber
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "Sezony i odcinki",
+            "Odcinki",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = colors.onBackground,
         )
+
+        if (seasons.isEmpty()) {
+            Text(
+                "Informacje o sezonach nie są dostępne w TMDB.",
+                color = colors.onSurfaceVariant,
+            )
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(seasons, key = { it.seasonNumber }) { season ->
+                    val label = season.name
+                        ?.takeIf { it.isNotBlank() }
+                        ?: if (season.seasonNumber == 0) "Specjalne"
+                           else "Sezon ${season.seasonNumber}"
+
+                    if (season.seasonNumber == selectedSeason) {
+                        Button(onClick = { onSelectSeason(season.seasonNumber) }) {
+                            Text(label)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onSelectSeason(season.seasonNumber) }) {
+                            Text(label)
+                        }
+                    }
+                }
+            }
+        }
 
         if (loading) {
             Row(
@@ -659,197 +696,145 @@ private fun SeriesEpisodes(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(22.dp))
-                Text(
-                    "Przygotowuję odcinki...",
-                    color = colors.onSurfaceVariant,
-                )
+                Text("Pobieram odcinki z TMDB…", color = colors.onSurfaceVariant)
             }
         }
 
-        if (series != null) {
+        error?.let {
             Text(
-                series.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.onSurface,
+                it,
+                color = colors.error,
+                style = MaterialTheme.typography.bodyMedium,
             )
+        }
 
-            if (series.seasons.isEmpty()) {
-                Text(
-                    "Lista odcinków nie jest dostępna dla tego źródła.",
-                    color = colors.onSurfaceVariant,
-                )
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(
-                        items = series.seasons,
-                        key = { it.number },
-                    ) { season ->
-                        if (season.number == selectedSeasonNumber) {
-                            Button(
-                                onClick = { selectedSeasonNumber = season.number },
-                            ) {
-                                Text("Sezon ${season.number}")
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = { selectedSeasonNumber = season.number },
-                            ) {
-                                Text("Sezon ${season.number}")
-                            }
-                        }
-                    }
-                }
+        if (!loading && error == null && seasons.isNotEmpty() && episodes.isEmpty()) {
+            Text(
+                "Brak odcinków dla wybranego sezonu.",
+                color = colors.onSurfaceVariant,
+            )
+        }
 
-                val selectedSeason = series.seasons.firstOrNull {
-                    it.number == selectedSeasonNumber
-                }
+        if (episodes.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(
+                    items = episodes,
+                    key = { "${it.seasonNumber}-${it.episodeNumber}" },
+                ) { episode ->
+                    val key =
+                        "tmdb:SERIES:$tmdbId:S${episode.seasonNumber}E${episode.episodeNumber}"
+                    val watched = key in watchedEpisodeKeys
 
-                selectedSeason?.let { season ->
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Surface(
+                        modifier = Modifier.width(264.dp),
+                        color = colors.surfaceVariant.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(16.dp),
+                        onClick = {
+                            onPlayEpisode(episode.seasonNumber, episode.episodeNumber)
+                        },
                     ) {
-                        items(
-                            items = season.episodes,
-                            key = { it.id },
-                        ) { episode ->
-                            val contentKey =
-                                "tmdb:SERIES:$tmdbId:S${season.number}E${episode.number}"
-                            val watched = contentKey in watchedEpisodeKeys
-
-                            Surface(
-                                modifier = Modifier.width(252.dp),
-                                color = colors.surfaceVariant.copy(alpha = 0.72f),
-                                shape = RoundedCornerShape(16.dp),
-                                onClick = { onPlayEpisode(episode.id) },
+                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 9f)
+                                    .background(colors.surface),
                             ) {
-                                Column {
+                                if (!episode.stillUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = episode.stillUrl,
+                                        contentDescription = episode.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
                                     Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(142.dp)
-                                            .background(colors.surface),
-                                    ) {
-                                        if (!episode.thumbUrl.isNullOrBlank()) {
-                                            AsyncImage(
-                                                model = episode.thumbUrl,
-                                                contentDescription = episode.title,
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize(),
-                                            )
-                                        } else {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center,
-                                            ) {
-                                                Text(
-                                                    "E${episode.number}",
-                                                    color = colors.onSurfaceVariant,
-                                                    style = MaterialTheme.typography.headlineMedium,
-                                                )
-                                            }
-                                        }
-
-                                        if (watched) {
-                                            Surface(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(8.dp),
-                                                color = colors.primaryContainer,
-                                                shape = RoundedCornerShape(8.dp),
-                                            ) {
-                                                Text(
-                                                    "✓ OBEJRZANE",
-                                                    modifier = Modifier.padding(
-                                                        horizontal = 9.dp,
-                                                        vertical = 5.dp,
-                                                    ),
-                                                    color = colors.onPrimaryContainer,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                )
-                                            }
-                                        } else {
-                                            Surface(
-                                                modifier = Modifier
-                                                    .align(Alignment.BottomEnd)
-                                                    .padding(8.dp),
-                                                color = Color.Black.copy(alpha = 0.72f),
-                                                shape = RoundedCornerShape(8.dp),
-                                            ) {
-                                                Text(
-                                                    "▶",
-                                                    modifier = Modifier.padding(
-                                                        horizontal = 10.dp,
-                                                        vertical = 5.dp,
-                                                    ),
-                                                    color = Color.White,
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Column(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
-                                            "ODCINEK ${episode.number}",
-                                            color = colors.primary,
+                                            "E${episode.episodeNumber}",
+                                            color = colors.onSurfaceVariant,
+                                            style = MaterialTheme.typography.headlineMedium,
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(9.dp),
+                                    color = Color.Black.copy(alpha = 0.76f),
+                                    shape = RoundedCornerShape(7.dp),
+                                ) {
+                                    Text(
+                                        "Odcinek ${episode.episodeNumber}",
+                                        modifier = Modifier.padding(
+                                            horizontal = 9.dp,
+                                            vertical = 5.dp,
+                                        ),
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+
+                                if (watched) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(8.dp),
+                                        color = colors.primaryContainer,
+                                        shape = RoundedCornerShape(8.dp),
+                                    ) {
+                                        Text(
+                                            "✓ OBEJRZANE",
+                                            modifier = Modifier.padding(
+                                                horizontal = 8.dp,
+                                                vertical = 5.dp,
+                                            ),
+                                            color = colors.onPrimaryContainer,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                         )
-
-                                        Text(
-                                            episode.title,
-                                            color = colors.onSurface,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-
-                                        episode.duration
-                                            ?.takeIf { it.isNotBlank() }
-                                            ?.let {
-                                                Text(
-                                                    it,
-                                                    color = colors.onSurfaceVariant,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                )
-                                            }
-
-                                        episode.plot
-                                            ?.takeIf { it.isNotBlank() }
-                                            ?.let {
-                                                Text(
-                                                    it,
-                                                    color = colors.onSurfaceVariant,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                            }
-
-                                        if (watched) {
-                                            Text(
-                                                "Obejrzano",
-                                                color = colors.primary,
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                        }
                                     }
+                                }
+                            }
+
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                Text(
+                                    episode.title,
+                                    color = colors.onSurface,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+
+                                episode.runtimeMinutes?.let {
+                                    Text(
+                                        "$it min",
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+
+                                episode.overview?.takeIf { it.isNotBlank() }?.let {
+                                    Text(
+                                        it,
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-        } else if (!loading) {
-            Text(
-                "Wybierz źródło, aby załadować odcinki.",
-                color = colors.onSurfaceVariant,
-            )
         }
     }
 }

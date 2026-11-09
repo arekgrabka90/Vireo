@@ -130,6 +130,29 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         Result.failure(error)
     }
 
+    fun playEpisodeByNumber(
+        series: SeriesDetails,
+        seasonNumber: Int,
+        episodeNumber: Int,
+        detail: TmdbDetail?,
+    ): Boolean {
+        if (seasonNumber < 0 || episodeNumber <= 0) return false
+
+        // Dopasowanie po numerach, nigdy po pozycji listy ani TMDB ID.
+        val matches = series.seasons
+            .asSequence()
+            .filter { it.number == seasonNumber }
+            .flatMap { it.episodes.asSequence() }
+            .filter { it.number == episodeNumber }
+            .toList()
+
+        // Zero lub więcej niż jeden wynik oznacza brak pewnego dopasowania.
+        val match = matches.singleOrNull() ?: return false
+
+        // Do playback przekazujemy wyłącznie ID odcinka Xtream.
+        return playEpisode(series, match.id, detail)
+    }
+
     fun playEpisode(
         series: SeriesDetails,
         episodeId: String,

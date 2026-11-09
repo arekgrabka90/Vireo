@@ -100,6 +100,65 @@ data class TmdbDetailDto(
     val credits: TmdbCreditsDto? = null,
     @SerialName("external_ids")
     val externalIds: TmdbExternalIdsDto? = null,
+    val seasons: List<TmdbSeasonDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbSeasonDto(
+    @SerialName("season_number")
+    val seasonNumber: Int = 0,
+    @SerialName("episode_count")
+    val episodeCount: Int = 0,
+    val name: String? = null,
+    val overview: String? = null,
+    @SerialName("poster_path")
+    val posterPath: String? = null,
+)
+
+@Serializable
+data class TmdbSeasonDetailsDto(
+    val id: Int = 0,
+    @SerialName("season_number")
+    val seasonNumber: Int = 0,
+    val name: String? = null,
+    val overview: String? = null,
+    @SerialName("poster_path")
+    val posterPath: String? = null,
+    val episodes: List<TmdbEpisodeDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbEpisodeDto(
+    val id: Int = 0,
+    @SerialName("episode_number")
+    val episodeNumber: Int = 0,
+    @SerialName("season_number")
+    val seasonNumber: Int = 0,
+    val name: String? = null,
+    val overview: String? = null,
+    @SerialName("still_path")
+    val stillPath: String? = null,
+    val runtime: Int? = null,
+    @SerialName("air_date")
+    val airDate: String? = null,
+)
+
+data class TmdbSeasonSummary(
+    val seasonNumber: Int,
+    val name: String?,
+    val episodeCount: Int,
+    val posterUrl: String?,
+)
+
+data class TmdbEpisodeItem(
+    val tmdbEpisodeId: Int,
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val title: String,
+    val overview: String?,
+    val stillUrl: String?,
+    val runtimeMinutes: Int?,
+    val airDate: String?,
 )
 
 @Serializable
@@ -151,4 +210,5 @@ data class TmdbDetail(
     val runtimeMinutes: Int?,
     val cast: List<TmdbCastMember>,
     val imdbId: String? = null,
+    val seasons: List<TmdbSeasonSummary> = emptyList(),
 )

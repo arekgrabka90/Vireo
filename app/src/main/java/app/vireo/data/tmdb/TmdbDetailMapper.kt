@@ -59,6 +59,36 @@ internal object TmdbDetailMapper {
             imdbId = dto.externalIds?.imdbId?.trim()
                 ?.takeIf { Regex("(?i)^tt[0-9]{5,12}$").matches(it) }
                 ?.lowercase(),
+            seasons = dto.seasons
+                .asSequence()
+                .filter { it.seasonNumber >= 0 }
+                .map {
+                    TmdbSeasonSummary(
+                        seasonNumber = it.seasonNumber,
+                        name = it.name?.trim()?.takeIf(String::isNotBlank),
+                        episodeCount = it.episodeCount.coerceAtLeast(0),
+                        posterUrl = imageUrl(it.posterPath, "w342"),
+                    )
+                }
+                .distinctBy { it.seasonNumber }
+                .sortedBy { it.seasonNumber }
+                .toList(),
+        )
+    }
+
+    fun mapEpisode(dto: TmdbEpisodeDto): TmdbEpisodeItem? {
+        if (dto.seasonNumber < 0 || dto.episodeNumber <= 0) return null
+        val title = dto.name?.trim()?.takeIf { it.isNotBlank() }
+            ?: "Odcinek ${dto.episodeNumber}"
+        return TmdbEpisodeItem(
+            tmdbEpisodeId = dto.id,
+            seasonNumber = dto.seasonNumber,
+            episodeNumber = dto.episodeNumber,
+            title = title,
+            overview = dto.overview?.trim()?.takeIf { it.isNotBlank() },
+            stillUrl = imageUrl(dto.stillPath, "w780"),
+            runtimeMinutes = dto.runtime?.takeIf { it > 0 },
+            airDate = dto.airDate?.trim()?.takeIf { it.isNotBlank() },
         )
     }
 

@@ -61,6 +61,17 @@ class TmdbApi @Inject constructor(
     suspend fun seriesDetails(id: Int, language: String): TmdbDetailDto =
         getDetails("tv/$id", id, language)
 
+    suspend fun seasonDetails(
+        seriesId: Int,
+        seasonNumber: Int,
+        language: String,
+    ): TmdbSeasonDetailsDto {
+        require(seriesId > 0) { "TMDB series ID must be positive." }
+        require(seasonNumber >= 0) { "TMDB season number cannot be negative." }
+        val request = request("tv/$seriesId/season/$seasonNumber", language) { }
+        return json.decodeFromString(execute(request))
+    }
+
     private suspend fun getPopular(
         endpoint: String,
         page: Int,

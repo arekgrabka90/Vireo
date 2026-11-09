@@ -1,10 +1,28 @@
 package app.vireo.ui.home
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class HomePresentationPolicyTest {
+
+    @Test
+    fun phoneUsesSingleHeroEvenInLandscape() {
+        assertFalse(shouldUseExpandedHomeHero(393, false))
+    }
+
+    @Test
+    fun tabletUsesExpandedHero() {
+        assertTrue(shouldUseExpandedHomeHero(600, false))
+        assertTrue(shouldUseExpandedHomeHero(800, false))
+    }
+
+    @Test
+    fun televisionAlwaysUsesExpandedHero() {
+        assertTrue(shouldUseExpandedHomeHero(320, true))
+    }
 
     @Test
     fun heroKeepsActiveKeyAfterReordering() {

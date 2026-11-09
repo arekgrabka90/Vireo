@@ -1,5 +1,10 @@
 package app.vireo.ui.home
 
+internal fun shouldUseExpandedHomeHero(
+    smallestScreenWidthDp: Int,
+    isTelevision: Boolean,
+): Boolean = isTelevision || smallestScreenWidthDp >= 600
+
 internal fun resolveHomeHeroIndex(
     keys: List<String>,
     activeKey: String?,

@@ -101,7 +101,12 @@ fun CinematicHero(
 
     val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
 
-    if (screenWidth < 600) {
+    // Classify phones by their smallest available width, not the
+    // current width, so rotating the device does not change its identity.
+    val isCompactPhone = configuration.smallestScreenWidthDp < 600
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+
+    if (isCompactPhone && !isLandscape) {
         MobileCoverFlowHero(
             items = items,
             activeIndex = safeIndex,
@@ -109,6 +114,17 @@ fun CinematicHero(
             onOpen = onOpen,
             onHeroFocusChanged = onHeroFocusChanged,
             details = details,
+        )
+    } else if (isCompactPhone && isLandscape) {
+        // Landscape phones use the existing cinematic single-panel Hero.
+        // Tablet and TV layouts remain governed by the original policy below.
+        SinglePanelCinematicHero(
+            items = items,
+            activeIndex = safeIndex,
+            onOpen = onOpen,
+            onHeroFocusChanged = onHeroFocusChanged,
+            details = details,
+            centerContent = false,
         )
     } else if (expandedLayout) {
         ExpandedCinematicHero(

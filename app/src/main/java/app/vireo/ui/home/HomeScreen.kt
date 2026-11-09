@@ -257,7 +257,7 @@ fun HomeScreen(
                         ) { entry ->
                             PosterCard(
                                 title = entry.second,
-                                isWatched = entry.first.watched,
+                                isWatched = entry.second.id in libraryState.watchedContentKeys,
                                 onClick = {
                                     onOpenTitle(
                                         entry.first.type,

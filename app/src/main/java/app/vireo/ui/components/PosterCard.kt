@@ -32,12 +32,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -59,6 +63,8 @@ fun PosterCard(
     topStartLabel: String? = null,
     topEndLabel: String? = null,
     showPlayOnFocus: Boolean = false,
+    onRemove: (() -> Unit)? = null,
+    focusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -101,6 +107,10 @@ fun PosterCard(
                 }
                 .zIndex(if (focused) 1f else 0f)
                 .hoverable(interactionSource)
+                .then(
+                    focusRequester?.let { Modifier.focusRequester(it) }
+                        ?: Modifier,
+                )
                 .onFocusChanged { focused = it.hasFocus }
                 .clip(shape)
                 .background(colors.surfaceVariant)
@@ -215,6 +225,31 @@ fun PosterCard(
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             "▶",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                }
+            }
+
+            if (focused) {
+                onRemove?.let { removeAction ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(7.dp)
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.82f))
+                            .semantics {
+                                contentDescription =
+                                    "Usuń z Kontynuuj oglądanie"
+                            }
+                            .clickable(onClick = removeAction),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "×",
                             color = Color.White,
                             style = MaterialTheme.typography.titleMedium,
                         )

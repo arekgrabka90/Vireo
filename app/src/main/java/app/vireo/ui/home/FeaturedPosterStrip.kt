@@ -56,6 +56,9 @@ fun CinematicHero(
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
+    val isLandscape =
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val isTelevision =
         (configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
             Configuration.UI_MODE_TYPE_TELEVISION
@@ -64,6 +67,7 @@ fun CinematicHero(
         isTelevision -> 600.dp
         screenWidth >= 1200 -> 560.dp
         screenWidth >= 840 -> 540.dp
+        isLandscape -> 360.dp
         screenWidth >= 600 -> 500.dp
         else -> 430.dp
     }
@@ -219,6 +223,7 @@ fun CinematicHero(
                                     .height(26.dp)
                                     .onFocusChanged {
                                         focused = it.isFocused
+                                        if (it.isFocused) onActivate(index)
                                     }
                                     .clip(indicatorShape)
                                     .border(

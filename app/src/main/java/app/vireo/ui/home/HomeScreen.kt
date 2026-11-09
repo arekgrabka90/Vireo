@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,7 +23,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -91,26 +95,79 @@ fun HomeScreen(
         .take(5)
 
     val heroKeys = heroItems.map { "${it.type.name}:${it.tmdbId}" }
-    val activeHeroKey = remember { mutableStateOf<String?>(null) }
+    val activeHeroKey = rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
     val heroFocused = remember { mutableStateOf(false) }
     val heroIndex = resolveHomeHeroIndex(heroKeys, activeHeroKey.value)
 
-    LaunchedEffect(heroKeys, heroFocused.value) {
-        if (heroKeys.isNotEmpty() && activeHeroKey.value !in heroKeys) {
+    LaunchedEffect(heroKeys, heroFocused.value, activeHeroKey.value) {
+        if (heroKeys.isEmpty()) return@LaunchedEffect
+
+        if (activeHeroKey.value !in heroKeys) {
             activeHeroKey.value = heroKeys.first()
+            return@LaunchedEffect
         }
+
         if (!heroFocused.value && heroKeys.size > 1) {
-            while (true) {
-                delay(10_000L)
-                val current = resolveHomeHeroIndex(heroKeys, activeHeroKey.value)
-                activeHeroKey.value = heroKeys[(current + 1) % heroKeys.size]
-            }
+            delay(10_000L)
+
+            val current = resolveHomeHeroIndex(
+                heroKeys,
+                activeHeroKey.value,
+            )
+
+            activeHeroKey.value = heroKeys[(current + 1) % heroKeys.size]
         }
     }
 
     fun open(title: Title) {
         val id = title.id.toIntOrNull() ?: return
         onOpenTitle(title.type, id, title.name)
+    }
+
+    val resumable = libraryState.continueWatching.mapNotNull { item ->
+        val target = item.tmdbTarget() ?: return@mapNotNull null
+        Triple(item, target, Title(
+            id = item.contentKey,
+            name = item.title,
+            posterUrl = item.posterUrl,
+            rating = null,
+            type = target.type,
+            categoryId = null,
+        ))
+    }
+
+    val continueKeys = resumable.map { it.first.contentKey }
+
+    val continueFocusRequesters = remember(continueKeys) {
+        continueKeys.associateWith { FocusRequester() }
+    }
+
+    val continueListState = rememberLazyListState()
+
+    val pendingContinueFocusRestore =
+        remember { mutableStateOf<Pair<String, String?>?>(null) }
+
+    LaunchedEffect(continueKeys, pendingContinueFocusRestore.value) {
+        val pending = pendingContinueFocusRestore.value
+            ?: return@LaunchedEffect
+
+        if (pending.first !in continueKeys) {
+            val targetKey = pending.second
+            val targetIndex = targetKey?.let {
+                continueKeys.indexOf(it)
+            } ?: -1
+
+            if (targetIndex >= 0) {
+                continueListState.animateScrollToItem(targetIndex)
+                withFrameNanos { }
+
+                continueFocusRequesters[targetKey]?.requestFocus()
+            }
+
+            pendingContinueFocusRestore.value = null
+        }
     }
 
     LazyColumn(
@@ -168,18 +225,6 @@ fun HomeScreen(
             }
         }
 
-        val resumable = libraryState.continueWatching.mapNotNull { item ->
-            val target = item.tmdbTarget() ?: return@mapNotNull null
-            Triple(item, target, Title(
-                id = item.contentKey,
-                name = item.title,
-                posterUrl = item.posterUrl,
-                rating = null,
-                type = target.type,
-                categoryId = null,
-            ))
-        }
-
         if (resumable.isNotEmpty()) {
             item(key = "continue-watching") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,6 +236,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(horizontal = horizontalPadding),
                     )
                     LazyRow(
+                        state = continueListState,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.fillMaxWidth().focusGroup(),
                         contentPadding = PaddingValues(
@@ -238,6 +284,20 @@ fun HomeScreen(
                                 belowPosterText = remainingText,
                                 isWatched = item.watched,
                                 showPlayOnFocus = true,
+                                focusRequester = continueFocusRequesters[item.contentKey],
+                                onRemove = {
+                                    val currentIndex =
+                                        continueKeys.indexOf(item.contentKey)
+
+                                    val nextFocusKey =
+                                        continueKeys.getOrNull(currentIndex + 1)
+                                            ?: continueKeys.getOrNull(currentIndex - 1)
+
+                                    pendingContinueFocusRestore.value =
+                                        item.contentKey to nextFocusKey
+
+                                    libraryVm.removeFromContinueWatching(item)
+                                },
                                 onClick = {
                                     onOpenTitle(
                                         entry.second.type,

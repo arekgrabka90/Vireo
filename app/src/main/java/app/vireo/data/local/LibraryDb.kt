@@ -72,6 +72,18 @@ interface LibraryDao {
         contentKey: String,
     ): LibraryItemEntity?
 
+    @Query(
+        """
+        UPDATE library_items
+        SET positionMs = 0
+        WHERE profileId = :profileId AND contentKey = :contentKey
+        """
+    )
+    suspend fun clearProgress(
+        profileId: Long,
+        contentKey: String,
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: LibraryItemEntity)
 

@@ -91,6 +91,17 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun removeFromContinueWatching(item: LibraryItemEntity) {
+        val profileId = profiles.activeId
+
+        viewModelScope.launch {
+            library.clearProgress(
+                profileId = profileId,
+                contentKey = item.contentKey,
+            )
+        }
+    }
+
     fun markWatched(item: LibraryItemEntity) {
         val profileId = profiles.activeId
         viewModelScope.launch {

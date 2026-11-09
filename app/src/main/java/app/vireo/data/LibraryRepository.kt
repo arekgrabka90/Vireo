@@ -141,6 +141,11 @@ class LibraryRepository @Inject constructor(
         )
     }
 
+    suspend fun clearProgress(profileId: Long, contentKey: String) {
+        if (profileId <= 0L || contentKey.isBlank()) return
+        dao.clearProgress(profileId, contentKey)
+    }
+
     suspend fun remove(profileId: Long, contentKey: String) {
         dao.delete(profileId, contentKey)
     }

@@ -24,6 +24,20 @@ internal fun resolveHomeHeroIndex(
     return if (index >= 0) index else 0
 }
 
+/** A focused card is not opened until the user confirms it while it is active. */
+internal fun shouldOpenHomeHeroOnClick(isActive: Boolean): Boolean = isActive
+
+/** Active cards use the wide backdrop; inactive cards preserve the complete poster. */
+internal fun homeHeroArtworkUrl(
+    backdropUrl: String?,
+    posterUrl: String?,
+    selected: Boolean,
+): String? {
+    val backdrop = backdropUrl?.takeIf { it.isNotBlank() }
+    val poster = posterUrl?.takeIf { it.isNotBlank() }
+    return if (selected) backdrop ?: poster else poster ?: backdrop
+}
+
 internal fun homeProgressFraction(
     positionMs: Long,
     durationMs: Long,

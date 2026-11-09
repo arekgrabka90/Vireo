@@ -5,6 +5,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +53,8 @@ import app.vireo.data.tmdb.TmdbCatalogItem
 import app.vireo.data.tmdb.TmdbDetail
 import app.vireo.domain.model.ContentType
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import java.util.Locale
 
@@ -172,42 +177,28 @@ private fun ExpandedCinematicHero(
                         .background(Color(0xFF111318))
                         .onFocusChanged {
                             focused = it.isFocused
-                            if (it.isFocused) onActivate(index)
                         }
                         .clickable {
-                            if (selected) {
+                            if (shouldOpenHomeHeroOnClick(selected)) {
                                 onOpen(item)
                             } else {
                                 onActivate(index)
                             }
                         },
                 ) {
-                    Crossfade(
-                        targetState = selected,
+                    val backdropUrl = detail?.backdropUrl ?: item.backdropUrl
+                    val posterUrl = detail?.posterUrl ?: item.posterUrl
+                    val hasBackdrop = selected && !backdropUrl.isNullOrBlank()
+                    HeroArtwork(
+                        imageUrl = homeHeroArtworkUrl(
+                            backdropUrl = backdropUrl,
+                            posterUrl = posterUrl,
+                            selected = selected,
+                        ),
+                        title = item.title,
+                        contentScale = if (hasBackdrop) ContentScale.Crop else ContentScale.Fit,
                         modifier = Modifier.fillMaxSize(),
-                        animationSpec = tween(durationMillis = 520),
-                        label = "home-hero-card-selection",
-                    ) { isSelected ->
-                        val hasBackdrop = isSelected &&
-                            !item.backdropUrl.isNullOrBlank()
-                        val imageUrl = if (hasBackdrop) {
-                            item.backdropUrl
-                        } else {
-                            item.posterUrl?.takeIf { it.isNotBlank() }
-                                ?: item.backdropUrl
-                        }
-
-                        HeroArtwork(
-                            imageUrl = imageUrl,
-                            title = item.title,
-                            contentScale = if (hasBackdrop) {
-                                ContentScale.Crop
-                            } else {
-                                ContentScale.Fit
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    )
 
                     Box(
                         modifier = Modifier
@@ -268,7 +259,7 @@ private fun ExpandedCinematicHero(
                                 overflow = TextOverflow.Ellipsis,
                             )
 
-                            item.overview
+                            (detail?.overview ?: item.overview)
                                 ?.trim()
                                 ?.takeIf { it.isNotBlank() }
                                 ?.let { overview ->
@@ -343,13 +334,18 @@ private fun SinglePanelCinematicHero(
     val isLandscape =
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // The panel's dimensions are independent of the active title. Only its content crossfades.
+    // The phone panel keeps a fixed footprint; only its artwork and metadata change.
     val heroHeight = if (isLandscape) 360.dp else 430.dp
     val horizontalPadding = 24.dp
     val safeTop = WindowInsets.statusBars
         .asPaddingValues()
         .calculateTopPadding()
     val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
+    val item = items[safeIndex]
+    val detail = details[homeHeroKey(item.type, item.tmdbId)]
+    val backdropUrl = detail?.backdropUrl ?: item.backdropUrl
+    val posterUrl = detail?.posterUrl ?: item.posterUrl
+    val hasBackdrop = !backdropUrl.isNullOrBlank()
 
     Box(
         modifier = Modifier
@@ -357,143 +353,129 @@ private fun SinglePanelCinematicHero(
             .height(heroHeight)
             .onFocusChanged { onHeroFocusChanged(it.hasFocus) }
             .background(Color.Black)
-            .clickable { onOpen(items[safeIndex]) },
+            .clickable { onOpen(item) },
     ) {
-        Crossfade(
-            targetState = safeIndex,
+        HeroArtwork(
+            imageUrl = homeHeroArtworkUrl(backdropUrl, posterUrl, selected = true),
+            title = item.title,
+            contentScale = if (hasBackdrop) ContentScale.Crop else ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
-            animationSpec = tween(durationMillis = 720),
-            label = "home-cinematic-hero-content",
-        ) { index ->
-            val item = items[index]
-            val detail = details[homeHeroKey(item.type, item.tmdbId)]
+        )
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                val hasBackdrop = !item.backdropUrl.isNullOrBlank()
-                HeroArtwork(
-                    imageUrl = if (hasBackdrop) item.backdropUrl else item.posterUrl,
-                    title = item.title,
-                    contentScale = if (hasBackdrop) ContentScale.Crop else ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.62f),
-                                    0.22f to Color.Black.copy(alpha = 0.36f),
-                                    0.48f to Color.Black.copy(alpha = 0.10f),
-                                    0.72f to Color.Black.copy(alpha = 0.64f),
-                                    1.0f to Color.Black.copy(alpha = 0.98f),
-                                ),
-                            ),
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.62f),
+                            0.22f to Color.Black.copy(alpha = 0.36f),
+                            0.48f to Color.Black.copy(alpha = 0.10f),
+                            0.72f to Color.Black.copy(alpha = 0.64f),
+                            1.0f to Color.Black.copy(alpha = 0.98f),
                         ),
-                )
+                    ),
+                ),
+        )
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.42f),
-                                    0.52f to Color.Black.copy(alpha = 0.12f),
-                                    1.0f to Color.Transparent,
-                                ),
-                            ),
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.42f),
+                            0.52f to Color.Black.copy(alpha = 0.12f),
+                            1.0f to Color.Transparent,
                         ),
-                )
+                    ),
+                ),
+        )
 
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth(0.88f)
-                        .padding(
-                            start = horizontalPadding,
-                            end = 12.dp,
-                            bottom = 26.dp,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth(0.88f)
+                .padding(
+                    start = horizontalPadding,
+                    end = 12.dp,
+                    bottom = 26.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Text(
+                text = "POLECANE",
+                color = Color.White.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.sp,
+            )
+
+            HeroTitleLogo(
+                title = item.title,
+                logoUrl = detail?.logoUrl,
+                maxHeight = 76.dp,
+            )
+
+            Text(
+                text = heroMetadata(item, detail),
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            (detail?.overview ?: item.overview)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { overview ->
                     Text(
-                        text = "POLECANE",
-                        color = Color.White.copy(alpha = 0.82f),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 2.sp,
-                    )
-
-                    HeroTitleLogo(
-                        title = item.title,
-                        logoUrl = detail?.logoUrl,
-                        maxHeight = 76.dp,
-                    )
-
-                    Text(
-                        text = heroMetadata(item, detail),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelLarge,
+                        text = overview,
+                        color = Color.White.copy(alpha = 0.96f),
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
 
-                    item.overview
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { overview ->
-                            Text(
-                                text = overview,
-                                color = Color.White.copy(alpha = 0.96f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(top = 5.dp)
+                    .focusGroup(),
+            ) {
+                items.take(5).forEachIndexed { index, _ ->
+                    val selected = index == safeIndex
+                    var focused by remember(index) {
+                        mutableStateOf(false)
+                    }
+                    val indicatorShape = RoundedCornerShape(8.dp)
+
+                    Box(
+                        modifier = Modifier
+                            .width(30.dp)
+                            .height(26.dp)
+                            .onFocusChanged { focused = it.isFocused }
+                            .clip(indicatorShape)
+                            .border(
+                                width = if (focused) 2.dp else 0.dp,
+                                color = if (focused) Color.White else Color.Transparent,
+                                shape = indicatorShape,
                             )
-                        }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 5.dp),
+                            .clickable { onActivate(index) },
+                        contentAlignment = Alignment.Center,
                     ) {
-                        items.take(5).forEachIndexed { index, _ ->
-                            val selected = index == safeIndex
-                            var focused by remember(index) {
-                                mutableStateOf(false)
-                            }
-                            val indicatorShape = RoundedCornerShape(8.dp)
-
-                            Box(
-                                modifier = Modifier
-                                    .width(30.dp)
-                                    .height(26.dp)
-                                    .onFocusChanged {
-                                        focused = it.isFocused
-                                        if (it.isFocused) onActivate(index)
-                                    }
-                                    .clip(indicatorShape)
-                                    .border(
-                                        width = if (focused) 2.dp else 0.dp,
-                                        color = if (focused) Color.White else Color.Transparent,
-                                        shape = indicatorShape,
-                                    )
-                                    .clickable { onActivate(index) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(if (selected) 22.dp else 7.dp)
-                                        .height(3.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (selected) Color.White
-                                            else Color.White.copy(alpha = 0.52f),
-                                        ),
-                                )
-                            }
-                        }
+                        Box(
+                            modifier = Modifier
+                                .width(if (selected) 22.dp else 7.dp)
+                                .height(3.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (selected) Color.White
+                                    else Color.White.copy(alpha = 0.52f),
+                                ),
+                        )
                     }
                 }
             }
@@ -568,22 +550,58 @@ private fun HeroArtwork(
         imageUrl?.takeIf { it.isNotBlank() }?.let { url ->
             ImageRequest.Builder(context)
                 .data(url)
-                .crossfade(550)
+                .memoryCacheKey("vireo-home-hero:$url")
+                .crossfade(false)
                 .build()
         }
+    }
+    var lastSuccessfulPainter by remember {
+        mutableStateOf<Painter?>(null)
+    }
+    LaunchedEffect(imageUrl) {
+        if (imageUrl.isNullOrBlank()) lastSuccessfulPainter = null
+    }
+
+    val painter = rememberAsyncImagePainter(
+        model = request,
+        onState = { state ->
+            if (
+                state is AsyncImagePainter.State.Success &&
+                !imageUrl.isNullOrBlank() &&
+                state.result.request.data == imageUrl &&
+                lastSuccessfulPainter !== state.painter
+            ) {
+                lastSuccessfulPainter = state.painter
+            }
+        },
+    )
+    val visiblePainter = when (val state = painter.state) {
+        is AsyncImagePainter.State.Success ->
+            if (state.result.request.data == imageUrl) {
+                state.painter
+            } else {
+                lastSuccessfulPainter ?: painter
+            }
+        else -> lastSuccessfulPainter ?: painter
     }
 
     Box(
         modifier = modifier.background(Color(0xFF17191D)),
         contentAlignment = Alignment.Center,
     ) {
-        if (request != null) {
-            AsyncImage(
-                model = request,
-                contentDescription = title,
-                contentScale = contentScale,
-                modifier = Modifier.fillMaxSize(),
-            )
+        if (!imageUrl.isNullOrBlank()) {
+            Crossfade(
+                targetState = visiblePainter,
+                animationSpec = tween(durationMillis = 360),
+                label = "home-hero-artwork-crossfade",
+            ) { loadedPainter ->
+                Image(
+                    painter = loadedPainter,
+                    contentDescription = title,
+                    contentScale = contentScale,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }

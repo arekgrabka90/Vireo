@@ -31,6 +31,33 @@ class HomePresentationPolicyTest {
     }
 
     @Test
+    fun selectedHeroUsesBackdropAndInactiveHeroUsesWholePoster() {
+        assertEquals(
+            "backdrop.jpg",
+            homeHeroArtworkUrl("backdrop.jpg", "poster.jpg", selected = true),
+        )
+        assertEquals(
+            "poster.jpg",
+            homeHeroArtworkUrl("backdrop.jpg", "poster.jpg", selected = false),
+        )
+        assertEquals(
+            "poster.jpg",
+            homeHeroArtworkUrl(null, "poster.jpg", selected = true),
+        )
+        assertEquals(
+            "backdrop.jpg",
+            homeHeroArtworkUrl("backdrop.jpg", null, selected = false),
+        )
+        assertNull(homeHeroArtworkUrl(null, null, selected = true))
+    }
+
+    @Test
+    fun inactiveHeroMustBeActivatedBeforeItCanOpen() {
+        assertFalse(shouldOpenHomeHeroOnClick(isActive = false))
+        assertTrue(shouldOpenHomeHeroOnClick(isActive = true))
+    }
+
+    @Test
     fun heroKeyIncludesMediaTypeAndTmdbId() {
         assertEquals("MOVIE:42", homeHeroKey(app.vireo.domain.model.ContentType.MOVIE, 42))
         assertEquals("SERIES:42", homeHeroKey(app.vireo.domain.model.ContentType.SERIES, 42))

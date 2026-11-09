@@ -13,24 +13,44 @@ class TmdbDetailMapperTest {
     )
 
     @Test
-    fun `English logo wins before higher rated localized logo`() {
+    fun `Polish logo wins before higher rated English logo`() {
         val result = TmdbDetailMapper.map(
             detail(),
             ContentType.MOVIE,
             TmdbImagesDto(
                 logos = listOf(
                     TmdbLogoDto(
-                        filePath = "/polish.png",
-                        iso6391 = "pl",
+                        filePath = "/english.png",
+                        iso6391 = "en",
                         voteAverage = 10.0,
                         width = 3000,
                     ),
                     TmdbLogoDto(
-                        filePath = "/english.png",
-                        iso6391 = "en",
-                        voteAverage = 6.0,
+                        filePath = "/polish.png",
+                        iso6391 = "pl",
+                        voteAverage = 5.0,
                         width = 1000,
                     ),
+                )
+            ),
+        )
+
+        assertEquals(
+            "https://image.tmdb.org/t/p/w500/polish.png",
+            result?.logoUrl,
+        )
+    }
+
+    @Test
+    fun `English logo is preferred when Polish is unavailable`() {
+        val result = TmdbDetailMapper.map(
+            detail(),
+            ContentType.MOVIE,
+            TmdbImagesDto(
+                logos = listOf(
+                    TmdbLogoDto(filePath = "/untagged.png", iso6391 = null, voteAverage = 10.0),
+                    TmdbLogoDto(filePath = "/other.png", iso6391 = "de", voteAverage = 9.0),
+                    TmdbLogoDto(filePath = "/english.png", iso6391 = "en", voteAverage = 5.0),
                 )
             ),
         )

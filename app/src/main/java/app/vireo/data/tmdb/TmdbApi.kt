@@ -66,7 +66,10 @@ class TmdbApi @Inject constructor(
             "Unsupported TMDB image media type."
         }
         require(id > 0) { "TMDB ID must be positive." }
-        val request = request("$type/$id/images", null) { }
+        val request = request("$type/$id/images", null) {
+            // TMDB defaults to English and untagged artwork; explicitly request Polish too.
+            addQueryParameter("include_image_language", "pl,en,null")
+        }
         return json.decodeFromString(execute(request))
     }
 

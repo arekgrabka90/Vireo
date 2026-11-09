@@ -86,17 +86,23 @@ internal object TmdbDetailMapper {
     private fun selectLogoUrl(images: TmdbImagesDto?): String? {
         val logos = images?.logos.orEmpty()
 
-        // Metoda ARVIO: najpierw poprawne pliki graficzne,
-        // angielski wariant, ocena społeczności i szerokość.
-        // Jeśli nie ma takiego pliku, zachowujemy awaryjne
-        // images.logos.firstOrNull().
+        // Prefer Polish artwork, then English, untagged and other languages.
+        // Within each language, prefer community score and larger artwork.
         val logo = logos
             .asSequence()
             .filter { !it.filePath.isNullOrBlank() }
             .filterNot { it.filePath!!.endsWith(".svg", ignoreCase = true) }
             .sortedWith(
-                compareByDescending<TmdbLogoDto> { it.iso6391 == "en" }
+                compareBy<TmdbLogoDto> {
+                    when (it.iso6391?.lowercase()) {
+                        "pl" -> 0
+                        "en" -> 1
+                        null -> 2
+                        else -> 3
+                    }
+                }
                     .thenByDescending { it.voteAverage }
+                    .thenByDescending { it.voteCount }
                     .thenByDescending { it.width }
             )
             .firstOrNull()

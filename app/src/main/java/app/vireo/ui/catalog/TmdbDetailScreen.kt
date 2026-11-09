@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -164,7 +165,8 @@ fun TmdbDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(detailHeroHeight)
+                    .heightIn(min = detailHeroHeight)
+                    .wrapContentHeight()
                     .background(colors.surfaceVariant),
             ) {
                 if (!detail.backdropUrl.isNullOrBlank()) {
@@ -198,7 +200,8 @@ fun TmdbDetailScreen(
 
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .heightIn(min = detailHeroHeight)
                         .padding(horizontal = 24.dp, vertical = 18.dp),
                 ) {
                     FocusableBox(
@@ -215,51 +218,42 @@ fun TmdbDetailScreen(
                         )
                     }
 
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.height(150.dp))
 
-                    Text(
-                        if (detail.type.name == "SERIES") "VIREO ORIGINAL EXPERIENCE · SERIES"
-                        else "VIREO CINEMA · MOVIE",
-                        color = colors.primary,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Text(
-                        detail.title,
-                        color = Color.White,
-                        style = if (screenWidth >= 840) {
-                            MaterialTheme.typography.displaySmall
-                        } else {
-                            MaterialTheme.typography.headlineMedium
-                        },
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (!detail.logoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = detail.logoUrl,
+                            contentDescription = detail.title,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .widthIn(max = 420.dp)
+                                .heightIn(max = 96.dp),
+                        )
+                    } else {
+                        Text(
+                            detail.title,
+                            color = Color.White,
+                            style = if (screenWidth >= 840) {
+                                MaterialTheme.typography.displaySmall
+                            } else {
+                                MaterialTheme.typography.headlineMedium
+                            },
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
 
                     Spacer(Modifier.height(10.dp))
 
-                    val metadata = listOfNotNull(
-                        detail.year?.toString(),
-                        detail.runtimeMinutes?.let { "$it min" },
-                    ).joinToString("  ·  ")
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        if (metadata.isNotBlank()) {
-                            Text(metadata, color = Color.White.copy(alpha = 0.88f))
-                        }
+                        detail.year?.let { DetailMetaChip(it.toString()) }
+                        detail.runtimeMinutes?.let { DetailMetaChip("$it min") }
                         detail.rating?.let {
-                            Text(
-                                "★ ${"%.1f".format(java.util.Locale.US, it)}",
-                                color = Color(0xFFFFD166),
-                                fontWeight = FontWeight.Bold,
-                            )
+                            DetailMetaChip("★ ${"%.1f".format(java.util.Locale.US, it)}")
                         }
                     }
 
@@ -287,11 +281,7 @@ fun TmdbDetailScreen(
                                 } else {
                                     MaterialTheme.typography.bodyMedium
                                 },
-                                maxLines = if (screenWidth >= 840) 4 else 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth(
-                                    if (screenWidth >= 840) 0.78f else 0.96f
-                                ),
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
 
@@ -640,6 +630,23 @@ private fun DetailActionButton(
 }
 
 @Composable
+private fun DetailMetaChip(label: String) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(7.dp),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            color = Color(0xFF17191E),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
 private fun SeriesEpisodes(
     seasons: List<app.vireo.data.tmdb.TmdbSeasonSummary>,
     episodes: List<TmdbEpisodeItem>,
@@ -725,112 +732,123 @@ private fun SeriesEpisodes(
                         "tmdb:SERIES:$tmdbId:S${episode.seasonNumber}E${episode.episodeNumber}"
                     val watched = key in watchedEpisodeKeys
 
-                    Surface(
-                        modifier = Modifier.width(264.dp),
-                        color = colors.surfaceVariant.copy(alpha = 0.72f),
-                        shape = RoundedCornerShape(16.dp),
-                        onClick = {
-                            onPlayEpisode(episode.seasonNumber, episode.episodeNumber)
-                        },
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(16f / 9f)
-                                    .background(colors.surface),
-                            ) {
-                                if (!episode.stillUrl.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = episode.stillUrl,
-                                        contentDescription = episode.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            "E${episode.episodeNumber}",
-                                            color = colors.onSurfaceVariant,
-                                            style = MaterialTheme.typography.headlineMedium,
-                                        )
-                                    }
-                                }
+                    var overviewExpanded by remember(episode.tmdbEpisodeId) {
+                        mutableStateOf(false)
+                    }
+                    val cardShape = RoundedCornerShape(16.dp)
 
+                    Column(
+                        modifier = Modifier
+                            .width(264.dp)
+                            .clip(cardShape)
+                            .clickable {
+                                onPlayEpisode(
+                                    episode.seasonNumber,
+                                    episode.episodeNumber,
+                                )
+                            },
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .clip(cardShape)
+                                .background(colors.surfaceVariant),
+                        ) {
+                            if (!episode.stillUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = episode.stillUrl,
+                                    contentDescription = episode.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "E${episode.episodeNumber}",
+                                        color = colors.onSurfaceVariant,
+                                        style = MaterialTheme.typography.headlineMedium,
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(9.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                DetailMetaChip("Odcinek ${episode.episodeNumber}")
+                                episode.runtimeMinutes?.let {
+                                    DetailMetaChip("$it min")
+                                }
+                            }
+
+                            if (watched) {
                                 Surface(
                                     modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(9.dp),
-                                    color = Color.Black.copy(alpha = 0.76f),
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp),
+                                    color = Color.White,
                                     shape = RoundedCornerShape(7.dp),
                                 ) {
                                     Text(
-                                        "Odcinek ${episode.episodeNumber}",
+                                        "✓ OBEJRZANE",
                                         modifier = Modifier.padding(
-                                            horizontal = 9.dp,
+                                            horizontal = 8.dp,
                                             vertical = 5.dp,
                                         ),
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF17191E),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
                                     )
-                                }
-
-                                if (watched) {
-                                    Surface(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(8.dp),
-                                        color = colors.primaryContainer,
-                                        shape = RoundedCornerShape(8.dp),
-                                    ) {
-                                        Text(
-                                            "✓ OBEJRZANE",
-                                            modifier = Modifier.padding(
-                                                horizontal = 8.dp,
-                                                vertical = 5.dp,
-                                            ),
-                                            color = colors.onPrimaryContainer,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                    }
                                 }
                             }
+                        }
 
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(5.dp),
-                            ) {
-                                Text(
-                                    episode.title,
-                                    color = colors.onSurface,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Text(
+                                episode.title,
+                                color = colors.onSurface,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
 
-                                episode.runtimeMinutes?.let {
+                            episode.overview
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { overview ->
                                     Text(
-                                        "$it min",
-                                        color = colors.onSurfaceVariant,
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                }
-
-                                episode.overview?.takeIf { it.isNotBlank() }?.let {
-                                    Text(
-                                        it,
+                                        overview,
                                         color = colors.onSurfaceVariant,
                                         style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 3,
-                                        overflow = TextOverflow.Ellipsis,
+                                        maxLines = if (overviewExpanded) Int.MAX_VALUE else 3,
+                                        overflow = if (overviewExpanded) {
+                                            TextOverflow.Clip
+                                        } else {
+                                            TextOverflow.Ellipsis
+                                        },
+                                    )
+
+                                    Text(
+                                        if (overviewExpanded) "… mniej" else "… więcej",
+                                        color = colors.onSurface,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.clickable {
+                                            overviewExpanded = !overviewExpanded
+                                        },
                                     )
                                 }
-                            }
                         }
                     }
                 }

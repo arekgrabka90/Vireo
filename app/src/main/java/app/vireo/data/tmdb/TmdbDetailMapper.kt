@@ -73,6 +73,21 @@ internal object TmdbDetailMapper {
                 .distinctBy { it.seasonNumber }
                 .sortedBy { it.seasonNumber }
                 .toList(),
+            logoUrl = dto.images?.logos.orEmpty()
+                .asSequence()
+                .filter { !it.filePath.isNullOrBlank() }
+                .sortedWith(
+                    compareBy<TmdbLogoDto> {
+                        when (it.iso6391) {
+                            null -> 0
+                            "en" -> 1
+                            else -> 2
+                        }
+                    }.thenByDescending { it.voteAverage }
+                     .thenByDescending { it.voteCount }
+                )
+                .mapNotNull { imageUrl(it.filePath, "w500") }
+                .firstOrNull(),
         )
     }
 

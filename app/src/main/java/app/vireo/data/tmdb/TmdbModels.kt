@@ -100,6 +100,7 @@ data class TmdbDetailDto(
     val credits: TmdbCreditsDto? = null,
     @SerialName("external_ids")
     val externalIds: TmdbExternalIdsDto? = null,
+    val images: TmdbImagesDto? = null,
     val seasons: List<TmdbSeasonDto> = emptyList(),
 )
 
@@ -162,6 +163,23 @@ data class TmdbEpisodeItem(
 )
 
 @Serializable
+data class TmdbImagesDto(
+    val logos: List<TmdbLogoDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbLogoDto(
+    @SerialName("file_path")
+    val filePath: String? = null,
+    @SerialName("iso_639_1")
+    val iso6391: String? = null,
+    @SerialName("vote_average")
+    val voteAverage: Double = 0.0,
+    @SerialName("vote_count")
+    val voteCount: Int = 0,
+)
+
+@Serializable
 data class TmdbExternalIdsDto(
     @SerialName("imdb_id")
     val imdbId: String? = null,
@@ -211,4 +229,5 @@ data class TmdbDetail(
     val cast: List<TmdbCastMember>,
     val imdbId: String? = null,
     val seasons: List<TmdbSeasonSummary> = emptyList(),
+    val logoUrl: String? = null,
 )

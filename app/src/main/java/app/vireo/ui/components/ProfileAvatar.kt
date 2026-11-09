@@ -16,22 +16,28 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
 val AvatarColors = listOf(
-    Color(0xFF7C5CFF), Color(0xFFE5484D), Color(0xFF30A46C), Color(0xFFF76B15),
+    Color(0xFFFFFFFF), Color(0xFFE5484D), Color(0xFF30A46C), Color(0xFFF76B15),
     Color(0xFF0091FF), Color(0xFFD6409F), Color(0xFF12A594), Color(0xFFFFB224),
 )
 
 @Composable
 fun ProfileAvatar(name: String, colorIndex: Int, size: Dp, modifier: Modifier = Modifier) {
+    val normalizedIndex = colorIndex.mod(AvatarColors.size)
+
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(size / 6))
-            .background(AvatarColors[colorIndex.mod(AvatarColors.size)]),
+            .background(AvatarColors[normalizedIndex]),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             name.trim().take(1).uppercase(),
-            color = Color.White,
+            color = if (normalizedIndex == 0) {
+                Color(0xFF111318)
+            } else {
+                Color.White
+            },
             fontSize = (size.value * 0.45f).sp,
             fontWeight = FontWeight.Bold,
         )

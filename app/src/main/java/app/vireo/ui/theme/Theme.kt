@@ -3,47 +3,79 @@ package app.vireo.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
-private val Graphite = Color(0xFF0E0F12)
-private val Surface = Color(0xFF17191D)
-private val SurfaceHigh = Color(0xFF22252B)
-private val Accent = Color(0xFF7C5CFF)
-private val TextPrimary = Color(0xFFF2F3F5)
-private val TextSecondary = Color(0xFF9AA0AB)
-
-private val VireoShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+private val VireoMaterialShapes = Shapes(
+    extraSmall = RoundedCornerShape(VireoRadii.xs),
+    small = RoundedCornerShape(VireoRadii.sm),
+    medium = RoundedCornerShape(VireoRadii.md),
+    large = RoundedCornerShape(VireoRadii.xl),
+    extraLarge = RoundedCornerShape(VireoRadii.xxl),
 )
 
-private val Scheme = darkColorScheme(
-    primary = Accent,
-    onPrimary = Color.White,
-    background = Graphite,
-    onBackground = TextPrimary,
-    surface = Surface,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceHigh,
-    onSurfaceVariant = TextSecondary,
-    primaryContainer = Color(0xFF2B2252),
-    onPrimaryContainer = Color(0xFFEAE4FF),
-    secondary = Color(0xFFB8A9FF),
-    outline = Color(0xFF353943),
-    surfaceTint = Accent,
+private val VireoColorScheme = darkColorScheme(
+    primary = VireoColors.accent,
+    onPrimary = VireoColors.onAccent,
+    primaryContainer = VireoColors.accentContainer,
+    onPrimaryContainer = VireoColors.onAccentContainer,
+
+    secondary = VireoColors.secondary,
+    onSecondary = VireoColors.onAccent,
+    secondaryContainer = VireoColors.selectedSurface,
+    onSecondaryContainer = VireoColors.textPrimary,
+
+    tertiary = VireoColors.tertiary,
+    onTertiary = VireoColors.onAccent,
+    tertiaryContainer = VireoColors.selectedSurface,
+    onTertiaryContainer = VireoColors.textPrimary,
+
+    background = VireoColors.background,
+    onBackground = VireoColors.textPrimary,
+
+    surface = VireoColors.surface,
+    onSurface = VireoColors.textPrimary,
+    surfaceVariant = VireoColors.surfaceElevated,
+    onSurfaceVariant = VireoColors.textSecondary,
+
+    outline = VireoColors.outline,
+    outlineVariant = VireoColors.outlineVariant,
+
+    surfaceTint = VireoColors.background,
 )
+
+private val VireoTypography = Typography().let { base ->
+    base.copy(
+        displayLarge = base.displayLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-1.2).sp,
+        ),
+        displayMedium = base.displayMedium.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.8).sp,
+        ),
+        headlineLarge = base.headlineLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+        ),
+        headlineMedium = base.headlineMedium.copy(
+            fontWeight = FontWeight.SemiBold,
+        ),
+        titleLarge = base.titleLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+        ),
+    )
+}
 
 @Composable
 fun VireoTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = Scheme,
-        shapes = VireoShapes,
+        colorScheme = VireoColorScheme,
+        typography = VireoTypography,
+        shapes = VireoMaterialShapes,
         content = content,
     )
 }

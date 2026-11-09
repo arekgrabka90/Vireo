@@ -789,8 +789,16 @@ private fun DetailActionGlyph(
             DetailActionIcon.EYE_CHECKED -> {
                 val eye = Path().apply {
                     moveTo(w * 0.08f, h * 0.50f)
-                    quadraticTo(w * 0.50f, h * 0.06f, w * 0.92f, h * 0.50f)
-                    quadraticTo(w * 0.50f, h * 0.94f, w * 0.08f, h * 0.50f)
+                    cubicTo(
+                        w * 0.22f, h * 0.12f,
+                        w * 0.78f, h * 0.12f,
+                        w * 0.92f, h * 0.50f
+                    )
+                    cubicTo(
+                        w * 0.78f, h * 0.88f,
+                        w * 0.22f, h * 0.88f,
+                        w * 0.08f, h * 0.50f
+                    )
                     close()
                 }
                 drawPath(eye, tint, style = stroke)

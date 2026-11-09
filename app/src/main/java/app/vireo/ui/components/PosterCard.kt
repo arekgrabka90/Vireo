@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +38,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
 import coil.compose.AsyncImage
@@ -51,6 +55,10 @@ fun PosterCard(
     isWatched: Boolean = false,
     imageUrl: String? = title.posterUrl,
     isLandscape: Boolean = false,
+    cardWidth: Dp? = null,
+    topStartLabel: String? = null,
+    topEndLabel: String? = null,
+    showPlayOnFocus: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -74,7 +82,7 @@ fun PosterCard(
 
     Column(
         modifier = modifier.width(
-            when {
+            cardWidth ?: when {
                 isLandscape -> 260.dp
                 live -> 180.dp
                 else -> 148.dp
@@ -91,6 +99,7 @@ fun PosterCard(
                     scaleX = scale
                     scaleY = scale
                 }
+                .zIndex(if (focused) 1f else 0f)
                 .hoverable(interactionSource)
                 .onFocusChanged { focused = it.hasFocus }
                 .clip(shape)
@@ -159,6 +168,58 @@ fun PosterCard(
                         .fillMaxWidth()
                         .height(4.dp),
                 )
+            }
+
+            if (!topStartLabel.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(7.dp),
+                    color = Color.Black.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(7.dp),
+                ) {
+                    Text(
+                        topStartLabel,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    )
+                }
+            }
+
+            if (!topEndLabel.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp),
+                    color = Color.Black.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(7.dp),
+                ) {
+                    Text(
+                        topEndLabel,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    )
+                }
+            }
+
+            if (showPlayOnFocus && focused) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(44.dp),
+                    color = Color.Black.copy(alpha = 0.72f),
+                    shape = CircleShape,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            "▶",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                }
             }
 
             if (isWatched) {

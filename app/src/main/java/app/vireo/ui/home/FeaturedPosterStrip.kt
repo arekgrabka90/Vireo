@@ -50,6 +50,7 @@ fun CinematicHero(
     activeIndex: Int,
     onActivate: (Int) -> Unit,
     onOpen: (TmdbCatalogItem) -> Unit,
+    onHeroFocusChanged: (Boolean) -> Unit = {},
 ) {
     if (items.isEmpty()) return
 
@@ -79,6 +80,7 @@ fun CinematicHero(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight)
+            .onFocusChanged { onHeroFocusChanged(it.hasFocus) }
             .background(Color.Black)
             .clickable { onOpen(activeItem) },
     ) {

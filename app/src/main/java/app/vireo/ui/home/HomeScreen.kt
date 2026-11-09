@@ -1,6 +1,8 @@
 package app.vireo.ui.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -38,19 +40,7 @@ import app.vireo.ui.library.LibraryViewModel
 import app.vireo.ui.library.tmdbTarget
 import kotlinx.coroutines.delay
 
-private fun formatRemainingDuration(durationMs: Long): String {
-    val totalMinutes = ((durationMs + 59_999L) / 60_000L)
-        .coerceAtLeast(0L)
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-
-    return when {
-        hours > 0L && minutes > 0L -> "$hours godz. $minutes min"
-        hours > 0L -> "$hours godz."
-        else -> "$minutes min"
-    }
-}
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     onOpenTitle: (ContentType, Int, String) -> Unit,
@@ -67,6 +57,12 @@ fun HomeScreen(
         screenWidth >= 840 -> 48.dp
         screenWidth >= 600 -> 32.dp
         else -> 20.dp
+    }
+    val continueCardWidth = when {
+        screenWidth >= 1200 -> 340.dp
+        screenWidth >= 840 -> 300.dp
+        screenWidth >= 600 -> 260.dp
+        else -> 190.dp
     }
 
     val movieTitles = state.movies.map { it.toHomeTitle() }
@@ -95,14 +91,19 @@ fun HomeScreen(
         .take(5)
 
     val heroKeys = heroItems.map { "${it.type.name}:${it.tmdbId}" }
-    val heroIndex = remember(heroKeys) { mutableIntStateOf(0) }
+    val activeHeroKey = remember { mutableStateOf<String?>(null) }
+    val heroFocused = remember { mutableStateOf(false) }
+    val heroIndex = resolveHomeHeroIndex(heroKeys, activeHeroKey.value)
 
-    LaunchedEffect(heroKeys) {
-        if (heroKeys.size > 1) {
+    LaunchedEffect(heroKeys, heroFocused.value) {
+        if (heroKeys.isNotEmpty() && activeHeroKey.value !in heroKeys) {
+            activeHeroKey.value = heroKeys.first()
+        }
+        if (!heroFocused.value && heroKeys.size > 1) {
             while (true) {
                 delay(10_000L)
-                heroIndex.intValue =
-                    (heroIndex.intValue + 1) % heroKeys.size
+                val current = resolveHomeHeroIndex(heroKeys, activeHeroKey.value)
+                activeHeroKey.value = heroKeys[(current + 1) % heroKeys.size]
             }
         }
     }
@@ -151,7 +152,10 @@ fun HomeScreen(
                         heroItems.lastIndex,
                     ),
                     onActivate = { index ->
-                        heroIndex.intValue = index
+                        activeHeroKey.value = heroKeys.getOrNull(index)
+                    },
+                    onHeroFocusChanged = { focused ->
+                        heroFocused.value = focused
                     },
                     onOpen = { item ->
                         onOpenTitle(
@@ -188,7 +192,7 @@ fun HomeScreen(
                     )
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusGroup(),
                         contentPadding = PaddingValues(
                             start = horizontalPadding + 6.dp,
                             end = horizontalPadding + 20.dp,
@@ -198,23 +202,24 @@ fun HomeScreen(
                     ) {
                         items(resumable, key = { it.first.contentKey }) { entry ->
                             val item = entry.first
-                            val progress = if (item.durationMs > 0L) {
-                                (item.positionMs.toFloat() / item.durationMs.toFloat())
-                                    .coerceIn(0f, 1f)
-                            } else 0f
-
+                            val progress = homeProgressFraction(
+                                item.positionMs,
+                                item.durationMs,
+                            )
                             val remainingMs = (item.durationMs - item.positionMs)
                                 .coerceAtLeast(0L)
                             val remainingText = if (item.durationMs > 0L) {
-                                "Pozostało ${formatRemainingDuration(remainingMs)}"
+                                "Pozostało ${formatHomeRemainingDuration(remainingMs)}"
                             } else {
                                 null
                             }
 
-                            val backdrop = allTrending.firstOrNull {
-                                it.tmdbId == entry.second.id &&
-                                    it.type == entry.second.type
-                            }?.backdropUrl
+                            val backdrop = item.backdropUrl
+                                ?.takeIf { it.isNotBlank() }
+                                ?: allTrending.firstOrNull {
+                                    it.tmdbId == entry.second.id &&
+                                        it.type == entry.second.type
+                                }?.backdropUrl
 
                             PosterCard(
                                 title = entry.third,
@@ -222,9 +227,17 @@ fun HomeScreen(
                                     ?.takeIf { it.isNotBlank() }
                                     ?: entry.third.posterUrl,
                                 isLandscape = true,
+                                cardWidth = continueCardWidth,
                                 topProgress = progress,
+                                topStartLabel = if (entry.second.type == ContentType.MOVIE) {
+                                    "FILM"
+                                } else {
+                                    "SERIAL"
+                                },
+                                topEndLabel = remainingText?.removePrefix("Pozostało "),
                                 belowPosterText = remainingText,
                                 isWatched = item.watched,
+                                showPlayOnFocus = true,
                                 onClick = {
                                     onOpenTitle(
                                         entry.second.type,
@@ -251,7 +264,7 @@ fun HomeScreen(
                     )
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusGroup(),
                         contentPadding = PaddingValues(
                             start = horizontalPadding + 6.dp,
                             end = horizontalPadding + 20.dp,
@@ -261,7 +274,7 @@ fun HomeScreen(
                     ) {
                         items(
                             myListItems,
-                            key = { it.first.id.toString() },
+                            key = { it.second.id },
                         ) { entry ->
                             PosterCard(
                                 title = entry.second,
@@ -291,6 +304,7 @@ fun HomeScreen(
                     onSeeAll = { onOpenCatalog(ContentType.MOVIE) },
                     onTitle = ::open,
                     watchedKeys = libraryState.watchedContentKeys,
+                    focusGroupEnabled = true,
                 )
             }
         }
@@ -306,6 +320,7 @@ fun HomeScreen(
                     onSeeAll = { onOpenCatalog(ContentType.SERIES) },
                     onTitle = ::open,
                     watchedKeys = libraryState.watchedContentKeys,
+                    focusGroupEnabled = true,
                 )
             }
         }

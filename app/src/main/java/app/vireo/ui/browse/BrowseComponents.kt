@@ -1,6 +1,8 @@
 package app.vireo.ui.browse
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -176,6 +178,7 @@ fun Hero(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TitleRow(
     row: RowData,
@@ -183,6 +186,7 @@ fun TitleRow(
     onSeeAll: () -> Unit,
     onTitle: (Title) -> Unit,
     watchedKeys: Set<String> = emptySet(),
+    focusGroupEnabled: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     Column {
@@ -211,7 +215,12 @@ fun TitleRow(
             }
         }
         LazyRow(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (focusGroupEnabled) Modifier.focusGroup()
+                    else Modifier,
+                ),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(
                 start = horizontalPadding + 6.dp,

@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -99,7 +101,16 @@ fun CinematicHero(
 
     val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
 
-    if (expandedLayout) {
+    if (screenWidth < 600) {
+        MobileCoverFlowHero(
+            items = items,
+            activeIndex = safeIndex,
+            onActivate = onActivate,
+            onOpen = onOpen,
+            onHeroFocusChanged = onHeroFocusChanged,
+            details = details,
+        )
+    } else if (expandedLayout) {
         ExpandedCinematicHero(
             items = items.take(5),
             activeIndex = safeIndex.coerceAtMost(items.take(5).lastIndex),
@@ -117,7 +128,7 @@ fun CinematicHero(
             onOpen = onOpen,
             onHeroFocusChanged = onHeroFocusChanged,
             details = details,
-            centerContent = screenWidth < 600,
+            centerContent = false,
         )
     }
 }
@@ -474,6 +485,338 @@ private fun ExpandedCinematicHero(
             }
         }
 
+    }
+}
+
+
+
+@Composable
+private fun MobileCoverFlowHero(
+    items: List<TmdbCatalogItem>,
+    activeIndex: Int,
+    onActivate: (Int) -> Unit,
+    onOpen: (TmdbCatalogItem) -> Unit,
+    onHeroFocusChanged: (Boolean) -> Unit,
+    details: Map<String, TmdbDetail>,
+) {
+    if (items.isEmpty()) return
+
+    val configuration = LocalConfiguration.current
+
+    // Portrait posters: central card remains the visual focus.
+    val centerWidth = (
+        configuration.screenWidthDp.dp * 0.56f
+    ).coerceIn(176.dp, 214.dp)
+
+    val centerHeight = centerWidth * 1.5f
+    val nearWidth = centerWidth * 0.82f
+    val nearHeight = centerHeight * 0.82f
+    val farWidth = centerWidth * 0.68f
+    val farHeight = centerHeight * 0.68f
+
+    val density = LocalContext.current.resources.displayMetrics.density
+    val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
+
+    val offsets = when {
+        items.size >= 5 -> listOf(-2, -1, 0, 1, 2)
+        items.size == 4 -> listOf(-1, 0, 1, 2)
+        items.size == 3 -> listOf(-1, 0, 1)
+        items.size == 2 -> listOf(0, 1)
+        else -> listOf(0)
+    }
+
+    val slots = offsets.map { relative ->
+        val index = (safeIndex + relative + items.size) % items.size
+        Triple(index, relative, items[index])
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(centerHeight + 68.dp)
+                .clipToBounds(),
+        ) {
+            val centerLeft = (maxWidth - centerWidth) / 2
+
+            // The side posters overlap behind the central poster.
+            val nearLeft = centerLeft - nearWidth * 0.28f
+            val nearRight = centerLeft + centerWidth - nearWidth * 0.72f
+
+            val farLeft = nearLeft - farWidth * 0.72f
+            val farRight = nearRight + nearWidth - farWidth * 0.28f
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onFocusChanged {
+                        onHeroFocusChanged(it.hasFocus)
+                    }
+                    .focusGroup()
+                    .pointerInput(items, safeIndex) {
+                        var dragDistance = 0f
+                        var gestureHandled = false
+                        val swipeThreshold = 44.dp.toPx()
+
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                dragDistance = 0f
+                                gestureHandled = false
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                dragDistance += dragAmount
+                                change.consume()
+
+                                if (
+                                    items.size > 1 &&
+                                    !gestureHandled &&
+                                    kotlin.math.abs(dragDistance) >=
+                                        swipeThreshold
+                                ) {
+                                    val direction =
+                                        if (dragDistance < 0f) 1 else -1
+
+                                    val nextIndex =
+                                        (safeIndex + direction + items.size) %
+                                            items.size
+
+                                    onActivate(nextIndex)
+                                    gestureHandled = true
+                                }
+                            },
+                        )
+                    },
+            ) {
+                // Distant posters are composed first, the active poster last.
+                slots.sortedByDescending {
+                    kotlin.math.abs(it.second)
+                }.forEach { (index, relative, item) ->
+
+                    val distance = kotlin.math.abs(relative)
+                    val selected = relative == 0
+
+                    val detail = details[
+                        homeHeroKey(item.type, item.tmdbId)
+                    ]
+
+                    val focusedState = remember(item.type, item.tmdbId) {
+                        mutableStateOf(false)
+                    }
+
+                    val targetWidth = when (distance) {
+                        0 -> centerWidth
+                        1 -> nearWidth
+                        else -> farWidth
+                    }
+
+                    val targetHeight = when (distance) {
+                        0 -> centerHeight
+                        1 -> nearHeight
+                        else -> farHeight
+                    }
+
+                    val targetLeft = when (relative) {
+                        -2 -> farLeft
+                        -1 -> nearLeft
+                        0 -> centerLeft
+                        1 -> nearRight
+                        else -> farRight
+                    }
+
+                    val targetTop = when (distance) {
+                        0 -> 6.dp
+                        1 -> 28.dp
+                        else -> 48.dp
+                    }
+
+                    val targetRotation = when (relative) {
+                        -2 -> -21f
+                        -1 -> -12f
+                        0 -> 0f
+                        1 -> 12f
+                        else -> 21f
+                    }
+
+                    val targetScale = when (distance) {
+                        0 -> 1f
+                        1 -> 0.98f
+                        else -> 0.94f
+                    }
+
+                    val animation = tween<Dp>(
+                        durationMillis = 720,
+                        easing = FastOutSlowInEasing,
+                    )
+
+                    val animatedLeft by animateDpAsState(
+                        targetValue = targetLeft,
+                        animationSpec = animation,
+                        label = "mobile-cover-flow-left",
+                    )
+
+                    val animatedTop by animateDpAsState(
+                        targetValue = targetTop,
+                        animationSpec = animation,
+                        label = "mobile-cover-flow-top",
+                    )
+
+                    val animatedWidth by animateDpAsState(
+                        targetValue = targetWidth,
+                        animationSpec = animation,
+                        label = "mobile-cover-flow-width",
+                    )
+
+                    val animatedHeight by animateDpAsState(
+                        targetValue = targetHeight,
+                        animationSpec = animation,
+                        label = "mobile-cover-flow-height",
+                    )
+
+                    val animatedRotation by animateFloatAsState(
+                        targetValue = targetRotation,
+                        animationSpec = tween(
+                            durationMillis = 720,
+                            easing = FastOutSlowInEasing,
+                        ),
+                        label = "mobile-cover-flow-rotation",
+                    )
+
+                    val animatedScale by animateFloatAsState(
+                        targetValue = targetScale,
+                        animationSpec = tween(
+                            durationMillis = 720,
+                            easing = FastOutSlowInEasing,
+                        ),
+                        label = "mobile-cover-flow-scale",
+                    )
+
+                    val elevation by animateDpAsState(
+                        targetValue = when (distance) {
+                            0 -> 20.dp
+                            1 -> 12.dp
+                            else -> 6.dp
+                        },
+                        animationSpec = animation,
+                        label = "mobile-cover-flow-elevation",
+                    )
+
+                    val shape = RoundedCornerShape(
+                        if (selected) 19.dp else 15.dp
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .offset(
+                                x = animatedLeft,
+                                y = animatedTop,
+                            )
+                            .width(animatedWidth)
+                            .height(animatedHeight)
+                            .shadow(
+                                elevation = elevation,
+                                shape = shape,
+                                clip = false,
+                            )
+                            .zIndex(
+                                when (distance) {
+                                    0 -> 5f
+                                    1 -> 3f
+                                    else -> 1f
+                                }
+                            )
+                            .graphicsLayer {
+                                rotationY = animatedRotation
+                                scaleX = animatedScale
+                                scaleY = animatedScale
+                                cameraDistance = 32f * density
+                            }
+                            .clip(shape)
+                            .background(Color(0xFF111318))
+                            .border(
+                                width = when {
+                                    focusedState.value -> 2.dp
+                                    selected -> 1.dp
+                                    else -> 0.6.dp
+                                },
+                                color = when {
+                                    focusedState.value -> Color.White
+                                    selected -> Color.White.copy(alpha = 0.42f)
+                                    else -> Color.White.copy(alpha = 0.12f)
+                                },
+                                shape = shape,
+                            )
+                            .onFocusChanged {
+                                focusedState.value = it.isFocused
+                            }
+                            .clickable {
+                                if (selected) {
+                                    onOpen(item)
+                                } else {
+                                    onActivate(index)
+                                }
+                            },
+                    ) {
+                        // Poster artwork only: no title, metadata or gradients.
+                        HeroArtwork(
+                            imageUrl = detail?.posterUrl ?: item.posterUrl,
+                            title = item.title,
+                            contentScale = ContentScale.Crop,
+                            backgroundColor = Color(0xFF111318),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Title logo is now completely outside the poster carousel.
+        HeroTitleLogo(
+            title = items[safeIndex].title,
+            logoUrl = details[
+                homeHeroKey(
+                    items[safeIndex].type,
+                    items[safeIndex].tmdbId,
+                )
+            ]?.logoUrl,
+            maxHeight = 58.dp,
+            alignment = Alignment.CenterHorizontally,
+        )
+
+        HeroMetadataChips(
+            item = items[safeIndex],
+            detail = details[
+                homeHeroKey(
+                    items[safeIndex].type,
+                    items[safeIndex].tmdbId,
+                )
+            ],
+            centered = true,
+        )
+
+        val activeItem = items[safeIndex]
+        val activeDetail = details[
+            homeHeroKey(activeItem.type, activeItem.tmdbId)
+        ]
+
+        (activeDetail?.overview ?: activeItem.overview)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { overview ->
+                Text(
+                    text = overview,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
     }
 }
 

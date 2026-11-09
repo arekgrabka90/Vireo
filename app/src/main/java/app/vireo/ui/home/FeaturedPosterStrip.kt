@@ -676,35 +676,3 @@ private fun HeroMetadataChips(
         }
     }
 }
-
-
-    item: TmdbCatalogItem,
-    detail: TmdbDetail?,
-): String {
-    val year = detail?.year?.toString()
-        ?: item.year?.toString()
-        ?: item.releaseDate?.take(4).orEmpty()
-
-    val ratingValue = detail?.rating ?: item.rating
-    val rating = ratingValue
-        ?.takeIf { it > 0.0 }
-        ?.let { String.format(Locale.US, "%.1f", it) }
-
-    val genres = detail?.genres
-        .orEmpty()
-        .asSequence()
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString(" / ")
-        .takeIf { it.isNotBlank() }
-
-    val kind = if (item.type == ContentType.MOVIE) "FILM" else "SERIAL"
-
-    return listOfNotNull(
-        kind,
-        year.takeIf { it.isNotBlank() },
-        genres,
-        rating?.let { "★ $it" },
-    ).joinToString("  •  ")
-}

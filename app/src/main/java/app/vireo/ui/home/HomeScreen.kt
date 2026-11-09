@@ -115,7 +115,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(vertical = 0.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
 
         if (state.loading && movieTitles.isEmpty() && seriesTitles.isEmpty()) {
@@ -211,8 +211,17 @@ fun HomeScreen(
                                 null
                             }
 
+                            val backdrop = allTrending.firstOrNull {
+                                it.tmdbId == entry.second.id &&
+                                    it.type == entry.second.type
+                            }?.backdropUrl
+
                             PosterCard(
                                 title = entry.third,
+                                imageUrl = backdrop
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: entry.third.posterUrl,
+                                isLandscape = true,
                                 topProgress = progress,
                                 belowPosterText = remainingText,
                                 isWatched = item.watched,

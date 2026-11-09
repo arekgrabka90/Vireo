@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,7 +75,6 @@ fun CinematicHero(
 
     val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
     val activeItem = items[safeIndex]
-    val colors = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
@@ -106,10 +106,10 @@ fun CinematicHero(
                         .background(
                             Brush.verticalGradient(
                                 colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.66f),
+                                    0.0f to Color.Black.copy(alpha = 0.68f),
                                     0.20f to Color.Black.copy(alpha = 0.30f),
                                     0.48f to Color.Transparent,
-                                    1.0f to Color.Black.copy(alpha = 0.96f),
+                                    1.0f to Color.Black.copy(alpha = 0.97f),
                                 ),
                             ),
                         ),
@@ -121,7 +121,7 @@ fun CinematicHero(
                         .background(
                             Brush.horizontalGradient(
                                 colorStops = arrayOf(
-                                    0.0f to Color.Black.copy(alpha = 0.30f),
+                                    0.0f to Color.Black.copy(alpha = 0.34f),
                                     0.48f to Color.Transparent,
                                     1.0f to Color.Transparent,
                                 ),

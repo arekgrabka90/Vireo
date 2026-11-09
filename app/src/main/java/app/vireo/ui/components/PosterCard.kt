@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -48,11 +49,14 @@ fun PosterCard(
     topProgress: Float? = null,
     belowPosterText: String? = null,
     isWatched: Boolean = false,
+    imageUrl: String? = title.posterUrl,
+    isLandscape: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
     val pressed by interactionSource.collectIsPressedAsState()
+
     val scale by animateFloatAsState(
         targetValue = when {
             focused -> 1.045f
@@ -62,15 +66,27 @@ fun PosterCard(
         },
         label = "poster-focus-scale",
     )
+
     val shape = RoundedCornerShape(16.dp)
     val colors = MaterialTheme.colorScheme
     val live = title.type == ContentType.LIVE
+    val landscape = isLandscape || live
 
-    Column(modifier = modifier.width(if (live) 180.dp else 148.dp)) {
+    Column(
+        modifier = modifier.width(
+            when {
+                isLandscape -> 260.dp
+                live -> 180.dp
+                else -> 148.dp
+            },
+        ),
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(if (live) 16f / 9f else 2f / 3f)
+                .aspectRatio(
+                    if (landscape) 16f / 9f else 2f / 3f,
+                )
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -81,8 +97,7 @@ fun PosterCard(
                 .background(colors.surfaceVariant)
                 .border(
                     width = if (focused || hovered) 2.dp else 0.dp,
-                    color = if (focused) colors.primary
-                        else if (hovered) colors.primary.copy(alpha = 0.58f)
+                    color = if (focused || hovered) Color.White
                         else Color.Transparent,
                     shape = shape,
                 )
@@ -92,22 +107,20 @@ fun PosterCard(
                     onClick = onClick,
                 ),
         ) {
-            if (topProgress != null) {
-                LinearProgressIndicator(
-                    progress = topProgress.coerceIn(0f, 1f),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(4.dp),
-                )
-            }
-
-            if (!title.posterUrl.isNullOrBlank()) {
+            if (!imageUrl.isNullOrBlank()) {
                 AsyncImage(
-                    model = title.posterUrl,
+                    model = imageUrl,
                     contentDescription = title.name,
-                    contentScale = if (live) ContentScale.Fit else ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().padding(if (live) 14.dp else 0.dp),
+                    contentScale = if (live && !isLandscape) {
+                        ContentScale.Fit
+                    } else {
+                        ContentScale.Crop
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            if (live && !isLandscape) 14.dp else 0.dp,
+                        ),
                 )
             } else {
                 Text(
@@ -115,6 +128,36 @@ fun PosterCard(
                     style = MaterialTheme.typography.headlineMedium,
                     color = colors.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
+                )
+            }
+
+            if (isLandscape) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(62.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.72f),
+                                ),
+                            ),
+                        ),
+                )
+            }
+
+            if (topProgress != null) {
+                LinearProgressIndicator(
+                    progress = topProgress.coerceIn(0f, 1f),
+                    modifier = Modifier
+                        .align(
+                            if (isLandscape) Alignment.BottomCenter
+                            else Alignment.TopCenter,
+                        )
+                        .fillMaxWidth()
+                        .height(4.dp),
                 )
             }
 
@@ -130,11 +173,15 @@ fun PosterCard(
                         "✓",
                         color = Color(0xFF17191E),
                         style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(
+                            horizontal = 7.dp,
+                            vertical = 3.dp,
+                        ),
                     )
                 }
             }
         }
+
         if (!belowPosterText.isNullOrBlank()) {
             Text(
                 belowPosterText,
@@ -155,7 +202,11 @@ fun PosterCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        val rating = title.rating?.takeIf { it.isNotBlank() && it != "0" }
+
+        val rating = title.rating?.takeIf {
+            it.isNotBlank() && it != "0"
+        }
+
         if (rating != null) {
             Text(
                 "★ $rating",

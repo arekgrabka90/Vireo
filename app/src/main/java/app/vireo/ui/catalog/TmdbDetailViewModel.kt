@@ -38,6 +38,7 @@ data class TmdbDetailState(
     val playbackError: String? = null,
     val playbackReady: Boolean = false,
     val inMyList: Boolean = false,
+    val isWatched: Boolean = false,
     val watchedEpisodeKeys: Set<String> = emptySet(),
     val tmdbSeasons: List<TmdbSeasonSummary> = emptyList(),
     val tmdbEpisodes: List<TmdbEpisodeItem> = emptyList(),
@@ -81,14 +82,20 @@ class TmdbDetailViewModel @Inject constructor(
                 _state.update { it.copy(watchedEpisodeKeys = emptySet()) }
 
                 library.observeAll(profileId).collect { items ->
-                    val watched = items
+                    val watchedEpisodes = items
                         .asSequence()
                         .filter { it.watched }
                         .map { it.contentKey }
                         .toSet()
+                    val titleWatched = items.any {
+                        it.contentKey == "tmdb:${type.name}:$tmdbId" && it.watched
+                    }
 
                     _state.update {
-                        it.copy(watchedEpisodeKeys = watched)
+                        it.copy(
+                            watchedEpisodeKeys = watchedEpisodes,
+                            isWatched = titleWatched,
+                        )
                     }
                 }
             }
@@ -215,6 +222,7 @@ class TmdbDetailViewModel @Inject constructor(
         val detail = _state.value.detail ?: return
         val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
         val inMyList = library.isWatchlisted(profileId, contentKey)
+        val isWatched = library.isWatched(profileId, contentKey)
 
         if (profiles.activeId != profileId) return
 
@@ -223,7 +231,7 @@ class TmdbDetailViewModel @Inject constructor(
                 current.detail?.tmdbId == detail.tmdbId &&
                 current.detail?.type == detail.type
             ) {
-                current.copy(inMyList = inMyList)
+                current.copy(inMyList = inMyList, isWatched = isWatched)
             } else {
                 current
             }
@@ -253,6 +261,38 @@ class TmdbDetailViewModel @Inject constructor(
                         current.detail?.type == detail.type
                     ) {
                         current.copy(inMyList = enabled)
+                    } else {
+                        current
+                    }
+                }
+            }
+        }
+    }
+
+    fun toggleWatched() {
+        val detail = _state.value.detail ?: return
+        val watched = !_state.value.isWatched
+        val contentKey = "tmdb:${detail.type.name}:${detail.tmdbId}"
+        val profileId = profiles.activeId
+
+        viewModelScope.launch {
+            library.setWatched(
+                profileId = profileId,
+                contentKey = contentKey,
+                watched = watched,
+                title = detail.title,
+                contentType = detail.type.name,
+                posterUrl = detail.posterUrl,
+                backdropUrl = detail.backdropUrl,
+            )
+
+            if (profiles.activeId == profileId) {
+                _state.update { current ->
+                    if (
+                        current.detail?.tmdbId == detail.tmdbId &&
+                        current.detail?.type == detail.type
+                    ) {
+                        current.copy(isWatched = watched)
                     } else {
                         current
                     }

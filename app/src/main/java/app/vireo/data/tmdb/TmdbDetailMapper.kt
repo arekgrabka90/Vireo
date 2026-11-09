@@ -7,6 +7,7 @@ internal object TmdbDetailMapper {
         dto: TmdbDetailDto,
         type: ContentType,
         images: TmdbImagesDto? = null,
+        videos: List<TmdbVideoDto> = emptyList(),
     ): TmdbDetail? {
         if (dto.id <= 0) return null
         if (type != ContentType.MOVIE && type != ContentType.SERIES) return null
@@ -78,11 +79,18 @@ internal object TmdbDetailMapper {
                 .sortedBy { it.seasonNumber }
                 .toList(),
             logoUrl = selectLogoUrl(images),
+            trailerYoutubeKey = selectTrailerKey(videos),
         )
     }
 
     private fun selectLogoUrl(images: TmdbImagesDto?): String? {
-        val logo = images?.logos.orEmpty()
+        val logos = images?.logos.orEmpty()
+
+        // Metoda ARVIO: najpierw poprawne pliki graficzne,
+        // angielski wariant, ocena społeczności i szerokość.
+        // Jeśli nie ma takiego pliku, zachowujemy awaryjne
+        // images.logos.firstOrNull().
+        val logo = logos
             .asSequence()
             .filter { !it.filePath.isNullOrBlank() }
             .filterNot { it.filePath!!.endsWith(".svg", ignoreCase = true) }
@@ -92,9 +100,26 @@ internal object TmdbDetailMapper {
                     .thenByDescending { it.width }
             )
             .firstOrNull()
+            ?: logos.firstOrNull()
 
         return imageUrl(logo?.filePath, "w500")
     }
+
+    internal fun selectTrailerKey(videos: List<TmdbVideoDto>): String? =
+        videos.asSequence()
+            .filter { it.site.equals("YouTube", ignoreCase = true) && it.key.isNotBlank() }
+            .sortedWith(
+                compareByDescending<TmdbVideoDto> {
+                    when {
+                        it.type == "Trailer" && it.official -> 3
+                        it.type == "Trailer" -> 2
+                        it.type == "Teaser" -> 1
+                        else -> 0
+                    }
+                }.thenByDescending { it.size.coerceAtMost(1080) }
+            )
+            .firstOrNull()
+            ?.key
 
     fun mapEpisode(dto: TmdbEpisodeDto): TmdbEpisodeItem? {
         if (dto.seasonNumber < 0 || dto.episodeNumber <= 0) return null

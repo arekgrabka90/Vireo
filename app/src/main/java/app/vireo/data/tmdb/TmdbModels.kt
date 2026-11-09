@@ -182,6 +182,20 @@ data class TmdbLogoDto(
 )
 
 @Serializable
+data class TmdbVideosDto(
+    val results: List<TmdbVideoDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbVideoDto(
+    val key: String = "",
+    val site: String = "",
+    val type: String = "",
+    val official: Boolean = false,
+    val size: Int = 0,
+)
+
+@Serializable
 data class TmdbExternalIdsDto(
     @SerialName("imdb_id")
     val imdbId: String? = null,
@@ -232,4 +246,5 @@ data class TmdbDetail(
     val imdbId: String? = null,
     val seasons: List<TmdbSeasonSummary> = emptyList(),
     val logoUrl: String? = null,
+    val trailerYoutubeKey: String? = null,
 )

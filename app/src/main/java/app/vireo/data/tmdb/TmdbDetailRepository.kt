@@ -55,7 +55,22 @@ class TmdbDetailRepository @Inject constructor(
                 null
             }
 
-            val detail = TmdbDetailMapper.map(dto, type, images)
+            val videos = try {
+                var results = api.videos(mediaType, id, normalizedLanguage).results
+                if (
+                    results.none { it.site.equals("YouTube", ignoreCase = true) } &&
+                    !normalizedLanguage.equals("en-US", ignoreCase = true)
+                ) {
+                    results = api.videos(mediaType, id, "en-US").results
+                }
+                results
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            val detail = TmdbDetailMapper.map(dto, type, images, videos)
                 ?: return Result.failure(IllegalStateException("TMDB returned invalid details."))
 
             cache[key] = Entry(detail, System.currentTimeMillis())

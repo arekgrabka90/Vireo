@@ -3,6 +3,7 @@ package app.vireo.ui.catalog
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -52,10 +53,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -64,6 +73,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,6 +96,7 @@ fun TmdbDetailScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val detail = state.detail
+    val uriHandler = LocalUriHandler.current
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val detailHeroHeight = when {
         screenWidth >= 1200 -> 720.dp
@@ -210,19 +224,21 @@ fun TmdbDetailScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 24.dp, vertical = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.Start,
                 ) {
                     FocusableBox(
                         onClick = onBack,
-                        modifier = Modifier.padding(
+                        modifier = Modifier.fillMaxWidth().padding(
                             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
                             bottom = 12.dp,
                         ),
                     ) {
                         Text(
                             "‹  ${stringResource(R.string.back)}",
+                            modifier = Modifier.fillMaxWidth(),
                             color = Color.White,
                             style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Start,
                         )
                     }
 
@@ -234,6 +250,7 @@ fun TmdbDetailScreen(
                             contentDescription = detail.title,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
+                                .align(Alignment.Start)
                                 .fillMaxWidth()
                                 .widthIn(max = 420.dp)
                                 .heightIn(max = 96.dp),
@@ -250,7 +267,7 @@ fun TmdbDetailScreen(
                                 MaterialTheme.typography.headlineMedium
                             },
                             fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
+                            textAlign = TextAlign.Start,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -261,7 +278,7 @@ fun TmdbDetailScreen(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         detail.year?.let { DetailMetaChip(it.toString()) }
                         detail.runtimeMinutes?.let { DetailMetaChip("$it min") }
@@ -277,7 +294,7 @@ fun TmdbDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             color = Color.White.copy(alpha = 0.78f),
                             style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
+                            textAlign = TextAlign.Start,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -325,23 +342,54 @@ fun TmdbDetailScreen(
                         vertical = 16.dp,
                     )
                     .widthIn(max = 520.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DetailActionButton(
-                    label = if (isSeries) "▶  WATCH NEXT" else "▶  WATCH",
+                    label = if (isSeries) "WATCH NEXT" else "WATCH",
+                    accessibilityLabel = if (isSeries) "Odtwórz następny odcinek" else "Odtwórz film",
+                    icon = DetailActionIcon.PLAY,
+                    iconSize = 30.dp,
                     primary = true,
                     enabled = canWatch,
-                    modifier = Modifier.weight(1.15f),
+                    modifier = Modifier.weight(3f),
                     onClick = { watch() },
                 )
 
                 DetailActionButton(
-                    label = if (state.inMyList) "✓  MY LIST" else "+  MY LIST",
+                    label = "",
+                    accessibilityLabel = if (detail.trailerYoutubeKey.isNullOrBlank()) "Zwiastun niedostępny" else "Otwórz zwiastun",
+                    icon = DetailActionIcon.TRAILER,
                     primary = false,
+                    enabled = !detail.trailerYoutubeKey.isNullOrBlank(),
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        detail.trailerYoutubeKey?.let { key ->
+                            uriHandler.openUri("https://www.youtube.com/watch?v=$key")
+                        }
+                    },
+                )
+
+                DetailActionButton(
+                    label = "",
+                    accessibilityLabel = if (state.inMyList) "Usuń z Mojej listy" else "Dodaj do Mojej listy",
+                    icon = if (state.inMyList) DetailActionIcon.BOOKMARK_CHECKED else DetailActionIcon.BOOKMARK,
+                    primary = false,
+                    selected = state.inMyList,
                     enabled = true,
                     modifier = Modifier.weight(1f),
                     onClick = vm::toggleMyList,
+                )
+
+                DetailActionButton(
+                    label = "",
+                    accessibilityLabel = if (state.isWatched) "Oznacz jako nieobejrzane" else "Oznacz jako obejrzane",
+                    icon = if (state.isWatched) DetailActionIcon.EYE_CHECKED else DetailActionIcon.EYE,
+                    primary = false,
+                    selected = state.isWatched,
+                    enabled = true,
+                    modifier = Modifier.weight(1f),
+                    onClick = vm::toggleWatched,
                 )
             }
 
@@ -573,12 +621,25 @@ fun TmdbDetailScreen(
     }
 }
 
+private enum class DetailActionIcon {
+    PLAY,
+    TRAILER,
+    BOOKMARK,
+    BOOKMARK_CHECKED,
+    EYE,
+    EYE_CHECKED,
+}
+
 @Composable
 private fun DetailActionButton(
     label: String,
+    accessibilityLabel: String,
+    icon: DetailActionIcon,
     primary: Boolean,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -598,18 +659,24 @@ private fun DetailActionButton(
     val shape = RoundedCornerShape(14.dp)
     val backgroundColor = when {
         primary -> Color.White
+        selected -> Color(0xFF3A4351)
         focused || hovered -> Color(0xFF343B48)
         else -> Color(0xFF1D222B)
     }
     val foregroundColor = if (primary) Color(0xFF111318) else Color.White
     val outlineColor = when {
         focused || hovered -> Color.White
+        selected -> Color.White.copy(alpha = 0.42f)
         else -> Color.White.copy(alpha = 0.12f)
     }
 
     Box(
         modifier = modifier
             .height(54.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = accessibilityLabel
+                role = Role.Button
+            }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -630,17 +697,115 @@ private fun DetailActionButton(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = if (label.isBlank()) 4.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            color = foregroundColor,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            DetailActionGlyph(icon = icon, tint = foregroundColor, iconSize = iconSize)
+            if (label.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = label,
+                    color = foregroundColor,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailActionGlyph(
+    icon: DetailActionIcon,
+    tint: Color,
+    iconSize: androidx.compose.ui.unit.Dp,
+) {
+    Canvas(Modifier.size(iconSize)) {
+        val w = this.size.width
+        val h = this.size.height
+        val sw = this.size.minDimension * 0.085f
+        val stroke = Stroke(
+            width = sw,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round,
         )
+
+        when (icon) {
+            DetailActionIcon.PLAY -> {
+                val path = Path().apply {
+                    moveTo(w * 0.28f, h * 0.14f)
+                    lineTo(w * 0.82f, h * 0.50f)
+                    lineTo(w * 0.28f, h * 0.86f)
+                    close()
+                }
+                drawPath(path, tint)
+            }
+
+            DetailActionIcon.TRAILER -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(w * 0.10f, h * 0.30f),
+                    size = Size(w * 0.80f, h * 0.58f),
+                    cornerRadius = CornerRadius(w * 0.08f),
+                    style = stroke,
+                )
+                drawLine(tint, Offset(w * 0.10f, h * 0.30f), Offset(w * 0.90f, h * 0.12f), sw)
+                drawLine(tint, Offset(w * 0.28f, h * 0.26f), Offset(w * 0.40f, h * 0.10f), sw)
+                drawLine(tint, Offset(w * 0.52f, h * 0.22f), Offset(w * 0.64f, h * 0.06f), sw)
+                drawLine(tint, Offset(w * 0.76f, h * 0.17f), Offset(w * 0.86f, h * 0.04f), sw)
+                val play = Path().apply {
+                    moveTo(w * 0.43f, h * 0.43f)
+                    lineTo(w * 0.67f, h * 0.59f)
+                    lineTo(w * 0.43f, h * 0.75f)
+                    close()
+                }
+                drawPath(play, tint, style = stroke)
+            }
+
+            DetailActionIcon.BOOKMARK,
+            DetailActionIcon.BOOKMARK_CHECKED -> {
+                val bookmark = Path().apply {
+                    moveTo(w * 0.27f, h * 0.12f)
+                    lineTo(w * 0.73f, h * 0.12f)
+                    lineTo(w * 0.73f, h * 0.88f)
+                    lineTo(w * 0.50f, h * 0.70f)
+                    lineTo(w * 0.27f, h * 0.88f)
+                    close()
+                }
+                drawPath(bookmark, tint, style = stroke)
+                if (icon == DetailActionIcon.BOOKMARK_CHECKED) {
+                    drawLine(tint, Offset(w * 0.36f, h * 0.43f), Offset(w * 0.46f, h * 0.53f), sw)
+                    drawLine(tint, Offset(w * 0.46f, h * 0.53f), Offset(w * 0.65f, h * 0.34f), sw)
+                }
+            }
+
+            DetailActionIcon.EYE,
+            DetailActionIcon.EYE_CHECKED -> {
+                val eye = Path().apply {
+                    moveTo(w * 0.08f, h * 0.50f)
+                    quadraticTo(w * 0.50f, h * 0.06f, w * 0.92f, h * 0.50f)
+                    quadraticTo(w * 0.50f, h * 0.94f, w * 0.08f, h * 0.50f)
+                    close()
+                }
+                drawPath(eye, tint, style = stroke)
+                drawCircle(
+                    color = tint,
+                    radius = w * 0.14f,
+                    center = Offset(w * 0.50f, h * 0.50f),
+                    style = stroke,
+                )
+                if (icon == DetailActionIcon.EYE_CHECKED) {
+                    drawLine(tint, Offset(w * 0.56f, h * 0.72f), Offset(w * 0.66f, h * 0.82f), sw)
+                    drawLine(tint, Offset(w * 0.66f, h * 0.82f), Offset(w * 0.88f, h * 0.58f), sw)
+                }
+            }
+        }
     }
 }
 

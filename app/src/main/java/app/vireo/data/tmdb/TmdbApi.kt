@@ -66,7 +66,16 @@ class TmdbApi @Inject constructor(
             "Unsupported TMDB image media type."
         }
         require(id > 0) { "TMDB ID must be positive." }
-        val request = request("$type/$id/images", DEFAULT_LANGUAGE) { }
+        val request = request("$type/$id/images", null) { }
+        return json.decodeFromString(execute(request))
+    }
+
+    suspend fun videos(type: String, id: Int, language: String): TmdbVideosDto {
+        require(type == "movie" || type == "tv") {
+            "Unsupported TMDB video media type."
+        }
+        require(id > 0) { "TMDB ID must be positive." }
+        val request = request("$type/$id/videos", language) { }
         return json.decodeFromString(execute(request))
     }
 
@@ -107,7 +116,7 @@ class TmdbApi @Inject constructor(
 
     private fun request(
         endpoint: String,
-        language: String,
+        language: String?,
         configure: okhttp3.HttpUrl.Builder.() -> Unit,
     ): Request {
         val apiKey = BuildConfig.TMDB_API_KEY.trim()
@@ -115,13 +124,16 @@ class TmdbApi @Inject constructor(
             "TMDB API key is not configured. Add TMDB_API_KEY to Gradle properties."
         }
 
-        val normalizedLanguage = language.trim()
-            .replace('_', '-')
-            .ifBlank { DEFAULT_LANGUAGE }
+        val normalizedLanguage = language?.trim()
+            ?.replace('_', '-')
+            ?.ifBlank { DEFAULT_LANGUAGE }
 
         val builder = "$BASE_URL/$endpoint".toHttpUrl().newBuilder()
             .addQueryParameter("api_key", apiKey)
-            .addQueryParameter("language", normalizedLanguage)
+
+        if (!normalizedLanguage.isNullOrBlank()) {
+            builder.addQueryParameter("language", normalizedLanguage)
+        }
 
         builder.configure()
 

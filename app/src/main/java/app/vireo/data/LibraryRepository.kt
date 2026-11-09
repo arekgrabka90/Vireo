@@ -72,6 +72,11 @@ class LibraryRepository @Inject constructor(
         return dao.get(profileId, contentKey)?.watchlisted == true
     }
 
+    suspend fun isWatched(profileId: Long, contentKey: String): Boolean {
+        if (profileId <= 0L || contentKey.isBlank()) return false
+        return dao.get(profileId, contentKey)?.watched == true
+    }
+
     suspend fun setWatchlisted(
         profileId: Long,
         contentKey: String,
@@ -105,14 +110,33 @@ class LibraryRepository @Inject constructor(
         profileId: Long,
         contentKey: String,
         watched: Boolean,
+        title: String = "",
+        contentType: String = "UNKNOWN",
+        posterUrl: String? = null,
+        backdropUrl: String? = null,
     ) {
-        if (profileId <= 0L) return
-        val old = dao.get(profileId, contentKey) ?: return
+        if (profileId <= 0L || contentKey.isBlank()) return
+
+        val old = dao.get(profileId, contentKey)
+        val now = System.currentTimeMillis()
+
         dao.upsert(
-            old.copy(
+            old?.copy(
                 watched = watched,
                 positionMs = if (watched) 0L else old.positionMs,
-                updatedAt = System.currentTimeMillis(),
+                updatedAt = now,
+            ) ?: LibraryItemEntity(
+                profileId = profileId,
+                contentKey = contentKey,
+                title = title.ifBlank { contentKey },
+                contentType = contentType,
+                posterUrl = posterUrl,
+                backdropUrl = backdropUrl,
+                positionMs = 0L,
+                durationMs = 0L,
+                watchlisted = false,
+                watched = watched,
+                updatedAt = now,
             )
         )
     }

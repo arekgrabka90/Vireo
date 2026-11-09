@@ -211,7 +211,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(
-            top = if (screenWidth >= 600) 86.dp else 0.dp,
+            top = if (screenWidth >= 600) 86.dp else 14.dp,
             bottom = 0.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(32.dp),

@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +117,7 @@ fun CinematicHero(
             onOpen = onOpen,
             onHeroFocusChanged = onHeroFocusChanged,
             details = details,
+            centerContent = screenWidth < 600,
         )
     }
 }
@@ -483,6 +485,7 @@ private fun SinglePanelCinematicHero(
     onOpen: (TmdbCatalogItem) -> Unit,
     onHeroFocusChanged: (Boolean) -> Unit,
     details: Map<String, TmdbDetail>,
+    centerContent: Boolean,
 ) {
     if (items.isEmpty()) return
 
@@ -510,7 +513,13 @@ private fun SinglePanelCinematicHero(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .width(heroWidth)
+                .then(
+                    if (centerContent) {
+                        Modifier.widthIn(max = heroWidth).fillMaxWidth()
+                    } else {
+                        Modifier.width(heroWidth)
+                    }
+                )
                 .height(heroHeight)
                 .clip(shape)
                 .background(Color(0xFF111318))
@@ -577,9 +586,17 @@ private fun SinglePanelCinematicHero(
 
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
+                    .align(
+                        if (centerContent) Alignment.BottomCenter
+                        else Alignment.BottomStart
+                    )
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = if (centerContent) {
+                    Alignment.CenterHorizontally
+                } else {
+                    Alignment.Start
+                },
                 verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
 
@@ -587,9 +604,18 @@ private fun SinglePanelCinematicHero(
                     title = item.title,
                     logoUrl = detail?.logoUrl,
                     maxHeight = 64.dp,
+                    alignment = if (centerContent) {
+                        Alignment.CenterHorizontally
+                    } else {
+                        Alignment.Start
+                    },
                 )
 
-                HeroMetadataChips(item, detail)
+                HeroMetadataChips(
+                    item,
+                    detail,
+                    centered = centerContent,
+                )
             }
         }
 
@@ -600,9 +626,16 @@ private fun SinglePanelCinematicHero(
             ?.let { overview ->
                 Text(
                     text = overview,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
+                    modifier = if (centerContent) {
+                        Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .widthIn(max = heroWidth)
+                            .fillMaxWidth()
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp)
+                    },
                     color = MaterialTheme.colorScheme.onBackground,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 4,
@@ -617,6 +650,7 @@ private fun HeroTitleLogo(
     title: String,
     logoUrl: String?,
     maxHeight: androidx.compose.ui.unit.Dp,
+    alignment: Alignment.Horizontal = Alignment.Start,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Keep the source image aspect ratio; only apply a generous safety bound.
@@ -643,14 +677,20 @@ private fun HeroTitleLogo(
                     modifier = Modifier
                         .height(maxHeight)
                         .widthIn(max = logoMaxWidth)
-                        .wrapContentWidth(Alignment.Start),
+                        .wrapContentWidth(alignment),
                 )
             } else {
                 Text(
                     text = title,
+                    modifier = Modifier.fillMaxWidth(),
                     color = Color.White,
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
+                    textAlign = if (alignment == Alignment.CenterHorizontally) {
+                        TextAlign.Center
+                    } else {
+                        TextAlign.Start
+                    },
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -733,26 +773,43 @@ private fun HeroArtwork(
 private fun HeroMetadataChips(
     item: TmdbCatalogItem,
     detail: TmdbDetail?,
+    centered: Boolean = false,
 ) {
     val values = homeHeroMetadataValues(item, detail)
     if (values.isEmpty()) return
 
+    val rating = (detail?.rating ?: item.rating)
+        ?.takeIf { it > 0.0 }
+        ?.let { String.format(Locale.US, "%.1f", it) }
+
+    val chipShape = RoundedCornerShape(7.dp)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = if (centered) {
+            Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally)
+        } else {
+            Arrangement.spacedBy(7.dp)
+        },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         values.forEach { value ->
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = 0.50f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .clip(chipShape)
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.12f),
+                        shape = chipShape,
+                    )
+                    // Szerokosc pozostaje bez zmian; zmniejszamy tylko wysokosc.
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
             ) {
                 Text(
-                    text = value,
-                    color = Color(0xFF111318),
-                    style = MaterialTheme.typography.labelMedium,
+                    text = if (value == rating) "★ $value" else value,
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

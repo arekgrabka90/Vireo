@@ -173,12 +173,10 @@ fun MainShell(
                 .fillMaxSize()
                 .background(colors.background),
         ) {
-            if (route != "home") {
-                MobileHeader(
-                    onSearch = { go("search") },
-                    onSwitchProfile = onSwitchProfile,
-                )
-            }
+            MobileHeader(
+                onSearch = { go("search") },
+                onSwitchProfile = onSwitchProfile,
+            )
 
             Box(
                 modifier = Modifier
@@ -196,13 +194,6 @@ fun MainShell(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                if (route == "home") {
-                    MobileHomeActions(
-                        onSearch = { go("search") },
-                        onSwitchProfile = onSwitchProfile,
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    )
-                }
             }
 
             FloatingBottomNavigation(

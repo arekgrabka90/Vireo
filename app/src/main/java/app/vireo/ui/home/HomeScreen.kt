@@ -147,7 +147,7 @@ fun HomeScreen(
             item(key = "home-featured-poster-strip") {
                 CinematicHero(
                     items = heroItems,
-                    activeIndex = heroIndex.intValue.coerceIn(
+                    activeIndex = heroIndex.coerceIn(
                         0,
                         heroItems.lastIndex,
                     ),

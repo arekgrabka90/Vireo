@@ -38,7 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -104,6 +108,28 @@ fun MainShell(
     val route = entry?.destination?.route.orEmpty()
     val colors = MaterialTheme.colorScheme
     val configuration = LocalConfiguration.current
+
+    // Menu pozostaje przypiete; tlo pojawia sie, gdy tresc przesuwa sie pod nim.
+    val topBarScrolled = remember(route) { mutableStateOf(false) }
+    val topBarScrollConnection = remember(route) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (consumed.y < -0.5f) {
+                    topBarScrolled.value = true
+                } else if (
+                    available.y > 0.5f &&
+                    kotlin.math.abs(consumed.y) < 0.5f
+                ) {
+                    topBarScrolled.value = false
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     val isTelevision =
         (configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
@@ -188,7 +214,8 @@ fun MainShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(colors.background),
+                .background(colors.background)
+                .nestedScroll(topBarScrollConnection),
         ) {
             ShellNavHost(
                 inner,
@@ -211,7 +238,7 @@ fun MainShell(
                 isSelected = isSelected,
                 onNavigate = go,
                 onSwitchProfile = onSwitchProfile,
-                showBrand = route != "home",
+                scrolled = topBarScrolled.value,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -291,7 +318,7 @@ private fun FloatingTopNavigation(
     isSelected: (Dest) -> Boolean,
     onNavigate: (String) -> Unit,
     onSwitchProfile: () -> Unit,
-    showBrand: Boolean,
+    scrolled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -299,21 +326,24 @@ private fun FloatingTopNavigation(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(
+                if (scrolled) {
+                    colors.surface.copy(alpha = 0.84f)
+                } else {
+                    Color.Transparent
+                },
+            )
             .padding(horizontal = 26.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showBrand) {
-            Text(
-                text = "VIREO",
-                color = colors.onBackground,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-                modifier = Modifier.padding(end = 24.dp),
-            )
-        } else {
-            Spacer(Modifier.width(120.dp))
-        }
+        Text(
+            text = "VIREO",
+            color = colors.onBackground,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+            modifier = Modifier.padding(end = 24.dp),
+        )
 
         Row(
             modifier = Modifier

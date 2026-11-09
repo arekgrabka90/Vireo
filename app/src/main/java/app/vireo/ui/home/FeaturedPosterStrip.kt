@@ -145,10 +145,6 @@ private fun ExpandedCinematicHero(
         else -> 32.dp
     }
 
-    val safeTop = WindowInsets.statusBars
-        .asPaddingValues()
-        .calculateTopPadding()
-
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -328,14 +324,14 @@ private fun ExpandedCinematicHero(
 
                 Box(
                     modifier = Modifier
+                        .offset(x = animatedLeft, y = animatedTop)
+                        .width(animatedWidth)
+                        .height(animatedHeight)
                         .shadow(
                             elevation = animatedElevation,
                             shape = shape,
                             clip = false,
                         )
-                        .offset(x = animatedLeft, y = animatedTop)
-                        .width(animatedWidth)
-                        .height(animatedHeight)
                         .zIndex(
                             when (distance) {
                                 0 -> 5f
@@ -432,13 +428,6 @@ private fun ExpandedCinematicHero(
                                     ),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text(
-                                    text = "POLECANE",
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 2.sp,
-                                )
 
                                 HeroTitleLogo(
                                     title = item.title,
@@ -462,22 +451,6 @@ private fun ExpandedCinematicHero(
                                     }
                             }
                         }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(10.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color.Black.copy(alpha = 0.58f))
-                                .padding(horizontal = 9.dp, vertical = 5.dp),
-                        ) {
-                            Text(
-                                text = "${index + 1}",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
                     }
 
                     if (focused || selected) {
@@ -499,19 +472,6 @@ private fun ExpandedCinematicHero(
             }
         }
 
-        Text(
-            text = "VIREO",
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(
-                    start = horizontalPadding,
-                    top = safeTop + 12.dp,
-                ),
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 5.sp,
-        )
     }
 }
 
@@ -622,13 +582,6 @@ private fun SinglePanelCinematicHero(
                     .padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                Text(
-                    text = "POLECANE",
-                    color = Color.White.copy(alpha = 0.82f),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 2.sp,
-                )
 
                 HeroTitleLogo(
                     title = item.title,

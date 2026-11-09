@@ -9,6 +9,12 @@ import app.vireo.domain.model.SeriesDetails
 import app.vireo.player.PlayItem
 import app.vireo.player.PlaybackAlternative
 import app.vireo.player.PlaybackSession
+import app.vireo.player.playbackRequestIdentity
+import app.vireo.player.nextFailoverCandidate
+import app.vireo.player.exactEpisodeFailoverCandidates
+import app.vireo.player.PlaybackSourceCandidate
+import app.vireo.player.PlaybackRequestIdentity
+import app.vireo.player.EpisodeFailoverCandidate
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -178,105 +184,227 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         Result.failure(error)
     }
 
-    fun playEpisodeByNumber(
+    suspend fun playEpisodeByNumber(
         series: SeriesDetails,
         seasonNumber: Int,
         episodeNumber: Int,
         detail: TmdbDetail?,
+        variants: List<TmdbXtreamMatchVariant>,
+        selectedSourceId: Long,
     ): Boolean {
         if (seasonNumber < 0 || episodeNumber <= 0) return false
 
-        // Dopasowanie po numerach, nigdy po pozycji listy ani TMDB ID.
         val matches = series.seasons
-            .asSequence()
             .filter { it.number == seasonNumber }
-            .flatMap { it.episodes.asSequence() }
+            .flatMap { it.episodes }
             .filter { it.number == episodeNumber }
-            .toList()
 
-        // Zero lub więcej niż jeden wynik oznacza brak pewnego dopasowania.
-        val match = matches.singleOrNull()
+        val selected = matches.singleOrNull()
             ?.takeIf { it.id.isNotBlank() && it.streamUrl.isNotBlank() }
             ?: return false
 
-        // Do playback przekazujemy wyłącznie poprawne ID odcinka Xtream.
-        return playEpisode(series, match.id, detail)
+        return startEpisodeQueue(
+            series = series,
+            detail = detail,
+            variants = variants,
+            selectedSourceId = selectedSourceId,
+            targetSeasonNumber = seasonNumber,
+            targetEpisodeNumber = selected.number,
+        )
     }
 
-    fun playEpisode(
+    suspend fun playEpisode(
         series: SeriesDetails,
         episodeId: String,
         detail: TmdbDetail?,
+        variants: List<TmdbXtreamMatchVariant>,
+        selectedSourceId: Long,
     ): Boolean {
-        val episodes = series.seasons.flatMap { season ->
-            season.episodes.map { season.number to it }
-        }
         if (episodeId.isBlank()) return false
 
-        // Nie uruchamiamy pustych URL-i ani niejednoznacznych ID.
-        val playableEpisodes = episodes.filter { (_, episode) ->
-            episode.id.isNotBlank() && episode.streamUrl.isNotBlank()
+        val matches = series.seasons.flatMap { season ->
+            season.episodes
+                .filter { it.id == episodeId }
+                .map { season.number to it }
         }
-        val matchingEpisodes = playableEpisodes.filter {
-            it.second.id == episodeId
-        }
-        val selected = matchingEpisodes.singleOrNull() ?: return false
-        val index = playableEpisodes.indexOf(selected)
 
-        val items = playableEpisodes.map { (season, episode) ->
-            PlayItem(
-                title = "${series.name} · S${season} E${episode.number} · ${episode.title}",
-                url = episode.streamUrl,
-                contentKey = detail?.let {
-                    "tmdb:${it.type.name}:${it.tmdbId}:S${season}E${episode.number}"
-                },
-                contentType = detail?.type?.name ?: "SERIES",
-                posterUrl = detail?.posterUrl,
-                backdropUrl = detail?.backdropUrl,
-            )
-        }
-        playbackSession.start(items, index)
-        return true
+        val selected = matches.singleOrNull()
+            ?.takeIf { it.second.streamUrl.isNotBlank() }
+            ?: return false
+
+        return startEpisodeQueue(
+            series = series,
+            detail = detail,
+            variants = variants,
+            selectedSourceId = selectedSourceId,
+            targetSeasonNumber = selected.first,
+            targetEpisodeNumber = selected.second.number,
+        )
     }
 
-    fun playNextEpisode(
+    suspend fun playNextEpisode(
         series: SeriesDetails,
         detail: TmdbDetail,
         watchedEpisodeKeys: Set<String>,
+        variants: List<TmdbXtreamMatchVariant>,
+        selectedSourceId: Long,
+    ): Boolean = startEpisodeQueue(
+        series = series,
+        detail = detail,
+        variants = variants,
+        selectedSourceId = selectedSourceId,
+        watchedEpisodeKeys = watchedEpisodeKeys,
+    )
+
+    private suspend fun startEpisodeQueue(
+        series: SeriesDetails,
+        detail: TmdbDetail?,
+        variants: List<TmdbXtreamMatchVariant>,
+        selectedSourceId: Long,
+        targetSeasonNumber: Int? = null,
+        targetEpisodeNumber: Int? = null,
+        watchedEpisodeKeys: Set<String>? = null,
     ): Boolean {
-        val episodes = series.seasons
+        if (selectedSourceId <= 0L || series.id.isBlank()) return false
+
+        val playableEpisodes = series.seasons
             .sortedBy { it.number }
             .flatMap { season ->
                 season.episodes
                     .sortedBy { it.number }
                     .map { season.number to it }
             }
+            .filter { (seasonNumber, episode) ->
+                seasonNumber >= 0 &&
+                    episode.number > 0 &&
+                    episode.id.isNotBlank() &&
+                    episode.streamUrl.isNotBlank()
+            }
 
-        if (episodes.isEmpty()) return false
-
-        val nextEpisodes = episodes.filter { (_, episode) ->
-            episode.id.isNotBlank() && episode.streamUrl.isNotBlank()
-        }.filterNot { (season, episode) ->
-            val key =
-                "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}"
-            key in watchedEpisodeKeys
+        val queueEpisodes = playableEpisodes.filterNot { (season, episode) ->
+            if (watchedEpisodeKeys == null || detail == null) {
+                false
+            } else {
+                val key =
+                    "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}"
+                key in watchedEpisodeKeys
+            }
         }
 
-        if (nextEpisodes.isEmpty()) return false
+        if (queueEpisodes.isEmpty()) return false
 
-        val items = nextEpisodes.map { (season, episode) ->
+        val selectedIndex = if (
+            targetSeasonNumber != null && targetEpisodeNumber != null
+        ) {
+            queueEpisodes.indexOfFirst { (season, episode) ->
+                season == targetSeasonNumber &&
+                    episode.number == targetEpisodeNumber
+            }
+        } else {
+            0
+        }
+
+        if (selectedIndex !in queueEpisodes.indices) return false
+
+        // Pobieramy katalogi alternatywnych źródeł tylko raz na sesję.
+        // Niepewne dopasowania nie są używane automatycznie.
+        val alternativeSeries = mutableListOf<Pair<TmdbXtreamMatchVariant, SeriesDetails>>()
+
+        val confirmedVariants = variants
+            .asSequence()
+            .filter {
+                it.confidence != TmdbXtreamMatchConfidence.NEEDS_REVIEW &&
+                    it.sourceId > 0L &&
+                    it.streamId.isNotBlank()
+            }
+            .filterNot {
+                it.sourceId == selectedSourceId && it.streamId == series.id
+            }
+            .distinctBy { it.sourceId to it.streamId }
+            .toList()
+
+        for (variant in confirmedVariants) {
+            try {
+                val account = accountDao.getById(variant.sourceId) ?: continue
+                val provider = providers.create(account)
+                val loaded = provider.seriesDetails(variant.streamId).getOrThrow()
+
+                if (loaded.id != variant.streamId) continue
+                alternativeSeries += variant to loaded
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Brak dostępu do alternatywnego katalogu nie blokuje źródła głównego.
+            }
+        }
+
+        val items = queueEpisodes.map { (seasonNumber, episode) ->
+            val rawCandidates = alternativeSeries.mapNotNull { (variant, otherSeries) ->
+                val exactMatches = otherSeries.seasons
+                    .asSequence()
+                    .filter { it.number == seasonNumber }
+                    .flatMap { it.episodes.asSequence() }
+                    .filter { it.number == episode.number }
+                    .toList()
+
+                val alternativeEpisode = exactMatches.singleOrNull()
+                    ?.takeIf {
+                        it.id.isNotBlank() && it.streamUrl.isNotBlank()
+                    }
+                    ?: return@mapNotNull null
+
+                EpisodeFailoverCandidate(
+                    sourceId = variant.sourceId,
+                    streamId = alternativeEpisode.id,
+                    seasonNumber = seasonNumber,
+                    episodeNumber = episode.number,
+                    url = alternativeEpisode.streamUrl,
+                )
+            }
+
+            val candidates = exactEpisodeFailoverCandidates(
+                seasonNumber = seasonNumber,
+                episodeNumber = episode.number,
+                candidates = rawCandidates,
+            )
+
+            val currentIdentity = playbackRequestIdentity(episode.streamUrl)
+            val attempted = mutableSetOf<PlaybackRequestIdentity>()
+            val alternatives = mutableListOf<PlaybackAlternative>()
+
+            while (true) {
+                val next = nextFailoverCandidate(
+                    candidates = candidates,
+                    current = currentIdentity,
+                    attempted = attempted,
+                ) ?: break
+
+                alternatives += PlaybackAlternative(
+                    sourceId = next.sourceId,
+                    streamId = next.streamId,
+                    url = next.url,
+                )
+
+                val identity = playbackRequestIdentity(next.url, next.headers)
+                    ?: break
+                attempted += identity
+            }
+
             PlayItem(
-                title = "${series.name} · S${season} E${episode.number} · ${episode.title}",
+                title = "${series.name} · S${seasonNumber} E${episode.number} · ${episode.title}",
                 url = episode.streamUrl,
-                contentKey =
-                    "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}",
-                contentType = detail.type.name,
-                posterUrl = detail.posterUrl,
-                backdropUrl = detail.backdropUrl,
+                contentKey = detail?.let {
+                    "tmdb:${it.type.name}:${it.tmdbId}:S${seasonNumber}E${episode.number}"
+                },
+                contentType = detail?.type?.name ?: "SERIES",
+                posterUrl = detail?.posterUrl,
+                backdropUrl = detail?.backdropUrl,
+                alternatives = alternatives,
             )
         }
 
-        playbackSession.start(items, 0)
+        playbackSession.start(items, selectedIndex)
         return true
     }
+
 }

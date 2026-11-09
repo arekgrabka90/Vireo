@@ -334,64 +334,102 @@ class TmdbDetailViewModel @Inject constructor(
         episodeNumber: Int,
         onReady: () -> Unit,
     ) {
-        val series = _state.value.selectedSeries
-        val detail = _state.value.detail
-        if (series == null || detail == null) {
+        val current = _state.value
+        val series = current.selectedSeries
+        val detail = current.detail
+        val selectedSourceId = current.selectedSourceId
+
+        if (series == null || detail == null || selectedSourceId == null) {
             _state.update {
                 it.copy(playbackError = "Wybierz i załaduj źródło Xtream dla tego serialu.")
             }
             return
         }
 
-        val started = availabilityRepository.playEpisodeByNumber(
-            series = series,
-            seasonNumber = seasonNumber,
-            episodeNumber = episodeNumber,
-            detail = detail,
-        )
+        val variants = current.availability?.match?.variants.orEmpty()
 
-        if (started) {
-            _state.update { it.copy(playbackError = null) }
-            onReady()
-        } else {
-            _state.update {
-                it.copy(
-                    playbackError =
-                        "Wybranego odcinka S${seasonNumber}E${episodeNumber} nie ma w tym źródle.",
-                )
+        viewModelScope.launch {
+            val started = availabilityRepository.playEpisodeByNumber(
+                series = series,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber,
+                detail = detail,
+                variants = variants,
+                selectedSourceId = selectedSourceId,
+            )
+
+            if (started) {
+                _state.update { it.copy(playbackError = null) }
+                onReady()
+            } else {
+                _state.update {
+                    it.copy(
+                        playbackError =
+                            "Wybranego odcinka S${seasonNumber}E${episodeNumber} nie ma w tym źródle.",
+                    )
+                }
             }
         }
     }
 
     fun playEpisode(episodeId: String, onReady: () -> Unit) {
-        val series = _state.value.selectedSeries ?: return
-        if (availabilityRepository.playEpisode(series, episodeId, _state.value.detail)) {
-            _state.value = _state.value.copy(playbackError = null)
-            onReady()
-        } else {
-            _state.value = _state.value.copy(
-                playbackError = "Nie znaleziono wybranego odcinka.",
+        val current = _state.value
+        val series = current.selectedSeries
+        val selectedSourceId = current.selectedSourceId
+
+        if (series == null || selectedSourceId == null) return
+
+        val variants = current.availability?.match?.variants.orEmpty()
+
+        viewModelScope.launch {
+            val started = availabilityRepository.playEpisode(
+                series = series,
+                episodeId = episodeId,
+                detail = current.detail,
+                variants = variants,
+                selectedSourceId = selectedSourceId,
             )
+
+            if (started) {
+                _state.update { it.copy(playbackError = null) }
+                onReady()
+            } else {
+                _state.update {
+                    it.copy(playbackError = "Nie znaleziono wybranego odcinka.")
+                }
+            }
         }
     }
 
     fun playNextEpisode(onReady: () -> Unit) {
-        val series = _state.value.selectedSeries ?: return
-        val detail = _state.value.detail ?: return
+        val current = _state.value
+        val series = current.selectedSeries
+        val detail = current.detail
+        val selectedSourceId = current.selectedSourceId
 
-        val started = availabilityRepository.playNextEpisode(
-            series = series,
-            detail = detail,
-            watchedEpisodeKeys = _state.value.watchedEpisodeKeys,
-        )
+        if (series == null || detail == null || selectedSourceId == null) return
 
-        if (started) {
-            _state.value = _state.value.copy(playbackError = null)
-            onReady()
-        } else {
-            _state.value = _state.value.copy(
-                playbackError = "Wszystkie odcinki tego serialu są już obejrzane.",
+        val variants = current.availability?.match?.variants.orEmpty()
+        val watchedEpisodeKeys = current.watchedEpisodeKeys
+
+        viewModelScope.launch {
+            val started = availabilityRepository.playNextEpisode(
+                series = series,
+                detail = detail,
+                watchedEpisodeKeys = watchedEpisodeKeys,
+                variants = variants,
+                selectedSourceId = selectedSourceId,
             )
+
+            if (started) {
+                _state.update { it.copy(playbackError = null) }
+                onReady()
+            } else {
+                _state.update {
+                    it.copy(playbackError = "Wszystkie odcinki tego serialu są już obejrzane.")
+                }
+            }
         }
     }
+
 }

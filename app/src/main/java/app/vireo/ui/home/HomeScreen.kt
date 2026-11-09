@@ -50,7 +50,6 @@ fun HomeScreen(
     onOpenTitle: (ContentType, Int, String) -> Unit,
     onOpenCatalog: (ContentType) -> Unit,
     showContinueWatching: Boolean = true,
-    desktopShell: Boolean = false,
     modifier: Modifier = Modifier,
     vm: TmdbHomeViewModel = hiltViewModel(),
 ) {
@@ -59,15 +58,11 @@ fun HomeScreen(
     val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val screenWidth = LocalConfiguration.current.screenWidthDp
-    val horizontalPadding = if (desktopShell) {
-        24.dp
-    } else {
-        when {
-            screenWidth >= 1200 -> 64.dp
-            screenWidth >= 840 -> 48.dp
-            screenWidth >= 600 -> 32.dp
-            else -> 20.dp
-        }
+    val horizontalPadding = when {
+        screenWidth >= 1200 -> 64.dp
+        screenWidth >= 840 -> 48.dp
+        screenWidth >= 600 -> 32.dp
+        else -> 20.dp
     }
     val continueCardWidth = when {
         screenWidth >= 1200 -> 340.dp

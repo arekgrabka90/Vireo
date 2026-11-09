@@ -147,9 +147,11 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             .toList()
 
         // Zero lub więcej niż jeden wynik oznacza brak pewnego dopasowania.
-        val match = matches.singleOrNull() ?: return false
+        val match = matches.singleOrNull()
+            ?.takeIf { it.id.isNotBlank() && it.streamUrl.isNotBlank() }
+            ?: return false
 
-        // Do playback przekazujemy wyłącznie ID odcinka Xtream.
+        // Do playback przekazujemy wyłącznie poprawne ID odcinka Xtream.
         return playEpisode(series, match.id, detail)
     }
 
@@ -161,10 +163,19 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         val episodes = series.seasons.flatMap { season ->
             season.episodes.map { season.number to it }
         }
-        val index = episodes.indexOfFirst { it.second.id == episodeId }
-        if (index < 0) return false
+        if (episodeId.isBlank()) return false
 
-        val items = episodes.map { (season, episode) ->
+        // Nie uruchamiamy pustych URL-i ani niejednoznacznych ID.
+        val playableEpisodes = episodes.filter { (_, episode) ->
+            episode.id.isNotBlank() && episode.streamUrl.isNotBlank()
+        }
+        val matchingEpisodes = playableEpisodes.filter {
+            it.second.id == episodeId
+        }
+        val selected = matchingEpisodes.singleOrNull() ?: return false
+        val index = playableEpisodes.indexOf(selected)
+
+        val items = playableEpisodes.map { (season, episode) ->
             PlayItem(
                 title = "${series.name} · S${season} E${episode.number} · ${episode.title}",
                 url = episode.streamUrl,
@@ -195,7 +206,9 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
 
         if (episodes.isEmpty()) return false
 
-        val nextEpisodes = episodes.filterNot { (season, episode) ->
+        val nextEpisodes = episodes.filter { (_, episode) ->
+            episode.id.isNotBlank() && episode.streamUrl.isNotBlank()
+        }.filterNot { (season, episode) ->
             val key =
                 "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}"
             key in watchedEpisodeKeys

@@ -43,10 +43,12 @@ class LibraryRepository @Inject constructor(
         if (profileId <= 0L) return
 
         val old = dao.get(profileId, key)
-        val duration = durationMs.coerceAtLeast(0L)
-        val position = positionMs.coerceAtLeast(0L)
-        val completed = duration > 0L &&
-            position >= (duration * 0.95).toLong()
+        val progress = normalizeLibraryProgress(
+            positionMs = positionMs,
+            durationMs = durationMs,
+            previousDurationMs = old?.durationMs ?: 0L,
+            alreadyWatched = old?.watched == true,
+        )
 
         dao.upsert(
             LibraryItemEntity(
@@ -56,10 +58,10 @@ class LibraryRepository @Inject constructor(
                 contentType = item.contentType ?: "UNKNOWN",
                 posterUrl = item.posterUrl ?: old?.posterUrl,
                 backdropUrl = item.backdropUrl ?: old?.backdropUrl,
-                positionMs = if (completed) 0L else position,
-                durationMs = duration,
+                positionMs = progress.positionMs,
+                durationMs = progress.durationMs,
                 watchlisted = old?.watchlisted ?: false,
-                watched = old?.watched == true || completed,
+                watched = progress.watched,
                 updatedAt = System.currentTimeMillis(),
             )
         )

@@ -21,9 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -86,9 +86,9 @@ private data class BottomDest(
 private val mobileDestinations = listOf(
     BottomDest("home", "Główna", Icons.Filled.Home),
     BottomDest("live", "TV", Icons.Filled.PlayArrow),
-    BottomDest("mylist", "Moja lista", Icons.Filled.Bookmark),
+    BottomDest("mylist", "Moja lista", Icons.Filled.Favorite),
     BottomDest("search", "Szukaj", Icons.Filled.Search),
-    BottomDest("more", "Więcej", Icons.Filled.MoreHoriz),
+    BottomDest("more", "Więcej", Icons.Filled.Menu),
 )
 
 @Composable

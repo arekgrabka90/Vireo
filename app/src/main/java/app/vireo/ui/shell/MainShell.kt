@@ -59,6 +59,7 @@ import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Title
 import app.vireo.ui.components.PlaceholderScreen
 import app.vireo.ui.home.HomeScreen
+import app.vireo.ui.shell.HomeDesktopShell
 import app.vireo.ui.library.LibraryScreen
 import app.vireo.ui.live.LiveTvScreen
 import app.vireo.ui.more.MoreScreen
@@ -185,35 +186,41 @@ fun MainShell(
             )
         }
     } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(colors.background),
-        ) {
-            ShellNavHost(
-                inner,
-                go,
-                onOpenCategory,
-                onOpenTitle,
-                onOpenTmdbTitle,
-                onOpenTmdbCatalog,
-                onSwitchProfile,
+        if (route == "home") {
+            HomeDesktopShell(
+                onNavigate = go,
+                onOpenTmdbTitle = onOpenTmdbTitle,
+                onOpenTmdbCatalog = onOpenTmdbCatalog,
+                onSwitchProfile = onSwitchProfile,
+            )
+        } else {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(
-                        if (route == "home") Modifier
-                        else Modifier.padding(top = 70.dp)
-                    ),
-            )
+                    .background(colors.background),
+            ) {
+                ShellNavHost(
+                    inner,
+                    go,
+                    onOpenCategory,
+                    onOpenTitle,
+                    onOpenTmdbTitle,
+                    onOpenTmdbCatalog,
+                    onSwitchProfile,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 70.dp),
+                )
 
-            FloatingTopNavigation(
-                items = topItems,
-                isSelected = isSelected,
-                onNavigate = go,
-                onSwitchProfile = onSwitchProfile,
-                showBrand = route != "home",
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
+                FloatingTopNavigation(
+                    items = topItems,
+                    isSelected = isSelected,
+                    onNavigate = go,
+                    onSwitchProfile = onSwitchProfile,
+                    showBrand = true,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
         }
     }
 }

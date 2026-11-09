@@ -1,5 +1,6 @@
 package app.vireo.ui.home
 
+import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -55,7 +56,8 @@ fun HomeScreen(
     val libraryVm: LibraryViewModel = hiltViewModel()
     val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
-    val screenWidth = LocalConfiguration.current.screenWidthDp
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
     val horizontalPadding = when {
         screenWidth >= 1200 -> 64.dp
         screenWidth >= 840 -> 48.dp
@@ -100,12 +102,32 @@ fun HomeScreen(
     }
     val heroFocused = remember { mutableStateOf(false) }
     val heroIndex = resolveHomeHeroIndex(heroKeys, activeHeroKey.value)
+    val isTelevision =
+        (configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
-    LaunchedEffect(heroKeys, heroFocused.value, activeHeroKey.value) {
+    val expandedHeroLayout = shouldUseExpandedHomeHero(
+        screenWidthDp = configuration.screenWidthDp,
+        screenHeightDp = configuration.screenHeightDp,
+        smallestScreenWidthDp = configuration.smallestScreenWidthDp,
+        isTelevision = isTelevision,
+    )
+
+    val heroDirection = rememberSaveable {
+        mutableStateOf(1)
+    }
+
+    LaunchedEffect(
+        heroKeys,
+        heroFocused.value,
+        activeHeroKey.value,
+        expandedHeroLayout,
+    ) {
         if (heroKeys.isEmpty()) return@LaunchedEffect
 
         if (activeHeroKey.value !in heroKeys) {
             activeHeroKey.value = heroKeys.first()
+            heroDirection.value = 1
             return@LaunchedEffect
         }
 
@@ -117,7 +139,23 @@ fun HomeScreen(
                 activeHeroKey.value,
             )
 
-            activeHeroKey.value = heroKeys[(current + 1) % heroKeys.size]
+            if (expandedHeroLayout) {
+                if (current >= heroKeys.lastIndex) {
+                    heroDirection.value = -1
+                } else if (current <= 0) {
+                    heroDirection.value = 1
+                }
+
+                val next = (
+                    current + heroDirection.value
+                ).coerceIn(0, heroKeys.lastIndex)
+
+                activeHeroKey.value = heroKeys[next]
+            } else {
+                // Telefon zachowuje dotychczasowa rotacje kolowa.
+                activeHeroKey.value =
+                    heroKeys[(current + 1) % heroKeys.size]
+            }
         }
     }
 
@@ -209,6 +247,12 @@ fun HomeScreen(
                         heroItems.lastIndex,
                     ),
                     onActivate = { index ->
+                        heroDirection.value = when {
+                            index <= 0 -> 1
+                            index >= heroItems.lastIndex -> -1
+                            index > heroIndex -> 1
+                            else -> -1
+                        }
                         activeHeroKey.value = heroKeys.getOrNull(index)
                     },
                     onHeroFocusChanged = { focused ->

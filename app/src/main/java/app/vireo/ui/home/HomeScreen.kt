@@ -144,13 +144,12 @@ fun HomeScreen(
 
         if (heroItems.isNotEmpty()) {
             item(key = "home-featured-poster-strip") {
-                FeaturedPosterStrip(
+                CinematicHero(
                     items = heroItems,
                     activeIndex = heroIndex.intValue.coerceIn(
                         0,
                         heroItems.lastIndex,
                     ),
-                    horizontalPadding = horizontalPadding,
                     onActivate = { index ->
                         heroIndex.intValue = index
                     },

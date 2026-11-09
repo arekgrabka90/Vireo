@@ -1,6 +1,7 @@
 package app.vireo.ui.home
 
-import androidx.compose.animation.core.animateFloatAsState
+import android.content.res.Configuration
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,11 +10,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -33,161 +37,229 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.vireo.data.tmdb.TmdbCatalogItem
+import app.vireo.domain.model.ContentType
 import coil.compose.AsyncImage
+import java.util.Locale
 
 @Composable
-fun FeaturedPosterStrip(
+fun CinematicHero(
     items: List<TmdbCatalogItem>,
     activeIndex: Int,
-    horizontalPadding: Dp,
     onActivate: (Int) -> Unit,
     onOpen: (TmdbCatalogItem) -> Unit,
 ) {
     if (items.isEmpty()) return
 
-    val screenWidth = LocalConfiguration.current.screenWidthDp
-    val height = if (screenWidth >= 840) 420.dp else 300.dp
-    val shape = RoundedCornerShape(22.dp)
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val isTelevision =
+        (configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
 
-    Row(
+    val heroHeight = when {
+        isTelevision -> 600.dp
+        screenWidth >= 1200 -> 560.dp
+        screenWidth >= 840 -> 540.dp
+        screenWidth >= 600 -> 500.dp
+        else -> 430.dp
+    }
+
+    val horizontalPadding = if (screenWidth >= 840) 52.dp else 24.dp
+    val safeTop = WindowInsets.statusBars
+        .asPaddingValues()
+        .calculateTopPadding()
+
+    val safeIndex = activeIndex.coerceIn(0, items.lastIndex)
+    val activeItem = items[safeIndex]
+    val colors = MaterialTheme.colorScheme
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = horizontalPadding)
-            .height(height)
-            .clip(shape)
-        ,
-        horizontalArrangement = Arrangement.spacedBy(0.dp),
+            .height(heroHeight)
+            .background(Color.Black)
+            .clickable { onOpen(activeItem) },
     ) {
-        items.forEachIndexed { index, item ->
-            val active = index == activeIndex
-            val hasBackdrop = !item.backdropUrl.isNullOrBlank()
+        Crossfade(
+            targetState = activeItem,
+            modifier = Modifier.fillMaxSize(),
+            animationSpec = tween(durationMillis = 700),
+            label = "home-cinematic-hero",
+        ) { item ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = item.backdropUrl
+                        ?.takeIf { it.isNotBlank() }
+                        ?: item.posterUrl,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
-            val cardWeight by animateFloatAsState(
-                targetValue = if (active) 4.8f else 0.72f,
-                animationSpec = tween(durationMillis = 850),
-                label = "featured-card-width",
-            )
-
-            val posterAlpha by animateFloatAsState(
-                targetValue = if (active && hasBackdrop) 0f else 1f,
-                animationSpec = tween(durationMillis = 850),
-                label = "featured-poster-fade",
-            )
-
-            val backdropAlpha by animateFloatAsState(
-                targetValue = when {
-                    active && hasBackdrop -> 1f
-                    item.posterUrl.isNullOrBlank() && hasBackdrop -> 1f
-                    else -> 0f
-                },
-                animationSpec = tween(durationMillis = 850),
-                label = "featured-backdrop-fade",
-            )
-
-            var focused by remember { mutableStateOf(false) }
-            val colors = MaterialTheme.colorScheme
-
-            Box(
-                modifier = Modifier
-                    .weight(cardWeight)
-                    .fillMaxHeight()
-                    .onFocusChanged { focused = it.hasFocus }
-                    .border(
-                        width = if (focused) 2.dp else 0.dp,
-                        color = if (focused) colors.primary else Color.Transparent,
-                    )
-                    .clickable {
-                        if (active) onOpen(item) else onActivate(index)
-                    },
-            ) {
-                if (!item.posterUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = item.posterUrl,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(posterAlpha),
-                    )
-                }
-
-                if (hasBackdrop) {
-                    AsyncImage(
-                        model = item.backdropUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(backdropAlpha),
-                    )
-                }
-
-                if (active) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(alpha = 0.18f),
-                                        Color.Black.copy(alpha = 0.88f),
-                                    ),
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black.copy(alpha = 0.66f),
+                                    0.20f to Color.Black.copy(alpha = 0.30f),
+                                    0.48f to Color.Transparent,
+                                    1.0f to Color.Black.copy(alpha = 0.96f),
                                 ),
                             ),
+                        ),
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black.copy(alpha = 0.30f),
+                                    0.48f to Color.Transparent,
+                                    1.0f to Color.Transparent,
+                                ),
+                            ),
+                        ),
+                )
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(0.86f)
+                        .padding(
+                            start = horizontalPadding,
+                            end = 12.dp,
+                            bottom = if (screenWidth >= 840) 38.dp else 28.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "POLECANE",
+                        color = Color.White.copy(alpha = 0.78f),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 2.sp,
                     )
 
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .fillMaxWidth()
-                            .padding(
-                                horizontal = if (screenWidth >= 840) 28.dp else 18.dp,
-                                vertical = 22.dp,
-                            ),
-                        verticalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        Text(
-                            text = item.title,
-                            color = Color.White,
-                            fontSize = if (screenWidth >= 840) 30.sp else 23.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    Text(
+                        text = item.title,
+                        color = Color.White,
+                        style = if (screenWidth >= 840) {
+                            MaterialTheme.typography.displaySmall
+                        } else {
+                            MaterialTheme.typography.headlineLarge
+                        },
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
 
-                        val year = item.year?.toString()
-                            ?: item.releaseDate?.take(4).orEmpty()
+                    val year = item.year?.toString()
+                        ?: item.releaseDate?.take(4).orEmpty()
 
-                        val metadata = listOfNotNull(
-                            year.takeIf { it.isNotBlank() },
-                            item.rating?.let { String.format(java.util.Locale.US, "%.1f", it) },
-                        ).joinToString("  •  ")
+                    val rating = item.rating?.let {
+                        String.format(Locale.US, "%.1f", it)
+                    }
 
-                        if (metadata.isNotBlank()) {
+                    val kind = if (item.type == ContentType.MOVIE) {
+                        "FILM"
+                    } else {
+                        "SERIAL"
+                    }
+
+                    val metadata = listOfNotNull(
+                        kind,
+                        year.takeIf { it.isNotBlank() },
+                        rating?.let { "★ $it" },
+                    ).joinToString("  •  ")
+
+                    Text(
+                        text = metadata,
+                        color = Color.White.copy(alpha = 0.88f),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+
+                    item.overview
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { overview ->
                             Text(
-                                text = metadata,
-                                color = Color.White.copy(alpha = 0.88f),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-
-                        if (!item.overview.isNullOrBlank()) {
-                            Text(
-                                text = item.overview,
-                                color = Color.White.copy(alpha = 0.9f),
+                                text = overview,
+                                color = Color.White.copy(alpha = 0.90f),
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = if (screenWidth >= 840) 3 else 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 5.dp),
+                    ) {
+                        items.take(5).forEachIndexed { index, _ ->
+                            var focused by remember(index) {
+                                mutableStateOf(false)
+                            }
+
+                            val selected = index == safeIndex
+                            val indicatorShape = RoundedCornerShape(8.dp)
+
+                            Box(
+                                modifier = Modifier
+                                    .width(30.dp)
+                                    .height(26.dp)
+                                    .onFocusChanged {
+                                        focused = it.isFocused
+                                    }
+                                    .clip(indicatorShape)
+                                    .border(
+                                        width = if (focused) 1.dp else 0.dp,
+                                        color = if (focused) Color.White
+                                            else Color.Transparent,
+                                        shape = indicatorShape,
+                                    )
+                                    .clickable {
+                                        onActivate(index)
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(if (selected) 22.dp else 7.dp)
+                                        .height(3.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (selected) Color.White
+                                            else Color.White.copy(alpha = 0.52f),
+                                        ),
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+
+        Text(
+            text = "VIREO",
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    start = 28.dp,
+                    top = safeTop + 16.dp,
+                ),
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 5.sp,
+        )
     }
 }

@@ -147,10 +147,12 @@ fun MainShell(
                 .fillMaxSize()
                 .background(colors.background),
         ) {
-            MobileHeader(
-                onSearch = { go("search") },
-                onSwitchProfile = onSwitchProfile,
-            )
+            if (route != "home") {
+                MobileHeader(
+                    onSearch = { go("search") },
+                    onSwitchProfile = onSwitchProfile,
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -167,6 +169,14 @@ fun MainShell(
                     onSwitchProfile,
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                if (route == "home") {
+                    MobileHomeActions(
+                        onSearch = { go("search") },
+                        onSwitchProfile = onSwitchProfile,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
             }
 
             FloatingBottomNavigation(
@@ -190,7 +200,10 @@ fun MainShell(
                 onSwitchProfile,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 70.dp),
+                    .then(
+                        if (route == "home") Modifier
+                        else Modifier.padding(top = 70.dp)
+                    ),
             )
 
             FloatingTopNavigation(
@@ -198,6 +211,7 @@ fun MainShell(
                 isSelected = isSelected,
                 onNavigate = go,
                 onSwitchProfile = onSwitchProfile,
+                showBrand = route != "home",
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -233,6 +247,21 @@ private fun MobileHeader(
 }
 
 @Composable
+private fun MobileHomeActions(
+    onSearch: () -> Unit,
+    onSwitchProfile: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HeaderAction(Icons.Filled.Search, "Szukaj", onSearch)
+        HeaderAction(Icons.Filled.AccountCircle, "Zmień profil", onSwitchProfile)
+    }
+}
+
+@Composable
 private fun HeaderAction(
     icon: ImageVector,
     description: String,
@@ -262,6 +291,7 @@ private fun FloatingTopNavigation(
     isSelected: (Dest) -> Boolean,
     onNavigate: (String) -> Unit,
     onSwitchProfile: () -> Unit,
+    showBrand: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -272,14 +302,18 @@ private fun FloatingTopNavigation(
             .padding(horizontal = 26.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "VIREO",
-            color = colors.onBackground,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(end = 24.dp),
-        )
+        if (showBrand) {
+            Text(
+                text = "VIREO",
+                color = colors.onBackground,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                modifier = Modifier.padding(end = 24.dp),
+            )
+        } else {
+            Spacer(Modifier.width(120.dp))
+        }
 
         Row(
             modifier = Modifier

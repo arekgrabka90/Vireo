@@ -96,4 +96,57 @@ class HomePresentationPolicyTest {
         assertEquals("0 min", formatHomeRemainingDuration(0L))
         assertEquals("0 min", formatHomeRemainingDuration(-1L))
     }
+
+    @Test
+    fun posterDepthDecreasesAwayFromActiveHero() {
+        assertEquals(0.76f, homeHeroPosterHeightFraction(1), 0.0001f)
+        assertEquals(0.60f, homeHeroPosterHeightFraction(2), 0.0001f)
+        assertEquals(1f, homeHeroPosterHeightFraction(0), 0.0001f)
+
+        assertEquals(0.205f, homeHeroPosterWidthFraction(1), 0.0001f)
+        assertEquals(0.17f, homeHeroPosterWidthFraction(2), 0.0001f)
+        assertEquals(0.56f, homeHeroPosterWidthFraction(0), 0.0001f)
+    }
+
+    @Test
+    fun heroMetadataIsOrderedYearRuntimeGenresRating() {
+        val item = app.vireo.data.tmdb.TmdbCatalogItem(
+            tmdbId = 10,
+            type = app.vireo.domain.model.ContentType.MOVIE,
+            title = "Example",
+            originalTitle = null,
+            releaseDate = "2024-05-10",
+            year = 2024,
+            overview = null,
+            posterUrl = null,
+            backdropUrl = null,
+            rating = 7.8,
+            voteCount = 100,
+            genreIds = emptyList(),
+            originalLanguage = "en",
+            popularity = 1.0,
+        )
+        val detail = app.vireo.data.tmdb.TmdbDetail(
+            tmdbId = 10,
+            type = app.vireo.domain.model.ContentType.MOVIE,
+            title = "Example",
+            originalTitle = null,
+            overview = null,
+            releaseDate = "2024-05-10",
+            year = 2024,
+            posterUrl = null,
+            backdropUrl = null,
+            rating = 8.2,
+            voteCount = 100,
+            genres = listOf("Sci-Fi", "Thriller", "Drama"),
+            runtimeMinutes = 148,
+            cast = emptyList(),
+        )
+
+        assertEquals(
+            listOf("2024", "148 min", "Sci-Fi • Thriller", "8.2"),
+            homeHeroMetadataValues(item, detail),
+        )
+    }
+
 }

@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import app.vireo.data.tmdb.TmdbCatalogItem
 import app.vireo.data.tmdb.TmdbDetail
 import app.vireo.domain.model.ContentType
@@ -136,48 +140,79 @@ private fun ExpandedCinematicHero(
         .asPaddingValues()
         .calculateTopPadding()
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight),
     ) {
-        Row(
+        val contentWidth = maxWidth - horizontalPadding * 2
+        val activeWidth = contentWidth * homeHeroPosterWidthFraction(0)
+        val nearWidth = contentWidth * homeHeroPosterWidthFraction(1)
+        val farWidth = contentWidth * homeHeroPosterWidthFraction(2)
+        val cardAreaHeight = heroHeight - 62.dp
+        val activeLeft = (maxWidth - activeWidth) / 2
+
+        // Side posters overlap progressively, creating a layered depth effect.
+        val nearLeft = activeLeft - nearWidth * 0.72f
+        val farLeft = nearLeft - farWidth * 0.72f
+        val nearRight = activeLeft + activeWidth - nearWidth * 0.28f
+        val farRight = nearRight + nearWidth * 0.72f
+
+        // Draw distant posters first, then near posters, and the active Hero last.
+        val slots = listOf(-2, 2, -1, 1, 0)
+            .map { relative ->
+                val index = (activeIndex + relative + items.size) % items.size
+                Triple(index, relative, items[index])
+            }
+            .distinctBy { it.first }
+
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(heroHeight - 62.dp)
-                .padding(horizontal = horizontalPadding)
+                .fillMaxSize()
                 .onFocusChanged { onHeroFocusChanged(it.hasFocus) }
                 .focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items.forEachIndexed { index, item ->
-                val selected = index == activeIndex
+            slots.forEach { (index, relative, item) ->
+                val distance = kotlin.math.abs(relative)
+                val selected = relative == 0
                 val detail = details[homeHeroKey(item.type, item.tmdbId)]
-                var focused by remember(item.type, item.tmdbId) {
+                val focusedState = remember(item.type, item.tmdbId) {
                     mutableStateOf(false)
                 }
+                val focused = focusedState.value
+                val cardWidth = when (distance) {
+                    0 -> activeWidth
+                    1 -> nearWidth
+                    else -> farWidth
+                }
+                val cardHeight = cardAreaHeight *
+                    homeHeroPosterHeightFraction(distance)
 
-                val animatedWeight by animateFloatAsState(
-                    targetValue = if (selected) 5.4f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = 0.86f,
-                        stiffness = 170f,
-                    ),
-                    label = "home-hero-card-width",
-                )
-
-                val shape = RoundedCornerShape(22.dp)
+                val left = when (relative) {
+                    -2 -> farLeft
+                    -1 -> nearLeft
+                    0 -> activeLeft
+                    1 -> nearRight
+                    else -> farRight
+                }
+                val top = 62.dp + (cardAreaHeight - cardHeight) / 2
+                val shape = RoundedCornerShape(if (selected) 22.dp else 16.dp)
 
                 Box(
                     modifier = Modifier
-                        .weight(animatedWeight)
-                        .fillMaxHeight()
+                        .offset(x = left, y = top)
+                        .width(cardWidth)
+                        .height(cardHeight)
+                        .zIndex(
+                            when (distance) {
+                                0 -> 5f
+                                1 -> 3f
+                                else -> 1f
+                            } + if (relative > 0) 0.1f else 0f
+                        )
                         .clip(shape)
                         .background(Color(0xFF111318))
-                        .onFocusChanged {
-                            focused = it.isFocused
-                        }
+                        .onFocusChanged { focusedState.value = it.isFocused }
                         .clickable {
                             if (shouldOpenHomeHeroOnClick(selected)) {
                                 onOpen(item)
@@ -189,6 +224,7 @@ private fun ExpandedCinematicHero(
                     val backdropUrl = detail?.backdropUrl ?: item.backdropUrl
                     val posterUrl = detail?.posterUrl ?: item.posterUrl
                     val hasBackdrop = selected && !backdropUrl.isNullOrBlank()
+
                     HeroArtwork(
                         imageUrl = homeHeroArtworkUrl(
                             backdropUrl = backdropUrl,
@@ -196,7 +232,11 @@ private fun ExpandedCinematicHero(
                             selected = selected,
                         ),
                         title = item.title,
-                        contentScale = if (hasBackdrop) ContentScale.Crop else ContentScale.Fit,
+                        contentScale = if (hasBackdrop) {
+                            ContentScale.Crop
+                        } else {
+                            ContentScale.Fit
+                        },
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -206,10 +246,15 @@ private fun ExpandedCinematicHero(
                             .background(
                                 Brush.verticalGradient(
                                     colorStops = arrayOf(
-                                        0.0f to Color.Black.copy(alpha = 0.12f),
-                                        0.34f to Color.Black.copy(alpha = 0.10f),
-                                        0.68f to Color.Black.copy(alpha = if (selected) 0.42f else 0.18f),
-                                        1.0f to Color.Black.copy(alpha = if (selected) 0.96f else 0.34f),
+                                        0.0f to Color.Black.copy(
+                                            alpha = if (selected) 0.12f else 0.18f
+                                        ),
+                                        0.45f to Color.Black.copy(
+                                            alpha = if (selected) 0.10f else 0.12f
+                                        ),
+                                        1.0f to Color.Black.copy(
+                                            alpha = if (selected) 0.96f else 0.30f
+                                        ),
                                     ),
                                 ),
                             ),
@@ -251,13 +296,7 @@ private fun ExpandedCinematicHero(
                                 maxHeight = if (screenWidth >= 1200) 92.dp else 78.dp,
                             )
 
-                            Text(
-                                text = heroMetadata(item, detail),
-                                color = Color.White.copy(alpha = 0.96f),
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            HeroMetadataChips(item, detail)
 
                             (detail?.overview ?: item.overview)
                                 ?.trim()
@@ -276,7 +315,7 @@ private fun ExpandedCinematicHero(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .padding(12.dp)
+                                .padding(10.dp)
                                 .clip(RoundedCornerShape(50))
                                 .background(Color.Black.copy(alpha = 0.58f))
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
@@ -320,6 +359,7 @@ private fun ExpandedCinematicHero(
         )
     }
 }
+
 
 @Composable
 private fun SinglePanelCinematicHero(
@@ -417,13 +457,7 @@ private fun SinglePanelCinematicHero(
                 maxHeight = 76.dp,
             )
 
-            Text(
-                text = heroMetadata(item, detail),
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            HeroMetadataChips(item, detail)
 
             (detail?.overview ?: item.overview)
                 ?.trim()
@@ -501,7 +535,9 @@ private fun HeroTitleLogo(
     maxHeight: androidx.compose.ui.unit.Dp,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val logoWidth = maxWidth / 3f
+        // Keep the source image aspect ratio; only apply a generous safety bound.
+        val logoMaxWidth = maxWidth * 0.72f
+
         Crossfade(
             targetState = logoUrl?.takeIf { it.isNotBlank() },
             modifier = Modifier.fillMaxWidth(),
@@ -521,8 +557,9 @@ private fun HeroTitleLogo(
                     contentDescription = "$title logo",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .width(logoWidth)
-                        .height(maxHeight),
+                        .height(maxHeight)
+                        .widthIn(max = logoMaxWidth)
+                        .wrapContentWidth(Alignment.Start),
                 )
             } else {
                 Text(
@@ -537,6 +574,7 @@ private fun HeroTitleLogo(
         }
     }
 }
+
 
 @Composable
 private fun HeroArtwork(
@@ -606,7 +644,40 @@ private fun HeroArtwork(
     }
 }
 
-private fun heroMetadata(
+@Composable
+private fun HeroMetadataChips(
+    item: TmdbCatalogItem,
+    detail: TmdbDetail?,
+) {
+    val values = homeHeroMetadataValues(item, detail)
+    if (values.isEmpty()) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        values.forEach { value ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.50f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = value,
+                    color = Color(0xFF111318),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+
     item: TmdbCatalogItem,
     detail: TmdbDetail?,
 ): String {

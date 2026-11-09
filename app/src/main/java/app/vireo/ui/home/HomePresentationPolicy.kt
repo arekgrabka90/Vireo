@@ -1,6 +1,9 @@
 package app.vireo.ui.home
 
 import app.vireo.domain.model.ContentType
+import app.vireo.data.tmdb.TmdbCatalogItem
+import app.vireo.data.tmdb.TmdbDetail
+import java.util.Locale
 
 internal fun shouldUseExpandedHomeHero(
     screenWidthDp: Int,
@@ -60,4 +63,51 @@ internal fun formatHomeRemainingDuration(durationMs: Long): String {
         hours > 0L -> "$hours godz."
         else -> "$minutes min"
     }
+}
+
+
+/** Poster height decreases with distance from the active Hero. */
+internal fun homeHeroPosterHeightFraction(distanceFromActive: Int): Float =
+    when (distanceFromActive) {
+        1 -> 0.76f
+        2 -> 0.60f
+        else -> 1f
+    }
+
+/** Poster width decreases with distance from the active Hero. */
+internal fun homeHeroPosterWidthFraction(distanceFromActive: Int): Float =
+    when (distanceFromActive) {
+        1 -> 0.205f
+        2 -> 0.17f
+        else -> 0.56f
+    }
+
+/** Metadata values are returned in the visual order used by the Hero. */
+internal fun homeHeroMetadataValues(
+    item: TmdbCatalogItem,
+    detail: TmdbDetail?,
+): List<String> {
+    val year = detail?.year?.toString()
+        ?: item.year?.toString()
+        ?: item.releaseDate?.take(4)?.takeIf { it.length == 4 }
+
+    val runtime = detail?.runtimeMinutes
+        ?.takeIf { it > 0 }
+        ?.let { "$it min" }
+
+    val genres = detail?.genres
+        .orEmpty()
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+        .take(2)
+        .joinToString(" • ")
+        .takeIf(String::isNotBlank)
+
+    val rating = (detail?.rating ?: item.rating)
+        ?.takeIf { it > 0.0 }
+        ?.let { String.format(Locale.US, "%.1f", it) }
+
+    return listOfNotNull(year, runtime, genres, rating)
 }

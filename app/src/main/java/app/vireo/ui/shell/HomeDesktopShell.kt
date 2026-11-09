@@ -2,7 +2,7 @@ package app.vireo.ui.shell
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,10 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.domain.model.ContentType
@@ -79,6 +82,16 @@ fun HomeDesktopShell(
 ) {
     val libraryState by libraryVm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+
+    val sidebarWidth = when {
+        screenWidth >= 1200 -> 260.dp
+        screenWidth >= 900 -> 244.dp
+        else -> 216.dp
+    }
+
+    val continueCardWidth = (sidebarWidth - 40.dp)
+        .coerceIn(160.dp, 220.dp)
 
     Surface(
         modifier = Modifier
@@ -89,11 +102,15 @@ fun HomeDesktopShell(
         shape = RoundedCornerShape(26.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             HomeSidebar(
                 items = libraryState.continueWatching,
+                sidebarWidth = sidebarWidth,
+                continueCardWidth = continueCardWidth,
                 onNavigate = onNavigate,
                 onOpenTitle = onOpenTmdbTitle,
                 onRemove = libraryVm::removeFromContinueWatching,
@@ -103,6 +120,7 @@ fun HomeDesktopShell(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .focusGroup()
                     .padding(start = 12.dp, end = 18.dp, top = 12.dp),
             ) {
                 HomeTopBar(
@@ -115,6 +133,7 @@ fun HomeDesktopShell(
                     onOpenTitle = onOpenTmdbTitle,
                     onOpenCatalog = onOpenTmdbCatalog,
                     showContinueWatching = false,
+                    desktopShell = true,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -125,6 +144,8 @@ fun HomeDesktopShell(
 @Composable
 private fun HomeSidebar(
     items: List<app.vireo.data.local.LibraryItemEntity>,
+    sidebarWidth: androidx.compose.ui.unit.Dp,
+    continueCardWidth: androidx.compose.ui.unit.Dp,
     onNavigate: (String) -> Unit,
     onOpenTitle: (ContentType, Int, String) -> Unit,
     onRemove: (app.vireo.data.local.LibraryItemEntity) -> Unit,
@@ -133,8 +154,9 @@ private fun HomeSidebar(
 
     Column(
         modifier = Modifier
-            .width(244.dp)
+            .width(sidebarWidth)
             .fillMaxHeight()
+            .focusGroup()
             .padding(start = 18.dp, top = 22.dp, bottom = 14.dp, end = 12.dp),
     ) {
         Text(
@@ -142,7 +164,7 @@ private fun HomeSidebar(
             color = colors.onBackground,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 2.dp.value.let { androidx.compose.ui.unit.TextUnit(it, androidx.compose.ui.unit.TextUnitType.Sp) },
+            letterSpacing = 2.sp,
             modifier = Modifier.padding(start = 8.dp, bottom = 30.dp),
         )
 
@@ -216,7 +238,7 @@ private fun HomeSidebar(
                             ?.takeIf { it.isNotBlank() }
                             ?: item.posterUrl,
                         isLandscape = true,
-                        cardWidth = 204.dp,
+                        cardWidth = continueCardWidth,
                         topProgress = progress,
                         topStartLabel = if (entry.second.type == ContentType.MOVIE) {
                             "FILM"
@@ -261,8 +283,10 @@ private fun HomeSidebarEntry(
                 else Color.Transparent,
             )
             .onFocusChanged { focused = it.hasFocus }
-            .clickable(onClick = onClick)
-            .focusable()
+            .clickable(
+                role = Role.Button,
+                onClick = onClick,
+            )
             .padding(horizontal = 10.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -303,8 +327,10 @@ private fun HomeTopBar(
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { menuExpanded = true }
-                    .focusable(),
+                    .clickable(
+                        role = Role.Button,
+                        onClick = { menuExpanded = true },
+                    ),
                 color = colors.surfaceVariant,
                 shape = RoundedCornerShape(14.dp),
             ) {
@@ -344,8 +370,10 @@ private fun HomeTopBar(
                 .weight(1f)
                 .height(48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onSearch)
-                .focusable(),
+                .clickable(
+                    role = Role.Button,
+                    onClick = onSearch,
+                ),
             color = colors.surfaceVariant,
             shape = RoundedCornerShape(14.dp),
         ) {
@@ -374,8 +402,10 @@ private fun HomeTopBar(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onSwitchProfile)
-                .focusable(),
+                .clickable(
+                    role = Role.Button,
+                    onClick = onSwitchProfile,
+                ),
             color = colors.surfaceVariant,
             shape = RoundedCornerShape(14.dp),
         ) {

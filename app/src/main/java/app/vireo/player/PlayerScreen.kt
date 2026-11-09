@@ -64,7 +64,10 @@ fun PlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                vm.onError(error.message ?: error.errorCodeName)
+                vm.onPlaybackError(
+                    error = error,
+                    positionMs = exoPlayer.currentPosition,
+                )
             }
         }
         exoPlayer.addListener(listener)
@@ -99,7 +102,7 @@ fun PlayerScreen(
         val item = state.item ?: return@LaunchedEffect
 
         // Pozycja jest odczytywana dla profilu przypisanego do sesji.
-        val resumeAt = vm.resumePosition(item)
+        val resumeAt = state.resumePositionMs ?: vm.resumePosition(item)
 
         exoPlayer.setMediaItem(
             MediaItem.fromUri(item.url),

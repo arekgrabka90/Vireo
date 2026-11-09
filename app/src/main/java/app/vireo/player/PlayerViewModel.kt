@@ -1,6 +1,7 @@
 package app.vireo.player
 
 import androidx.lifecycle.ViewModel
+import androidx.media3.common.PlaybackException
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
@@ -16,6 +17,7 @@ data class PlayerUiState(
     val item: PlayItem? = null,
     val hasNext: Boolean = false,
     val error: String? = null,
+    val resumePositionMs: Long? = null,
 )
 
 @HiltViewModel
@@ -86,6 +88,40 @@ class PlayerViewModel @Inject constructor(
                 advancing = false
             }
         }
+    }
+
+    fun onPlaybackError(
+        error: PlaybackException,
+        positionMs: Long,
+    ) {
+        val sourceRelated = when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> true
+            else -> false
+        }
+
+        if (sourceRelated) {
+            val alternative = session.nextAlternative()
+            if (alternative != null) {
+                _state.update {
+                    it.copy(
+                        item = alternative,
+                        error = null,
+                        resumePositionMs = positionMs.coerceAtLeast(0L),
+                    )
+                }
+                return
+            }
+        }
+
+        onError(error.message ?: error.errorCodeName)
     }
 
     fun onError(message: String) {

@@ -261,10 +261,23 @@ class TmdbDetailViewModel @Inject constructor(
         }
     }
 
-    fun playMovie(variant: TmdbXtreamMatchVariant, onReady: () -> Unit) {
+    fun playMovie(
+        variant: TmdbXtreamMatchVariant,
+        onReady: () -> Unit,
+    ) {
+        val alternatives = _state.value.availability?.match?.variants.orEmpty()
+
         viewModelScope.launch {
-            _state.value = _state.value.copy(playbackError = null, playbackReady = false)
-            availabilityRepository.playMovie(variant, _state.value.detail)
+            _state.value = _state.value.copy(
+                playbackError = null,
+                playbackReady = false,
+            )
+
+            availabilityRepository.playMovie(
+                variant = variant,
+                alternatives = alternatives,
+                detail = _state.value.detail,
+            )
                 .onSuccess {
                     _state.value = _state.value.copy(playbackReady = true)
                     onReady()

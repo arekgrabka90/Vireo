@@ -3,9 +3,11 @@ package app.vireo.data.xtream
 import app.vireo.data.ProviderRegistry
 import app.vireo.data.local.AccountDao
 import app.vireo.data.tmdb.TmdbDetail
+import app.vireo.data.xtream.TmdbXtreamMatchConfidence
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.SeriesDetails
 import app.vireo.player.PlayItem
+import app.vireo.player.PlaybackAlternative
 import app.vireo.player.PlaybackSession
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
@@ -90,12 +92,57 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
 
     suspend fun playMovie(
         variant: TmdbXtreamMatchVariant,
+        alternatives: List<TmdbXtreamMatchVariant>,
         detail: TmdbDetail?,
     ): Result<Unit> = try {
         val account = accountDao.getById(variant.sourceId)
             ?: error("Konto źródłowe nie jest już dostępne.")
         val provider = providers.create(account)
         val movie = provider.movieDetails(variant.streamId).getOrThrow()
+
+        if (movie.streamUrl.isBlank()) {
+            error("Wybrane źródło nie ma prawidłowego adresu strumienia.")
+        }
+
+        // Alternatywy pochodzą wyłącznie z potwierdzonych dopasowań
+        // tego samego tytułu TMDB. Niepewne warianty wymagają ręcznej selekcji.
+        val alternativeUrls = buildList {
+            val seenUrls = mutableSetOf(movie.streamUrl)
+
+            for (candidate in alternatives) {
+                if (candidate.sourceId == variant.sourceId &&
+                    candidate.streamId == variant.streamId
+                ) continue
+
+                if (candidate.confidence ==
+                    TmdbXtreamMatchConfidence.NEEDS_REVIEW
+                ) continue
+
+                try {
+                    val alternativeAccount =
+                        accountDao.getById(candidate.sourceId) ?: continue
+                    val alternativeProvider = providers.create(alternativeAccount)
+                    val alternativeMovie =
+                        alternativeProvider.movieDetails(candidate.streamId).getOrThrow()
+
+                    val url = alternativeMovie.streamUrl.trim()
+                    if (url.isBlank() || !seenUrls.add(url)) continue
+
+                    add(
+                        PlaybackAlternative(
+                            sourceId = candidate.sourceId,
+                            streamId = candidate.streamId,
+                            url = url,
+                        )
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Niedostępny wariant pomijamy.
+                    // Nie blokuje to odtwarzania głównego źródła.
+                }
+            }
+        }
 
         playbackSession.start(
             listOf(
@@ -106,6 +153,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     contentType = detail?.type?.name ?: "MOVIE",
                     posterUrl = detail?.posterUrl,
                     backdropUrl = detail?.backdropUrl,
+                    alternatives = alternativeUrls,
                 )
             ),
             0,

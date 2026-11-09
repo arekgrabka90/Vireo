@@ -559,7 +559,7 @@ private fun MobileCoverFlowHero(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(centerHeight + 68.dp)
+                .height(centerHeight + 19.dp)
                 .clipToBounds(),
         ) {
             val centerLeft = (maxWidth - centerWidth) / 2
@@ -794,51 +794,52 @@ private fun MobileCoverFlowHero(
             }
         }
 
-        // Title logo is now completely outside the poster carousel.
-        HeroTitleLogo(
-            title = items[safeIndex].title,
-            logoUrl = details[
-                homeHeroKey(
-                    items[safeIndex].type,
-                    items[safeIndex].tmdbId,
-                )
-            ]?.logoUrl,
-            maxHeight = 58.dp,
-            alignment = Alignment.CenterHorizontally,
-        )
+        // Smoothly fade the complete information group when the active
+        // poster changes. Poster carousel animation remains independent.
+        Crossfade(
+            targetState = items[safeIndex],
+            animationSpec = tween(durationMillis = 550),
+            label = "mobile-hero-information-crossfade",
+        ) { activeItem ->
+            val activeDetail = details[
+                homeHeroKey(activeItem.type, activeItem.tmdbId)
+            ]
 
-        HeroMetadataChips(
-            item = items[safeIndex],
-            detail = details[
-                homeHeroKey(
-                    items[safeIndex].type,
-                    items[safeIndex].tmdbId,
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HeroTitleLogo(
+                    title = activeItem.title,
+                    logoUrl = activeDetail?.logoUrl,
+                    maxHeight = 58.dp,
+                    alignment = Alignment.CenterHorizontally,
                 )
-            ],
-            centered = true,
-        )
 
-        val activeItem = items[safeIndex]
-        val activeDetail = details[
-            homeHeroKey(activeItem.type, activeItem.tmdbId)
-        ]
-
-        (activeDetail?.overview ?: activeItem.overview)
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?.let { overview ->
-                Text(
-                    text = overview,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 5,
-                    overflow = TextOverflow.Ellipsis,
+                HeroMetadataChips(
+                    item = activeItem,
+                    detail = activeDetail,
+                    centered = true,
                 )
+
+                (activeDetail?.overview ?: activeItem.overview)
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { overview ->
+                        Text(
+                            text = overview,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
             }
+        }
     }
 }
 

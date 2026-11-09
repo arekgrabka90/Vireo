@@ -61,6 +61,15 @@ class TmdbApi @Inject constructor(
     suspend fun seriesDetails(id: Int, language: String): TmdbDetailDto =
         getDetails("tv/$id", id, language)
 
+    suspend fun images(type: String, id: Int): TmdbImagesDto {
+        require(type == "movie" || type == "tv") {
+            "Unsupported TMDB image media type."
+        }
+        require(id > 0) { "TMDB ID must be positive." }
+        val request = request("$type/$id/images", DEFAULT_LANGUAGE) { }
+        return json.decodeFromString(execute(request))
+    }
+
     suspend fun seasonDetails(
         seriesId: Int,
         seasonNumber: Int,
@@ -91,7 +100,7 @@ class TmdbApi @Inject constructor(
     ): TmdbDetailDto {
         require(id > 0) { "TMDB ID must be positive." }
         val request = request(endpoint, language) {
-            addQueryParameter("append_to_response", "credits,external_ids,images")
+            addQueryParameter("append_to_response", "credits,external_ids")
         }
         return json.decodeFromString(execute(request))
     }

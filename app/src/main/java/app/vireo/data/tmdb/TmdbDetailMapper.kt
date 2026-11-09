@@ -3,7 +3,11 @@ package app.vireo.data.tmdb
 import app.vireo.domain.model.ContentType
 
 internal object TmdbDetailMapper {
-    fun map(dto: TmdbDetailDto, type: ContentType): TmdbDetail? {
+    fun map(
+        dto: TmdbDetailDto,
+        type: ContentType,
+        images: TmdbImagesDto? = null,
+    ): TmdbDetail? {
         if (dto.id <= 0) return null
         if (type != ContentType.MOVIE && type != ContentType.SERIES) return null
 
@@ -73,22 +77,23 @@ internal object TmdbDetailMapper {
                 .distinctBy { it.seasonNumber }
                 .sortedBy { it.seasonNumber }
                 .toList(),
-            logoUrl = dto.images?.logos.orEmpty()
-                .asSequence()
-                .filter { !it.filePath.isNullOrBlank() }
-                .sortedWith(
-                    compareBy<TmdbLogoDto> {
-                        when (it.iso6391) {
-                            null -> 0
-                            "en" -> 1
-                            else -> 2
-                        }
-                    }.thenByDescending { it.voteAverage }
-                     .thenByDescending { it.voteCount }
-                )
-                .mapNotNull { imageUrl(it.filePath, "w500") }
-                .firstOrNull(),
+            logoUrl = selectLogoUrl(images),
         )
+    }
+
+    private fun selectLogoUrl(images: TmdbImagesDto?): String? {
+        val logo = images?.logos.orEmpty()
+            .asSequence()
+            .filter { !it.filePath.isNullOrBlank() }
+            .filterNot { it.filePath!!.endsWith(".svg", ignoreCase = true) }
+            .sortedWith(
+                compareByDescending<TmdbLogoDto> { it.iso6391 == "en" }
+                    .thenByDescending { it.voteAverage }
+                    .thenByDescending { it.width }
+            )
+            .firstOrNull()
+
+        return imageUrl(logo?.filePath, "w500")
     }
 
     fun mapEpisode(dto: TmdbEpisodeDto): TmdbEpisodeItem? {

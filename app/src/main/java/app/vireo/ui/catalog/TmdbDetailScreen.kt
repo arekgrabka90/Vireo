@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -55,8 +55,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -162,11 +168,13 @@ fun TmdbDetailScreen(
 
         if (detail != null) {
             // CINEMATIC HERO
+            var logoLoadFailed by remember(detail.logoUrl) {
+                mutableStateOf(false)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = detailHeroHeight)
-                    .wrapContentHeight()
+                    .height(detailHeroHeight)
                     .background(colors.surfaceVariant),
             ) {
                 if (!detail.backdropUrl.isNullOrBlank()) {
@@ -200,9 +208,9 @@ fun TmdbDetailScreen(
 
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = detailHeroHeight)
+                        .fillMaxSize()
                         .padding(horizontal = 24.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     FocusableBox(
                         onClick = onBack,
@@ -218,20 +226,23 @@ fun TmdbDetailScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(150.dp))
+                    Spacer(Modifier.weight(1f))
 
-                    if (!detail.logoUrl.isNullOrBlank()) {
+                    if (!detail.logoUrl.isNullOrBlank() && !logoLoadFailed) {
                         AsyncImage(
                             model = detail.logoUrl,
                             contentDescription = detail.title,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .widthIn(max = 420.dp)
                                 .heightIn(max = 96.dp),
+                            onError = { logoLoadFailed = true },
                         )
                     } else {
                         Text(
                             detail.title,
+                            modifier = Modifier.fillMaxWidth(),
                             color = Color.White,
                             style = if (screenWidth >= 840) {
                                 MaterialTheme.typography.displaySmall
@@ -239,6 +250,7 @@ fun TmdbDetailScreen(
                                 MaterialTheme.typography.headlineMedium
                             },
                             fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -247,8 +259,9 @@ fun TmdbDetailScreen(
                     Spacer(Modifier.height(10.dp))
 
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.Center,
                     ) {
                         detail.year?.let { DetailMetaChip(it.toString()) }
                         detail.runtimeMinutes?.let { DetailMetaChip("$it min") }
@@ -261,8 +274,10 @@ fun TmdbDetailScreen(
                         Spacer(Modifier.height(6.dp))
                         Text(
                             detail.genres.joinToString("  ·  "),
+                            modifier = Modifier.fillMaxWidth(),
                             color = Color.White.copy(alpha = 0.78f),
                             style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -632,7 +647,7 @@ private fun DetailActionButton(
 @Composable
 private fun DetailMetaChip(label: String) {
     Surface(
-        color = Color.White,
+        color = Color.White.copy(alpha = 0.5f),
         shape = RoundedCornerShape(7.dp),
     ) {
         Text(
@@ -642,6 +657,88 @@ private fun DetailMetaChip(label: String) {
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun ExpandableDescription(
+    text: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    color: Color,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 3,
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val widthPx = with(density) { maxWidth.roundToPx() }
+        val hasMore = remember(text, style, widthPx, maxLines, measurer) {
+            if (widthPx <= 0) {
+                false
+            } else {
+                measurer.measure(
+                    text = AnnotatedString(text),
+                    style = style,
+                    constraints = Constraints(maxWidth = widthPx),
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Clip,
+                ).hasVisualOverflow
+            }
+        }
+
+        val collapsedText = remember(text, style, widthPx, maxLines, measurer) {
+            if (!hasMore || widthPx <= 0) {
+                text
+            } else {
+                var low = 0
+                var high = text.length
+                var best = "… więcej"
+                while (low <= high) {
+                    val middle = (low + high) / 2
+                    val prefix = text.take(middle).trimEnd()
+                    val candidate = if (prefix.isEmpty()) {
+                        "… więcej"
+                    } else {
+                        "$prefix… więcej"
+                    }
+                    val fits = !measurer.measure(
+                        text = AnnotatedString(candidate),
+                        style = style,
+                        constraints = Constraints(maxWidth = widthPx),
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Clip,
+                    ).hasVisualOverflow
+                    if (fits) {
+                        best = candidate
+                        low = middle + 1
+                    } else {
+                        high = middle - 1
+                    }
+                }
+                best
+            }
+        }
+
+        val visibleText = when {
+            !hasMore -> text
+            expanded -> "$text  … mniej"
+            else -> collapsedText
+        }
+
+        Text(
+            text = visibleText,
+            color = color,
+            style = style,
+            maxLines = if (expanded || !hasMore) Int.MAX_VALUE else maxLines,
+            overflow = TextOverflow.Clip,
+            modifier = if (hasMore) {
+                Modifier.clickable { onExpandedChange(!expanded) }
+            } else {
+                Modifier
+            },
         )
     }
 }
@@ -793,7 +890,7 @@ private fun SeriesEpisodes(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .padding(8.dp),
-                                    color = Color.White,
+                                    color = Color.White.copy(alpha = 0.5f),
                                     shape = RoundedCornerShape(7.dp),
                                 ) {
                                     Text(
@@ -827,26 +924,12 @@ private fun SeriesEpisodes(
                             episode.overview
                                 ?.takeIf { it.isNotBlank() }
                                 ?.let { overview ->
-                                    Text(
-                                        overview,
+                                    ExpandableDescription(
+                                        text = overview,
+                                        expanded = overviewExpanded,
+                                        onExpandedChange = { overviewExpanded = it },
                                         color = colors.onSurfaceVariant,
                                         style = MaterialTheme.typography.bodySmall,
-                                        maxLines = if (overviewExpanded) Int.MAX_VALUE else 3,
-                                        overflow = if (overviewExpanded) {
-                                            TextOverflow.Clip
-                                        } else {
-                                            TextOverflow.Ellipsis
-                                        },
-                                    )
-
-                                    Text(
-                                        if (overviewExpanded) "… mniej" else "… więcej",
-                                        color = colors.onSurface,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.clickable {
-                                            overviewExpanded = !overviewExpanded
-                                        },
                                     )
                                 }
                         }

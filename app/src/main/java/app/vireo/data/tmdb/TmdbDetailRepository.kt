@@ -46,7 +46,16 @@ class TmdbDetailRepository @Inject constructor(
                 ContentType.SERIES -> api.seriesDetails(id, normalizedLanguage)
                 ContentType.LIVE -> error("Unsupported content type.")
             }
-            val detail = TmdbDetailMapper.map(dto, type)
+            val mediaType = if (type == ContentType.MOVIE) "movie" else "tv"
+            val images = try {
+                api.images(mediaType, id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+
+            val detail = TmdbDetailMapper.map(dto, type, images)
                 ?: return Result.failure(IllegalStateException("TMDB returned invalid details."))
 
             cache[key] = Entry(detail, System.currentTimeMillis())

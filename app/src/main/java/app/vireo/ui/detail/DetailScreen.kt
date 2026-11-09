@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -65,7 +68,7 @@ fun DetailScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
-        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp),
+        contentPadding = PaddingValues(start = 32.dp,top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,end = 32.dp,bottom = 24.dp,),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

@@ -86,7 +86,7 @@ object AppModule {
                 if (!password.startsWith("v1:")) {
                     db.execSQL(
                         "UPDATE accounts SET password = ? WHERE id = ?",
-                        arrayOf(crypto.encrypt(password), id),
+                        arrayOf<Any?>(crypto.encrypt(password), id),
                     )
                 }
             }
@@ -101,7 +101,7 @@ object AppModule {
                 if (!pin.startsWith("pbkdf2\$")) {
                     db.execSQL(
                         "UPDATE profiles SET pin = ? WHERE id = ?",
-                        arrayOf(crypto.hashPin(pin), id),
+                        arrayOf<Any?>(crypto.hashPin(pin), id),
                     )
                 }
             }

@@ -2,9 +2,11 @@ package app.vireo.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
@@ -19,7 +21,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -37,6 +41,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import app.vireo.R
 import app.vireo.ui.components.FocusableBox
+import kotlinx.coroutines.delay
 
 @Composable
 fun PlayerScreen(
@@ -44,6 +49,7 @@ fun PlayerScreen(
     vm: PlayerViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val state by vm.state.collectAsStateWithLifecycle()
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
 
@@ -58,9 +64,14 @@ fun PlayerScreen(
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
+                vm.onPlaybackStateChanged(playbackState, exoPlayer.isPlaying)
                 if (playbackState == Player.STATE_ENDED) {
                     vm.next(exoPlayer.currentPosition, exoPlayer.duration)
                 }
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                vm.onPlaybackStateChanged(exoPlayer.playbackState, isPlaying)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -70,6 +81,7 @@ fun PlayerScreen(
                 )
             }
         }
+
         exoPlayer.addListener(listener)
         onDispose {
             exoPlayer.removeListener(listener)
@@ -77,31 +89,40 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.item?.url, state.item?.contentKey) {
-        val item = state.item ?: return@LaunchedEffect
-        while (true) {
-            delay(15_000)
-            val duration = exoPlayer.duration
-            if (duration > 0L) {
-                vm.saveProgress(item, exoPlayer.currentPosition, duration)
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    val item = vm.state.value.item
+                    vm.saveProgress(
+                        item,
+                        exoPlayer.currentPosition,
+                        exoPlayer.duration,
+                    )
+                    exoPlayer.pause()
+                }
+
+                Lifecycle.Event.ON_START -> {
+                    if (
+                        exoPlayer.playbackState == Player.STATE_READY &&
+                        vm.state.value.error == null
+                    ) {
+                        exoPlayer.play()
+                    }
+                }
+
+                else -> Unit
             }
         }
-    }
 
-    DisposableEffect(exoPlayer, state.item?.contentKey, state.item?.url) {
-        val item = state.item
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            val duration = exoPlayer.duration
-            if (duration > 0L) {
-                vm.saveProgress(item, exoPlayer.currentPosition, duration)
-            }
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
     LaunchedEffect(state.item?.url, state.item?.contentKey) {
         val item = state.item ?: return@LaunchedEffect
-
-        // Pozycja jest odczytywana dla profilu przypisanego do sesji.
         val resumeAt = state.resumePositionMs ?: vm.resumePosition(item)
 
         exoPlayer.setMediaItem(
@@ -112,16 +133,81 @@ fun PlayerScreen(
         exoPlayer.playWhenReady = true
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    LaunchedEffect(state.item?.url, state.retryToken) {
+        if (state.retryToken == 0) return@LaunchedEffect
+        val item = state.item ?: return@LaunchedEffect
+        val resumeAt = state.resumePositionMs ?: 0L
+
+        exoPlayer.setMediaItem(
+            MediaItem.fromUri(item.url),
+            resumeAt,
+        )
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
+    }
+
+    LaunchedEffect(state.item?.url, state.item?.contentKey) {
+        val item = state.item ?: return@LaunchedEffect
+        var saveCounter = 0
+
+        while (true) {
+            delay(1_000)
+
+            vm.updateProgress(
+                positionMs = exoPlayer.currentPosition,
+                durationMs = exoPlayer.duration,
+                bufferedPositionMs = exoPlayer.bufferedPosition,
+                isSeekable = exoPlayer.isCurrentMediaItemSeekable,
+            )
+
+            saveCounter++
+            if (saveCounter >= 15) {
+                saveCounter = 0
+                vm.saveProgress(
+                    item,
+                    exoPlayer.currentPosition,
+                    exoPlayer.duration,
+                )
+            }
+        }
+    }
+
+    DisposableEffect(exoPlayer, state.item?.contentKey, state.item?.url) {
+        val item = state.item
+        onDispose {
+            vm.saveProgress(
+                item,
+                exoPlayer.currentPosition,
+                exoPlayer.duration,
+            )
+            exoPlayer.pause()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     keepScreenOn = true
+                    useController = true
+                    controllerShowTimeoutMs = 5_000
+                    setShowRewindButton(true)
+                    setShowFastForwardButton(true)
+                    setControllerVisibilityListener(
+                        PlayerView.ControllerVisibilityListener { visibility ->
+                            vm.onControlsVisibilityChanged(visibility == View.VISIBLE)
+                        }
+                    )
                 }
             },
             modifier = Modifier.fillMaxSize(),
         )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -131,8 +217,9 @@ fun PlayerScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             FocusableBox(onClick = onBack) {
-                Text(stringResource(R.string.back), color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.back), color = Color.White)
             }
+
             Text(
                 state.item?.title.orEmpty(),
                 color = Color.White,
@@ -141,19 +228,37 @@ fun PlayerScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+
             if (state.hasNext) {
-                FocusableBox(onClick = { vm.next(exoPlayer.currentPosition, exoPlayer.duration) }) {
-                    Text(stringResource(R.string.next_episode), color = MaterialTheme.colorScheme.onSurface)
+                FocusableBox(
+                    onClick = {
+                        vm.next(exoPlayer.currentPosition, exoPlayer.duration)
+                    }
+                ) {
+                    Text(
+                        stringResource(R.string.next_episode),
+                        color = Color.White,
+                    )
                 }
             }
         }
-        val error = state.error
-        if (error != null) {
-            Text(
-                error,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.align(Alignment.Center).padding(32.dp),
-            )
+
+        state.error?.let { error ->
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    error,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                FocusableBox(onClick = { vm.retry() }) {
+                    Text("Retry", color = Color.White)
+                }
+            }
         }
     }
 }

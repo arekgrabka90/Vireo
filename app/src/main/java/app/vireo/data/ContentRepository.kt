@@ -200,6 +200,7 @@ class ContentRepository @Inject constructor(
                         null,
                         ContentType.LIVE,
                         item.categoryId,
+                        epgChannelId = item.epgChannelId,
                     )
                 }
             }

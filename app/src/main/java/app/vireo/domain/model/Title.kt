@@ -7,4 +7,5 @@ data class Title(
     val rating: String?,
     val type: ContentType,
     val categoryId: String?,
+    val epgChannelId: String? = null,
 )

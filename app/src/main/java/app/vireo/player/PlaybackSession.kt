@@ -17,6 +17,7 @@ data class PlayItem(
     val posterUrl: String? = null,
     val backdropUrl: String? = null,
     val alternatives: List<PlaybackAlternative> = emptyList(),
+    val epgChannelId: String? = null,
 )
 
 @Singleton

@@ -1,12 +1,13 @@
 package app.vireo.player
 
 import androidx.lifecycle.ViewModel
-import androidx.media3.common.PlaybackException
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
-import kotlinx.coroutines.launch
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,10 +16,17 @@ import javax.inject.Inject
 
 data class PlayerUiState(
     val item: PlayItem? = null,
-    val hasNext: Boolean = false,
-    val error: String? = null,
+    val runtime: PlayerRuntimeState = PlayerRuntimeState(),
+    val progress: PlayerProgressState = PlayerProgressState(),
     val resumePositionMs: Long? = null,
-)
+    val retryToken: Int = 0,
+) {
+    val hasNext: Boolean
+        get() = runtime.hasNext
+
+    val error: String?
+        get() = runtime.errorMessage
+}
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -27,17 +35,28 @@ class PlayerViewModel @Inject constructor(
     private val profiles: ProfileRepository,
 ) : ViewModel() {
 
-    // Profil zostaje przypisany do calej sesji odtwarzania.
-    // Zmiana aktywnego profilu nie przeniesie postepu do innego profilu.
+    // Profil jest przypisany do całej sesji odtwarzania.
     private val playbackProfileId = profiles.activeId
     private var advancing = false
 
-    private val _state = MutableStateFlow(
-        PlayerUiState(item = session.current(), hasNext = session.hasNext()),
+    private fun createState(
+        item: PlayItem?,
+        resumePositionMs: Long? = null,
+    ) = PlayerUiState(
+        item = item,
+        runtime = PlayerRuntimeState(
+            title = item?.title.orEmpty(),
+            contentType = item?.contentType,
+            hasNext = session.hasNext(),
+        ),
+        resumePositionMs = resumePositionMs,
     )
+
+    private val _state = MutableStateFlow(createState(session.current()))
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
     suspend fun resumePosition(item: PlayItem): Long {
+        if (item.contentType == "LIVE") return 0L
         val contentKey = item.contentKey ?: return 0L
         return library.resumePosition(playbackProfileId, contentKey)
     }
@@ -48,6 +67,10 @@ class PlayerViewModel @Inject constructor(
         durationMs: Long,
     ) {
         val target = item ?: return
+        if (target.contentType == "LIVE") return
+        if (target.contentKey.isNullOrBlank()) return
+        if (durationMs <= 0L) return
+
         library.saveProgress(
             playbackProfileId,
             target,
@@ -62,8 +85,58 @@ class PlayerViewModel @Inject constructor(
         durationMs: Long,
     ) {
         val target = item ?: return
+        if (target.contentType == "LIVE") return
+        if (target.contentKey.isNullOrBlank()) return
+        if (durationMs <= 0L) return
+
         viewModelScope.launch {
             persistProgress(target, positionMs, durationMs)
+        }
+    }
+
+    fun updateProgress(
+        positionMs: Long,
+        durationMs: Long,
+        bufferedPositionMs: Long,
+        isSeekable: Boolean,
+    ) {
+        val progress = normalizePlayerProgress(
+            positionMs,
+            durationMs,
+            bufferedPositionMs,
+            isSeekable,
+        )
+        _state.update { it.copy(progress = progress) }
+    }
+
+    fun onPlaybackStateChanged(
+        playbackState: Int,
+        isPlaying: Boolean,
+    ) {
+        val transport = when (playbackState) {
+            Player.STATE_BUFFERING -> PlayerTransportState.BUFFERING
+            Player.STATE_READY -> PlayerTransportState.READY
+            Player.STATE_ENDED -> PlayerTransportState.ENDED
+            Player.STATE_IDLE -> PlayerTransportState.IDLE
+            else -> PlayerTransportState.IDLE
+        }
+
+        _state.update { current ->
+            current.copy(
+                runtime = current.runtime.copy(
+                    title = current.item?.title.orEmpty(),
+                    contentType = current.item?.contentType,
+                    transportState = transport,
+                    isPlaying = isPlaying,
+                    hasNext = session.hasNext(),
+                )
+            )
+        }
+    }
+
+    fun onControlsVisibilityChanged(visible: Boolean) {
+        _state.update {
+            it.copy(runtime = it.runtime.copy(controlsVisible = visible))
         }
     }
 
@@ -75,18 +148,40 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // Najpierw zapisujemy finalny postep. Dopiero potem
-                // zmieniamy pozycje w kolejce odtwarzania.
                 persistProgress(current, positionMs, durationMs)
 
-                val next = session.next() ?: return@launch
-                _state.value = PlayerUiState(
-                    item = next,
-                    hasNext = session.hasNext(),
-                )
+                val next = session.next()
+                if (next == null) {
+                    _state.update {
+                        it.copy(
+                            runtime = it.runtime.copy(
+                                transportState = PlayerTransportState.ENDED,
+                                isPlaying = false,
+                                hasNext = false,
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                _state.value = createState(next)
             } finally {
                 advancing = false
             }
+        }
+    }
+
+    fun retry() {
+        _state.update { current ->
+            current.copy(
+                runtime = current.runtime.copy(
+                    transportState = PlayerTransportState.IDLE,
+                    errorMessage = null,
+                    isPlaying = false,
+                ),
+                resumePositionMs = current.progress.positionMs,
+                retryToken = current.retryToken + 1,
+            )
         }
     }
 
@@ -110,11 +205,18 @@ class PlayerViewModel @Inject constructor(
         if (sourceRelated) {
             val alternative = session.nextAlternative()
             if (alternative != null) {
-                _state.update {
-                    it.copy(
+                _state.update { current ->
+                    current.copy(
                         item = alternative,
-                        error = null,
+                        runtime = current.runtime.copy(
+                            title = alternative.title,
+                            contentType = alternative.contentType,
+                            transportState = PlayerTransportState.IDLE,
+                            isPlaying = false,
+                            errorMessage = null,
+                        ),
                         resumePositionMs = positionMs.coerceAtLeast(0L),
+                        retryToken = current.retryToken + 1,
                     )
                 }
                 return
@@ -135,6 +237,15 @@ class PlayerViewModel @Inject constructor(
             ),
             "$1=[ukryte]",
         )
-        _state.update { st -> st.copy(error = safeMessage) }
+
+        _state.update {
+            it.copy(
+                runtime = it.runtime.copy(
+                    transportState = PlayerTransportState.ERROR,
+                    isPlaying = false,
+                    errorMessage = safeMessage,
+                )
+            )
+        }
     }
 }

@@ -37,10 +37,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import app.vireo.R
 import app.vireo.ui.components.FocusableBox
@@ -57,13 +55,8 @@ fun PlayerScreen(
     val epg by vm.epgState.collectAsStateWithLifecycle()
     val settings by vm.playbackSettings.collectAsStateWithLifecycle()
     val settingsReady by vm.playbackSettingsReady.collectAsStateWithLifecycle()
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context)
-            .setSeekBackIncrementMs(10_000L)
-            .setSeekForwardIncrementMs(10_000L)
-            .build()
-    }
-    val resumeAfterLifecycleStop = remember(exoPlayer) {
+    val player = remember(vm) { vm.playerForView() }
+    val resumeAfterLifecycleStop = remember(player) {
         mutableStateOf(false)
     }
 
@@ -75,51 +68,50 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                vm.onPlaybackStateChanged(playbackState, exoPlayer.isPlaying)
+                vm.onPlaybackStateChanged(playbackState, player.isPlaying)
                 if (
                     playbackState == Player.STATE_ENDED &&
                     vm.autoplayNextEnabled()
                 ) {
-                    vm.next(exoPlayer.currentPosition, exoPlayer.duration)
+                    vm.next(player.currentPosition, player.duration)
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                vm.onPlaybackStateChanged(exoPlayer.playbackState, isPlaying)
+                vm.onPlaybackStateChanged(player.playbackState, isPlaying)
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 vm.onPlaybackError(
                     error = error,
-                    positionMs = exoPlayer.currentPosition,
+                    positionMs = player.currentPosition,
                 )
             }
         }
 
-        exoPlayer.addListener(listener)
+        player.addListener(listener)
         onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            player.removeListener(listener)
         }
     }
 
-    DisposableEffect(lifecycleOwner, exoPlayer) {
+    DisposableEffect(lifecycleOwner, player) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
                     resumeAfterLifecycleStop.value =
-                        exoPlayer.playWhenReady && vm.state.value.error == null
+                        player.playWhenReady && vm.state.value.error == null
 
                     val item = vm.state.value.item
                     vm.saveProgress(
                         item,
-                        exoPlayer.currentPosition,
-                        exoPlayer.duration,
+                        player.currentPosition,
+                        player.duration,
                     )
-                    exoPlayer.pause()
+                    vm.pausePlayback()
                 }
 
                 Lifecycle.Event.ON_START -> {
@@ -127,7 +119,7 @@ fun PlayerScreen(
                         resumeAfterLifecycleStop.value &&
                         vm.state.value.error == null
                     ) {
-                        exoPlayer.play()
+                        vm.resumePlayback()
                     }
                     resumeAfterLifecycleStop.value = false
                 }
@@ -152,12 +144,7 @@ fun PlayerScreen(
         val item = state.item ?: return@LaunchedEffect
         val resumeAt = state.resumePositionMs ?: vm.resumePosition(item)
 
-        exoPlayer.setMediaItem(
-            MediaItem.fromUri(item.url),
-            resumeAt,
-        )
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
+        vm.startPlayback(item, resumeAt)
     }
 
     LaunchedEffect(state.item?.url, state.item?.contentKey) {
@@ -168,10 +155,10 @@ fun PlayerScreen(
             delay(1_000)
 
             vm.updateProgress(
-                positionMs = exoPlayer.currentPosition,
-                durationMs = exoPlayer.duration,
-                bufferedPositionMs = exoPlayer.bufferedPosition,
-                isSeekable = exoPlayer.isCurrentMediaItemSeekable,
+                positionMs = player.currentPosition,
+                durationMs = player.duration,
+                bufferedPositionMs = player.bufferedPosition,
+                isSeekable = player.isCurrentMediaItemSeekable,
             )
 
             saveCounter++
@@ -179,22 +166,22 @@ fun PlayerScreen(
                 saveCounter = 0
                 vm.saveProgress(
                     item,
-                    exoPlayer.currentPosition,
-                    exoPlayer.duration,
+                    player.currentPosition,
+                    player.duration,
                 )
             }
         }
     }
 
-    DisposableEffect(exoPlayer, state.item?.contentKey, state.item?.url) {
+    DisposableEffect(player, state.item?.contentKey, state.item?.url) {
         val item = state.item
         onDispose {
             vm.saveProgress(
                 item,
-                exoPlayer.currentPosition,
-                exoPlayer.duration,
+                player.currentPosition,
+                player.duration,
             )
-            exoPlayer.pause()
+            vm.pausePlayback()
         }
     }
 
@@ -206,7 +193,7 @@ fun PlayerScreen(
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = exoPlayer
+                    player = player
                     keepScreenOn = true
                     useController = true
                     controllerShowTimeoutMs = 5_000
@@ -221,10 +208,10 @@ fun PlayerScreen(
             },
             modifier = Modifier.fillMaxSize(),
             update = { view ->
-                view.player = exoPlayer
+                view.player = player
                 if (settingsReady) {
-                    exoPlayer.trackSelectionParameters =
-                        exoPlayer.trackSelectionParameters.buildUpon()
+                    player.trackSelectionParameters =
+                        player.trackSelectionParameters.buildUpon()
                             .setPreferredAudioLanguage(
                                 settings.preferredAudioLanguage.takeUnless {
                                     it == "system"
@@ -298,7 +285,7 @@ fun PlayerScreen(
             if (state.hasNext) {
                 FocusableBox(
                     onClick = {
-                        vm.next(exoPlayer.currentPosition, exoPlayer.duration)
+                        vm.next(player.currentPosition, player.duration)
                     }
                 ) {
                     Text(

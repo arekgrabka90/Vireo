@@ -21,6 +21,7 @@ data class PlayerEngineError(
 data class PlayerEngineState(
     val transportState: PlayerTransportState = PlayerTransportState.IDLE,
     val isPlaying: Boolean = false,
+    val playWhenReady: Boolean = false,
     val progress: PlayerProgressState = PlayerProgressState(),
     val error: PlayerEngineError? = null,
 )

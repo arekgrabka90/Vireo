@@ -141,7 +141,7 @@ class PlayerController @Inject constructor(
         val targetPosition = (
             positionMs ?: engineState.progress.positionMs
         ).coerceAtLeast(0L)
-        val shouldResume = resumePlayback ?: engineState.isPlaying
+        val shouldResume = resumePlayback ?: engineState.playWhenReady
 
         val succeeded = execute {
             engine.setSource(source, targetPosition)
@@ -268,6 +268,7 @@ class PlayerController @Inject constructor(
                 engine = current.engine.copy(
                     transportState = PlayerTransportState.ERROR,
                     isPlaying = false,
+                    playWhenReady = false,
                     error = PlayerEngineError(
                         code = -1,
                         message = message,

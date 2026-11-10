@@ -46,6 +46,7 @@ class PlayerEngineStateTest {
             state.transportState,
         )
         assertFalse(state.isPlaying)
+        assertFalse(state.playWhenReady)
         assertEquals(null, state.error)
     }
 }

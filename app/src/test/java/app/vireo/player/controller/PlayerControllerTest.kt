@@ -80,6 +80,7 @@ class PlayerControllerTest {
             PlayerEngineState(
                 transportState = PlayerTransportState.READY,
                 isPlaying = true,
+                playWhenReady = true,
                 progress = PlayerProgressState(positionMs = 42_000L),
             )
         )
@@ -114,7 +115,10 @@ class PlayerControllerTest {
         assertTrue(controller.previous(source))
         assertEquals(second, controller.state.value.currentItem)
 
-        assertFalse(controller.next(source).not() && false)
+        assertTrue(controller.next(source))
+        assertEquals(third, controller.state.value.currentItem)
+
+        assertFalse(controller.next(source))
         controller.release()
     }
 
@@ -219,6 +223,7 @@ class PlayerControllerTest {
             mutableState.value = mutableState.value.copy(
                 transportState = PlayerTransportState.READY,
                 isPlaying = true,
+                playWhenReady = true,
                 error = null,
             )
         }
@@ -226,7 +231,10 @@ class PlayerControllerTest {
         override fun pause() {
             pauseCount++
             lastPlayWhenReady = false
-            mutableState.value = mutableState.value.copy(isPlaying = false)
+            mutableState.value = mutableState.value.copy(
+                isPlaying = false,
+                playWhenReady = false,
+            )
         }
 
         override fun seekTo(positionMs: Long) {

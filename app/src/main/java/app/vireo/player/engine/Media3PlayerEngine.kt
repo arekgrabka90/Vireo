@@ -13,6 +13,7 @@ import app.vireo.player.PlayerTransportState
 import app.vireo.player.normalizePlayerProgress
 import app.vireo.player.source.PlaybackSource
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,10 +22,11 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Media3-backed implementation of the engine contract.
  *
- * The ExoPlayer instance is internal to the implementation. A later
- * integration step can connect the Android PlayerView without adding
- * Media3 dependencies to the PlayerEngine contract.
+ * This ViewModel-scoped engine owns the ExoPlayer instance shared with
+ * PlayerView through an internal bridge. The PlayerEngine contract
+ * remains independent of Media3.
  */
+@ViewModelScoped
 class Media3PlayerEngine @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : PlayerEngine {
@@ -48,10 +50,18 @@ class Media3PlayerEngine @Inject constructor(
             updatePlaybackState()
         }
 
+        override fun onPlayWhenReadyChanged(
+            playWhenReady: Boolean,
+            reason: Int,
+        ) {
+            updatePlaybackState()
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             _state.value = _state.value.copy(
                 transportState = PlayerTransportState.ERROR,
                 isPlaying = false,
+                playWhenReady = player.playWhenReady,
                 progress = readProgress(),
                 error = PlayerEngineError(
                     code = error.errorCode,
@@ -124,6 +134,12 @@ class Media3PlayerEngine @Inject constructor(
         _state.value = PlayerEngineState()
     }
 
+    /** Internal PlayerView bridge; the engine contract stays Media3-independent. */
+    internal fun playerForView(): Player {
+        checkNotReleased()
+        return player
+    }
+
     private fun checkNotReleased() {
         check(!released) { "PlayerEngine has already been released." }
     }
@@ -134,6 +150,7 @@ class Media3PlayerEngine @Inject constructor(
         _state.value = _state.value.copy(
             transportState = media3TransportState(player.playbackState),
             isPlaying = player.isPlaying,
+            playWhenReady = player.playWhenReady,
             progress = readProgress(),
             error = null,
         )

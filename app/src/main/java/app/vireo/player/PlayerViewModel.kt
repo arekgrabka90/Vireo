@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import app.vireo.player.engine.Media3PlayerEngine
+import app.vireo.player.source.PlaybackSource
 import app.vireo.data.LibraryRepository
 import app.vireo.data.EpgRepository
 import app.vireo.domain.model.EpgNowNext
@@ -38,6 +40,7 @@ data class PlayerUiState(
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val session: PlaybackSession,
+    private val media3PlayerEngine: Media3PlayerEngine,
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
     private val epgRepository: EpgRepository,
@@ -346,4 +349,38 @@ class PlayerViewModel @Inject constructor(
             )
         }
     }
+
+    internal fun playerForView(): Player =
+        media3PlayerEngine.playerForView()
+
+    fun startPlayback(item: PlayItem, positionMs: Long) {
+        try {
+            media3PlayerEngine.setSource(
+                PlaybackSource(
+                    url = item.url,
+                    streamId = item.streamId,
+                ),
+                positionMs.coerceAtLeast(0L),
+            )
+            media3PlayerEngine.prepare()
+            media3PlayerEngine.play()
+        } catch (error: Exception) {
+            onError(error.message ?: "Playback failed.")
+        }
+    }
+
+    fun pausePlayback() {
+        media3PlayerEngine.pause()
+    }
+
+    fun resumePlayback() {
+        media3PlayerEngine.play()
+    }
+
+    override fun onCleared() {
+        epgJob?.cancel()
+        media3PlayerEngine.release()
+        super.onCleared()
+    }
+
 }

@@ -2,6 +2,7 @@ package app.vireo.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.util.TypedValue
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -53,6 +55,7 @@ fun PlayerScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by vm.state.collectAsStateWithLifecycle()
     val epg by vm.epgState.collectAsStateWithLifecycle()
+    val settings by vm.playbackSettings.collectAsStateWithLifecycle()
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
             .setSeekBackIncrementMs(10_000L)
@@ -75,7 +78,10 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 vm.onPlaybackStateChanged(playbackState, exoPlayer.isPlaying)
-                if (playbackState == Player.STATE_ENDED) {
+                if (
+                    playbackState == Player.STATE_ENDED &&
+                    vm.autoplayNextEnabled()
+                ) {
                     vm.next(exoPlayer.currentPosition, exoPlayer.duration)
                 }
             }
@@ -211,6 +217,30 @@ fun PlayerScreen(
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                view.player = exoPlayer
+                exoPlayer.trackSelectionParameters =
+                    exoPlayer.trackSelectionParameters.buildUpon()
+                        .setPreferredAudioLanguage(
+                            settings.preferredAudioLanguage.takeUnless {
+                                it == "system"
+                            }
+                        )
+                        .setPreferredTextLanguage(
+                            settings.preferredSubtitleLanguage.takeUnless {
+                                it == "system"
+                            }
+                        )
+                        .setTrackTypeDisabled(
+                            C.TRACK_TYPE_TEXT,
+                            !settings.subtitlesEnabled,
+                        )
+                        .build()
+                view.subtitleView?.setFixedTextSize(
+                    TypedValue.COMPLEX_UNIT_SP,
+                    settings.subtitleSizeSp.toFloat(),
+                )
+            },
         )
 
         Row(
@@ -244,17 +274,19 @@ fun PlayerScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    currentProgram.description
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { description ->
-                            Text(
-                                description,
-                                color = Color.White.copy(alpha = 0.82f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                    if (settings.liveTvHudShowEpgDescription) {
+                        currentProgram.description
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { description ->
+                                Text(
+                                    description,
+                                    color = Color.White.copy(alpha = 0.82f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                    }
                 }
             }
 

@@ -245,7 +245,6 @@ class ProfileSettingsRepository @Inject constructor(
             observers.remove(profileId)?.cancel()
         }
         cache.remove(profileId)
-        profileLocks.remove(profileId)
     }
 
     private fun publish(settings: ProfileSettingsEntity) {

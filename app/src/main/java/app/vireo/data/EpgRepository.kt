@@ -14,8 +14,10 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private object EpgCachePolicy {
-    const val REFRESH_TTL_MS = 15 * 60 * 1000L
+internal object EpgCachePolicy {
+    const val DEFAULT_REFRESH_TTL_MS = 15 * 60 * 1000L
+    fun refreshTtlMs(minutes: Int): Long =
+        minutes.coerceIn(15, 1440) * 60_000L
     const val LOOKBACK_MS = 6 * 60 * 60 * 1000L
     const val LOOKAHEAD_MS = 48 * 60 * 60 * 1000L
     const val RETENTION_PAST_MS = 7 * 24 * 60 * 60 * 1000L
@@ -29,9 +31,15 @@ class EpgRepository @Inject constructor(
 ) {
     private val syncMutex = Mutex()
 
-    suspend fun nowNext(streamId: String): Result<EpgNowNext> = try {
+    suspend fun nowNext(
+        streamId: String,
+        refreshIntervalMinutes: Int = 15,
+    ): Result<EpgNowNext> = try {
         withContext(Dispatchers.IO) {
             require(streamId.isNotBlank()) { "Missing stream_id" }
+            val refreshTtlMs = EpgCachePolicy.refreshTtlMs(
+                refreshIntervalMinutes
+            )
 
             val account = accounts.getActive()
                 ?: error("No active content source")
@@ -43,7 +51,7 @@ class EpgRepository @Inject constructor(
             var cached = epgDao.getPrograms(account.id, streamId, from, to)
             val sync = epgDao.getSyncState(account.id, streamId)
             val stale = sync == null ||
-                now - sync.lastAttemptAt >= EpgCachePolicy.REFRESH_TTL_MS
+                now - sync.lastAttemptAt >= refreshTtlMs
 
             if (stale) {
                 syncMutex.withLock {
@@ -54,7 +62,7 @@ class EpgRepository @Inject constructor(
                     val latestSync = epgDao.getSyncState(account.id, streamId)
                     val refreshTime = System.currentTimeMillis()
                     val stillStale = latestSync == null ||
-                        refreshTime - latestSync.lastAttemptAt >= EpgCachePolicy.REFRESH_TTL_MS
+                        refreshTime - latestSync.lastAttemptAt >= refreshTtlMs
 
                     if (stillStale) {
                         val schedule = try {

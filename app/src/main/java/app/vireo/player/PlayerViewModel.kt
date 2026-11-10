@@ -8,6 +8,7 @@ import app.vireo.data.LibraryRepository
 import app.vireo.data.EpgRepository
 import app.vireo.domain.model.EpgNowNext
 import app.vireo.data.ProfileRepository
+import app.vireo.data.ProfileSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,12 +40,16 @@ class PlayerViewModel @Inject constructor(
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
     private val epgRepository: EpgRepository,
+    private val profileSettingsRepository: ProfileSettingsRepository,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     // Profil jest przypisany do całej sesji odtwarzania.
     private val playbackProfileId = profiles.activeId
+    val playbackSettings = profileSettingsRepository.observe(playbackProfileId)
     private var advancing = false
+
+    fun autoplayNextEnabled(): Boolean = playbackSettings.value.autoplayNext
 
     private fun createState(
         item: PlayItem?,
@@ -82,7 +87,10 @@ class PlayerViewModel @Inject constructor(
 
         epgJob = viewModelScope.launch {
             while (true) {
-                epgRepository.nowNext(streamId).onSuccess {
+                epgRepository.nowNext(
+                    streamId = streamId,
+                    refreshIntervalMinutes = playbackSettings.value.epgRefreshIntervalMinutes,
+                ).onSuccess {
                     _epgState.value = it
                 }
                 delay(30_000L)

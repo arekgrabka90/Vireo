@@ -75,8 +75,10 @@ internal object TmdbDiscoveryQueryBuilder {
             upperDate = earlier(upperDate, end)
         }
 
-        if (lowerDate != null && upperDate != null) {
-            require(!lowerDate.isAfter(upperDate)) {
+        val lowerBound = lowerDate
+        val upperBound = upperDate
+        if (lowerBound != null && upperBound != null) {
+            require(!lowerBound.isAfter(upperBound)) {
                 "The selected date filters do not overlap."
             }
         }

@@ -1,0 +1,37 @@
+<resources>
+    <string name="search_tab_search">Szukaj</string>
+    <string name="search_tab_discover">Odkrywaj</string>
+    <string name="search_input_label">Filmy, seriale i osoby</string>
+    <string name="search_input_hint">Wpisz tytuł lub nazwisko…</string>
+    <string name="search_recent">Ostatnie wyszukiwania</string>
+    <string name="search_people">Osoby</string>
+    <string name="search_results_count">Wyniki: %1$d</string>
+    <string name="discovery_heading">Odkrywaj</string>
+    <string name="discovery_movies">Filmy</string>
+    <string name="discovery_series">Seriale</string>
+    <string name="discovery_trending">Na czasie</string>
+    <string name="discovery_popular_year">Popularne w tym roku</string>
+    <string name="discovery_top_rated">Najwyżej oceniane</string>
+    <string name="discovery_new_releases">Nowości</string>
+    <string name="discovery_hidden_gems">Ukryte perełki</string>
+    <string name="discovery_custom">Własne filtry</string>
+    <string name="discovery_filters">Filtry</string>
+    <string name="discovery_clear">Wyczyść</string>
+    <string name="discovery_genres">Gatunki</string>
+    <string name="discovery_any_genre">Dowolny wybrany gatunek</string>
+    <string name="discovery_all_genres">Wszystkie wybrane gatunki</string>
+    <string name="discovery_min_rating">Minimalna ocena</string>
+    <string name="discovery_min_votes">Minimalna liczba głosów</string>
+    <string name="discovery_any">Dowolna</string>
+    <string name="discovery_year_or_decade">Rok lub dekada</string>
+    <string name="discovery_year">Rok</string>
+    <string name="discovery_decade">Dekada (np. 1990)</string>
+    <string name="discovery_original_language">Język oryginalny (kod 2-literowy)</string>
+    <string name="discovery_sort">Sortowanie wyników</string>
+    <string name="discovery_sort_popular">Popularność</string>
+    <string name="discovery_sort_rating">Ocena</string>
+    <string name="discovery_sort_votes">Głosy</string>
+    <string name="discovery_sort_date">Data premiery</string>
+    <string name="discovery_sort_hidden">Mniej popularne</string>
+    <string name="discovery_retry">Spróbuj ponownie</string>
+</resources>

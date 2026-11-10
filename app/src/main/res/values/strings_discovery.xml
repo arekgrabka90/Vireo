@@ -1,0 +1,37 @@
+<resources>
+    <string name="search_tab_search">Search</string>
+    <string name="search_tab_discover">Discover</string>
+    <string name="search_input_label">Movies, series and people</string>
+    <string name="search_input_hint">Enter a title or a name…</string>
+    <string name="search_recent">Recent searches</string>
+    <string name="search_people">People</string>
+    <string name="search_results_count">%1$d results</string>
+    <string name="discovery_heading">Discover</string>
+    <string name="discovery_movies">Movies</string>
+    <string name="discovery_series">Series</string>
+    <string name="discovery_trending">Trending this week</string>
+    <string name="discovery_popular_year">Popular this year</string>
+    <string name="discovery_top_rated">Top rated</string>
+    <string name="discovery_new_releases">New releases</string>
+    <string name="discovery_hidden_gems">Hidden gems</string>
+    <string name="discovery_custom">Custom filters</string>
+    <string name="discovery_filters">Filters</string>
+    <string name="discovery_clear">Clear</string>
+    <string name="discovery_genres">Genres</string>
+    <string name="discovery_any_genre">Any selected genre</string>
+    <string name="discovery_all_genres">All selected genres</string>
+    <string name="discovery_min_rating">Minimum rating</string>
+    <string name="discovery_min_votes">Minimum votes</string>
+    <string name="discovery_any">Any</string>
+    <string name="discovery_year_or_decade">Year or decade</string>
+    <string name="discovery_year">Year</string>
+    <string name="discovery_decade">Decade (e.g. 1990)</string>
+    <string name="discovery_original_language">Original language (2-letter code)</string>
+    <string name="discovery_sort">Sort results</string>
+    <string name="discovery_sort_popular">Popularity</string>
+    <string name="discovery_sort_rating">Rating</string>
+    <string name="discovery_sort_votes">Votes</string>
+    <string name="discovery_sort_date">Release date</string>
+    <string name="discovery_sort_hidden">Less popular</string>
+    <string name="discovery_retry">Try again</string>
+</resources>

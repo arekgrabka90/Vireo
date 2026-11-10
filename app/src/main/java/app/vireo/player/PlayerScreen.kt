@@ -193,7 +193,7 @@ fun PlayerScreen(
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = player
+                    setPlayer(player)
                     keepScreenOn = true
                     useController = true
                     controllerShowTimeoutMs = 5_000

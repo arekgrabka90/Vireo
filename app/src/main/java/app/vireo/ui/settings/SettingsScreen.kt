@@ -28,7 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +47,7 @@ import app.vireo.data.local.ProfileSettingsEntity
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.components.ProfileAvatar
 import app.vireo.ui.components.ScreenTitle
-import kotlinx.coroutines.withFrameNanos
+import androidx.compose.runtime.withFrameNanos
 
 private data class SettingsCategory(
     val key: String,

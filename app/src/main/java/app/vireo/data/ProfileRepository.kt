@@ -130,7 +130,7 @@ class ProfileRepository @Inject constructor(
     suspend fun delete(profile: ProfileEntity) {
         val deletingActive = activeId == profile.id
         val fallback = if (deletingActive) {
-            dao.first()?.takeIf { it.id != profile.id }
+            dao.firstExcept(profile.id)
         } else {
             null
         }

@@ -32,6 +32,9 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles ORDER BY id LIMIT 1")
     suspend fun first(): ProfileEntity?
 
+    @Query("SELECT * FROM profiles WHERE id != :excludedId ORDER BY id LIMIT 1")
+    suspend fun firstExcept(excludedId: Long): ProfileEntity?
+
     @Insert
     suspend fun insert(profile: ProfileEntity): Long
 

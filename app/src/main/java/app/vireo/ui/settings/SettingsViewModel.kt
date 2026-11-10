@@ -26,10 +26,10 @@ class SettingsViewModel @Inject constructor(
     val active: StateFlow<ProfileEntity?> = profiles.activeIdFlow
         .flatMapLatest { id ->
             if (id <= 0L) {
-                flowOf(null)
+                flowOf<ProfileEntity?>(null)
             } else {
-                kotlinx.coroutines.flow.flow {
-                    emit(profiles.get(id))
+                profiles.profiles.map { list ->
+                    list.firstOrNull { it.id == id }
                 }
             }
         }
@@ -45,7 +45,7 @@ class SettingsViewModel @Inject constructor(
                 if (id > 0L) {
                     settings.observe(id).map { it }
                 } else {
-                    flowOf(null)
+                    flowOf<ProfileSettingsEntity?>(null)
                 }
             }
             .stateIn(

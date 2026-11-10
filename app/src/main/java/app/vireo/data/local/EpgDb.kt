@@ -1,5 +1,6 @@
 package app.vireo.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -52,6 +53,8 @@ data class EpgSyncStateEntity(
     val sourceId: Long,
     val streamId: String,
     val lastSuccessfulSyncAt: Long,
+    @ColumnInfo(defaultValue = "0")
+    val lastAttemptAt: Long = lastSuccessfulSyncAt,
 )
 
 @Dao
@@ -91,6 +94,19 @@ interface EpgDao {
     )
     suspend fun deletePrograms(sourceId: Long, streamId: String)
 
+    @Transaction
+    suspend fun recordAttempt(sourceId: Long, streamId: String, attemptedAt: Long) {
+        val current = getSyncState(sourceId, streamId)
+        upsertSyncState(
+            EpgSyncStateEntity(
+                sourceId = sourceId,
+                streamId = streamId,
+                lastSuccessfulSyncAt = current?.lastSuccessfulSyncAt ?: 0L,
+                lastAttemptAt = attemptedAt,
+            )
+        )
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPrograms(items: List<EpgProgramEntity>)
 
@@ -114,6 +130,7 @@ interface EpgDao {
                 sourceId = sourceId,
                 streamId = streamId,
                 lastSuccessfulSyncAt = syncedAt,
+                lastAttemptAt = syncedAt,
             )
         )
     }

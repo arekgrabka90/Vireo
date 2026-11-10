@@ -43,52 +43,82 @@ class EpgRepository @Inject constructor(
             var cached = epgDao.getPrograms(account.id, streamId, from, to)
             val sync = epgDao.getSyncState(account.id, streamId)
             val stale = sync == null ||
-                now - sync.lastSuccessfulSyncAt >= EpgCachePolicy.REFRESH_TTL_MS
+                now - sync.lastAttemptAt >= EpgCachePolicy.REFRESH_TTL_MS
 
             if (stale) {
                 syncMutex.withLock {
-                    val latestAccount = accounts.getActive()
-                    if (latestAccount?.id != account.id) {
+                    if (accounts.getActive()?.id != account.id) {
                         error("Active source changed during EPG refresh")
                     }
 
                     val latestSync = epgDao.getSyncState(account.id, streamId)
+                    val refreshTime = System.currentTimeMillis()
                     val stillStale = latestSync == null ||
-                        now - latestSync.lastSuccessfulSyncAt >= EpgCachePolicy.REFRESH_TTL_MS
+                        refreshTime - latestSync.lastAttemptAt >= EpgCachePolicy.REFRESH_TTL_MS
 
                     if (stillStale) {
-                        val provider = providers.create(account)
-                        val schedule = provider.schedule(streamId, from, to).getOrThrow()
-                        val incoming = schedule.programs
-                            .filter { it.hasValidTimeRange }
-                            .distinctBy { it.startTimeMs to it.title }
-
-                        if (incoming.isNotEmpty() || cached.isEmpty()) {
+                        val schedule = try {
+                            providers.create(account)
+                                .schedule(streamId, from, to)
+                                .getOrThrow()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
                             if (accounts.getActive()?.id != account.id) {
-                                error("Active source changed; EPG response discarded")
-                            }
-
-                            val entities = incoming.map {
-                                EpgProgramEntity(
-                                    sourceId = account.id,
-                                    streamId = streamId,
-                                    title = it.title,
-                                    description = it.description,
-                                    startTimeMs = it.startTimeMs,
-                                    endTimeMs = it.endTimeMs,
-                                    category = it.category,
-                                    iconUrl = it.iconUrl,
+                                throw IllegalStateException(
+                                    "Active source changed during EPG request",
+                                    error,
                                 )
                             }
-                            epgDao.replaceSchedule(
+                            epgDao.recordAttempt(
                                 account.id,
                                 streamId,
-                                entities,
                                 System.currentTimeMillis(),
                             )
+                            null
+                        }
+
+                        if (schedule != null) {
+                            val incoming = schedule.programs
+                                .filter { it.hasValidTimeRange }
+                                .distinctBy { it.startTimeMs to it.title }
+
+                            if (incoming.isNotEmpty()) {
+                                if (accounts.getActive()?.id != account.id) {
+                                    error("Active source changed; EPG response discarded")
+                                }
+
+                                val syncedAt = System.currentTimeMillis()
+                                val entities = incoming.map {
+                                    EpgProgramEntity(
+                                        sourceId = account.id,
+                                        streamId = streamId,
+                                        title = it.title,
+                                        description = it.description,
+                                        startTimeMs = it.startTimeMs,
+                                        endTimeMs = it.endTimeMs,
+                                        category = it.category,
+                                        iconUrl = it.iconUrl,
+                                    )
+                                }
+                                epgDao.replaceSchedule(
+                                    account.id,
+                                    streamId,
+                                    entities,
+                                    syncedAt,
+                                )
+                            } else {
+                                // An empty response is not proof that the old cache is invalid.
+                                epgDao.recordAttempt(
+                                    account.id,
+                                    streamId,
+                                    System.currentTimeMillis(),
+                                )
+                            }
                         }
                     }
                 }
+
                 cached = epgDao.getPrograms(account.id, streamId, from, to)
             }
 
@@ -110,9 +140,10 @@ class EpgRepository @Inject constructor(
                 )
             }
 
-            val current = programs.firstOrNull { it.contains(now) }
+            val selectionTime = System.currentTimeMillis()
+            val current = programs.firstOrNull { it.contains(selectionTime) }
             val next = programs
-                .filter { it.startTimeMs > now }
+                .filter { it.startTimeMs > selectionTime }
                 .minByOrNull { it.startTimeMs }
 
             Result.success(EpgNowNext(current, next))

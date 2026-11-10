@@ -65,6 +65,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_6_7,
                 VireoDatabase.MIGRATION_7_8,
                 VireoDatabase.MIGRATION_8_9,
+                VireoDatabase.MIGRATION_9_10,
             )
             .build()
 

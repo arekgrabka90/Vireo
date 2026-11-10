@@ -110,7 +110,7 @@ interface AccountDao {
         EpgProgramEntity::class,
         EpgSyncStateEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -350,6 +350,20 @@ abstract class VireoDatabase : RoomDatabase() {
                 )
             }
         }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE epg_sync_state " +
+                        "ADD COLUMN lastAttemptAt INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "UPDATE epg_sync_state " +
+                        "SET lastAttemptAt = lastSuccessfulSyncAt"
+                )
+            }
+        }
+
 
     }
 }

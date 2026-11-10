@@ -117,6 +117,54 @@ class TmdbCatalogRepository @Inject constructor(
         }
     }
 
+    suspend fun searchMulti(
+        query: String,
+        page: Int = 1,
+        language: String = DEFAULT_LANGUAGE,
+    ): Result<TmdbMultiSearchResult> {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Search query cannot be blank.")
+            )
+        }
+        if (page !in 1..500) {
+            return Result.failure(
+                IllegalArgumentException("TMDB page must be between 1 and 500.")
+            )
+        }
+
+        val normalizedLanguage = language.trim()
+            .replace('_', '-')
+            .ifBlank { DEFAULT_LANGUAGE }
+
+        return try {
+            val response = api.searchMulti(
+                normalizedQuery,
+                page,
+                normalizedLanguage,
+            )
+
+            val mapped = response.results.mapNotNull(TmdbMultiSearchMapper::map)
+            Result.success(
+                TmdbMultiSearchResult(
+                    media = mapped.filterIsInstance<TmdbMultiSearchMapped.Media>()
+                        .map { it.item }
+                        .distinctBy { "${it.type.name}:${it.tmdbId}" },
+                    people = mapped.filterIsInstance<TmdbMultiSearchMapped.Person>()
+                        .map { it.item }
+                        .distinctBy { it.tmdbId }
+                        .sortedByDescending { it.popularity }
+                        .take(10),
+                )
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
     fun clearCache() {
         cache.clear()
     }

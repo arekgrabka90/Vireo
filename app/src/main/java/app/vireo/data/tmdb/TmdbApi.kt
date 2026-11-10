@@ -39,6 +39,21 @@ class TmdbApi @Inject constructor(
     suspend fun searchSeries(query: String, page: Int, language: String): TmdbPageDto =
         search("search/tv", query, page, language)
 
+    suspend fun searchMulti(
+        query: String,
+        page: Int,
+        language: String,
+    ): TmdbMultiSearchPageDto {
+        require(query.isNotBlank()) { "Search query cannot be blank." }
+        require(page in 1..500) { "TMDB page must be between 1 and 500." }
+        val request = request("search/multi", language) {
+            addQueryParameter("query", query.trim())
+            addQueryParameter("page", page.toString())
+            addQueryParameter("include_adult", "false")
+        }
+        return json.decodeFromString(execute(request))
+    }
+
     private suspend fun search(
         endpoint: String,
         query: String,

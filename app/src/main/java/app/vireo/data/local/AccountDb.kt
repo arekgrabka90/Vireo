@@ -111,8 +111,9 @@ interface AccountDao {
         EpgSyncStateEntity::class,
         ProfileSettingsEntity::class,
         AppSettingsEntity::class,
+        RecentSearchEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -124,6 +125,7 @@ abstract class VireoDatabase : RoomDatabase() {
     abstract fun epgDao(): EpgDao
     abstract fun profileSettingsDao(): ProfileSettingsDao
     abstract fun appSettingsDao(): AppSettingsDao
+    abstract fun recentSearchDao(): RecentSearchDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -452,5 +454,30 @@ abstract class VireoDatabase : RoomDatabase() {
                 )
             }
         }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS recent_searches (
+                        profileId INTEGER NOT NULL,
+                        normalizedQuery TEXT NOT NULL,
+                        query TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        PRIMARY KEY(profileId, normalizedQuery),
+                        FOREIGN KEY(profileId) REFERENCES profiles(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_recent_searches_profileId_createdAt " +
+                        "ON recent_searches(profileId, createdAt)"
+                )
+            }
+        }
+
+
     }
 }

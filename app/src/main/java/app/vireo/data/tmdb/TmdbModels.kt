@@ -248,3 +248,61 @@ data class TmdbDetail(
     val logoUrl: String? = null,
     val trailerYoutubeKey: String? = null,
 )
+
+@Serializable
+data class TmdbMultiSearchPageDto(
+    val page: Int = 1,
+    @SerialName("total_pages")
+    val totalPages: Int = 0,
+    @SerialName("total_results")
+    val totalResults: Int = 0,
+    val results: List<TmdbMultiSearchResultDto> = emptyList(),
+)
+
+@Serializable
+data class TmdbMultiSearchResultDto(
+    val id: Int = 0,
+    @SerialName("media_type")
+    val mediaType: String = "",
+    val title: String? = null,
+    val name: String? = null,
+    @SerialName("original_title")
+    val originalTitle: String? = null,
+    @SerialName("original_name")
+    val originalName: String? = null,
+    val overview: String? = null,
+    @SerialName("release_date")
+    val releaseDate: String? = null,
+    @SerialName("first_air_date")
+    val firstAirDate: String? = null,
+    @SerialName("poster_path")
+    val posterPath: String? = null,
+    @SerialName("backdrop_path")
+    val backdropPath: String? = null,
+    @SerialName("profile_path")
+    val profilePath: String? = null,
+    @SerialName("vote_average")
+    val voteAverage: Double = 0.0,
+    @SerialName("vote_count")
+    val voteCount: Int = 0,
+    @SerialName("genre_ids")
+    val genreIds: List<Int> = emptyList(),
+    @SerialName("original_language")
+    val originalLanguage: String? = null,
+    val popularity: Double = 0.0,
+    @SerialName("known_for")
+    val knownFor: List<TmdbMultiSearchResultDto> = emptyList(),
+)
+
+data class TmdbPersonSearchItem(
+    val tmdbId: Int,
+    val name: String,
+    val profileUrl: String?,
+    val popularity: Double,
+    val knownFor: List<TmdbCatalogItem>,
+)
+
+data class TmdbMultiSearchResult(
+    val media: List<TmdbCatalogItem>,
+    val people: List<TmdbPersonSearchItem>,
+)

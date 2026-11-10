@@ -60,8 +60,8 @@ fun SearchScreen(
             onValueChange = vm::onQueryChanged,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Filmy i seriale") },
-            placeholder = { Text("Wpisz tytuł...") },
+            label = { Text("Filmy, seriale i osoby") },
+            placeholder = { Text("Wpisz tytuł lub nazwisko...") },
         )
 
         if (state.recent.isNotEmpty() && state.query.isBlank()) {
@@ -79,6 +79,7 @@ fun SearchScreen(
                     Text("Wyczyść", color = colors.primary)
                 }
             }
+
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.recent) { query ->
                     FocusableBox(onClick = { vm.searchRecent(query) }) {
@@ -97,8 +98,59 @@ fun SearchScreen(
             }
         }
 
-        state.error?.let {
-            Text(it, color = colors.error)
+        state.error?.let { Text(it, color = colors.error) }
+
+        if (state.people.isNotEmpty()) {
+            Text(
+                "Osoby",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onSurface,
+            )
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(state.people, key = { "person_${it.tmdbId}" }) { person ->
+                    Column(
+                        modifier = Modifier
+                            .background(
+                                colors.surfaceVariant,
+                                MaterialTheme.shapes.medium,
+                            )
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            person.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.onSurface,
+                        )
+
+                        if (person.knownFor.isNotEmpty()) {
+                            Text(
+                                "Znane produkcje",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant,
+                            )
+                            person.knownFor.forEach { known ->
+                                FocusableBox(
+                                    onClick = {
+                                        onOpenTitle(
+                                            known.type,
+                                            known.tmdbId,
+                                            known.title,
+                                        )
+                                    },
+                                ) {
+                                    Text(
+                                        known.title,
+                                        color = colors.onSurface,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (state.results.isNotEmpty()) {
@@ -107,6 +159,7 @@ fun SearchScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurfaceVariant,
             )
+
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(140.dp),
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -128,7 +181,11 @@ fun SearchScreen(
                     )
                 }
             }
-        } else if (!state.loading && state.query.isNotBlank() && state.error == null) {
+        } else if (
+            !state.loading &&
+            state.query.isNotBlank() &&
+            state.error == null
+        ) {
             Spacer(Modifier.weight(1f))
         }
     }

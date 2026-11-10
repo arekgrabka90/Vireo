@@ -18,6 +18,54 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Central validation for persisted preferences.
+ *
+ * Values are normalized at the repository boundary so that UI controls,
+ * future runtime integrations and other callers share the same constraints.
+ */
+object ProfileSettingsSanitizer {
+    private val themes = setOf("system", "light", "dark")
+    private val accents = setOf("violet", "blue", "teal", "amber", "rose")
+    private val hudStyles = setOf("classic", "chips")
+
+    private fun language(value: String, fallback: String): String {
+        val candidate = value.trim()
+        if (candidate == "system") return candidate
+        return candidate.takeIf {
+            it.length <= 35 &&
+                Regex("^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$")
+                    .matches(it)
+        } ?: fallback
+    }
+
+    fun profile(value: ProfileSettingsEntity): ProfileSettingsEntity =
+        value.copy(
+            contentLanguage = language(value.contentLanguage, "en-US"),
+            preferredAudioLanguage =
+                language(value.preferredAudioLanguage, "system"),
+            preferredSubtitleLanguage =
+                language(value.preferredSubtitleLanguage, "system"),
+            subtitleSizeSp = value.subtitleSizeSp.coerceIn(12, 48),
+            themeMode = value.themeMode
+                .takeIf { it in themes } ?: "system",
+            accentColor = value.accentColor
+                .takeIf { it in accents } ?: "violet",
+            liveTvHudTechStyle = value.liveTvHudTechStyle
+                .takeIf { it in hudStyles } ?: "classic",
+            epgRefreshIntervalMinutes =
+                value.epgRefreshIntervalMinutes.coerceIn(15, 1440),
+            addonConfigsJson =
+                ProfileSettingsJson.normalize(value.addonConfigsJson),
+        )
+
+    fun app(value: AppSettingsEntity): AppSettingsEntity =
+        value.copy(
+            id = 1,
+            appLanguageTag = language(value.appLanguageTag, "system"),
+        )
+}
+
 @Singleton
 class ProfileSettingsRepository @Inject constructor(
     private val profileSettingsDao: ProfileSettingsDao,
@@ -39,8 +87,8 @@ class ProfileSettingsRepository @Inject constructor(
         profileLocks.getOrPut(profileId) { Mutex() }
 
     /**
-     * Returns a safe in-memory default immediately to synchronous readers.
-     * This value is not persisted unless ensure() explicitly finds no row.
+     * Synchronous safe snapshot for player/HUD consumers.
+     * It never performs a database query.
      */
     fun observe(profileId: Long): StateFlow<ProfileSettingsEntity> {
         require(profileId > 0L) { "Profile ID must be positive" }
@@ -49,7 +97,6 @@ class ProfileSettingsRepository @Inject constructor(
         }.asStateFlow()
     }
 
-    /** Synchronous snapshot for playback/HUD; never queries SQLite. */
     fun snapshot(profileId: Long): ProfileSettingsEntity {
         require(profileId > 0L) { "Profile ID must be positive" }
         return cache.getOrPut(profileId) {
@@ -66,11 +113,15 @@ class ProfileSettingsRepository @Inject constructor(
         return lockFor(profileId).withLock {
             val existing = profileSettingsDao.get(profileId)
             val persisted = if (existing != null) {
-                existing
+                ProfileSettingsSanitizer.profile(existing).also {
+                    if (it != existing) profileSettingsDao.upsert(it)
+                }
             } else {
                 val defaults = factory.create(profileId, kidsMode)
                 profileSettingsDao.insertIfAbsent(defaults)
-                profileSettingsDao.get(profileId) ?: defaults
+                profileSettingsDao.get(profileId)?.let {
+                    ProfileSettingsSanitizer.profile(it)
+                } ?: defaults
             }
 
             publish(persisted)
@@ -79,19 +130,43 @@ class ProfileSettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * Field-level update. The transform is applied to the latest persisted
+     * row while holding the profile mutex, preventing stale UI snapshots
+     * from overwriting unrelated fields during rapid changes.
+     */
+    suspend fun updateProfileSettings(
+        profileId: Long,
+        kidsMode: Boolean = false,
+        transform: (ProfileSettingsEntity) -> ProfileSettingsEntity,
+    ): ProfileSettingsEntity {
+        require(profileId > 0L) { "Profile ID must be positive" }
+
+        return lockFor(profileId).withLock {
+            val latest = profileSettingsDao.get(profileId)
+                ?: factory.create(profileId, kidsMode)
+
+            val updated = ProfileSettingsSanitizer.profile(
+                transform(latest).also {
+                    require(it.profileId == profileId) {
+                        "A profile settings update cannot change profileId"
+                    }
+                }
+            )
+
+            profileSettingsDao.upsert(updated)
+            publish(updated)
+            startObserver(profileId)
+            updated
+        }
+    }
+
     suspend fun save(settings: ProfileSettingsEntity) {
         require(settings.profileId > 0L) {
             "Profile ID must be positive"
         }
 
-        val normalized = settings.copy(
-            addonConfigsJson = ProfileSettingsJson.normalize(
-                settings.addonConfigsJson
-            ),
-            subtitleSizeSp = settings.subtitleSizeSp.coerceIn(12, 48),
-            epgRefreshIntervalMinutes =
-                settings.epgRefreshIntervalMinutes.coerceIn(15, 1440),
-        )
+        val normalized = ProfileSettingsSanitizer.profile(settings)
 
         lockFor(normalized.profileId).withLock {
             profileSettingsDao.upsert(normalized)
@@ -100,7 +175,6 @@ class ProfileSettingsRepository @Inject constructor(
         }
     }
 
-    /** Resets only the requested profile; other profiles are untouched. */
     suspend fun resetProfileSettings(
         profileId: Long,
         kidsMode: Boolean = false,
@@ -108,7 +182,9 @@ class ProfileSettingsRepository @Inject constructor(
         require(profileId > 0L) { "Profile ID must be positive" }
 
         return lockFor(profileId).withLock {
-            val defaults = factory.create(profileId, kidsMode)
+            val defaults = ProfileSettingsSanitizer.profile(
+                factory.create(profileId, kidsMode)
+            )
             profileSettingsDao.upsert(defaults)
             publish(defaults)
             startObserver(profileId)
@@ -120,23 +196,32 @@ class ProfileSettingsRepository @Inject constructor(
         appLock.withLock {
             val current = appSettingsDao.get()
             val persisted = if (current != null) {
-                current
+                ProfileSettingsSanitizer.app(current).also {
+                    if (it != current) appSettingsDao.upsert(it)
+                }
             } else {
                 appSettingsDao.insertIfAbsent(AppSettingsEntity())
-                appSettingsDao.get() ?: AppSettingsEntity()
+                appSettingsDao.get()?.let(ProfileSettingsSanitizer::app)
+                    ?: AppSettingsEntity()
             }
             _appSettings.value = persisted
             startAppObserver()
             persisted
         }
 
+    suspend fun updateAppSettings(
+        transform: (AppSettingsEntity) -> AppSettingsEntity,
+    ): AppSettingsEntity = appLock.withLock {
+        val latest = appSettingsDao.get() ?: AppSettingsEntity()
+        val updated = ProfileSettingsSanitizer.app(transform(latest))
+        appSettingsDao.upsert(updated)
+        _appSettings.value = updated
+        startAppObserver()
+        updated
+    }
+
     suspend fun saveAppSettings(settings: AppSettingsEntity) {
-        val normalized = settings.copy(
-            id = 1,
-            appLanguageTag = settings.appLanguageTag
-                .takeIf { it.isNotBlank() }
-                ?: "system",
-        )
+        val normalized = ProfileSettingsSanitizer.app(settings)
 
         appLock.withLock {
             appSettingsDao.upsert(normalized)
@@ -145,7 +230,6 @@ class ProfileSettingsRepository @Inject constructor(
         }
     }
 
-    /** Resets only the singleton global app-settings row. */
     suspend fun resetAppSettings(): AppSettingsEntity =
         appLock.withLock {
             val defaults = AppSettingsEntity()
@@ -155,7 +239,7 @@ class ProfileSettingsRepository @Inject constructor(
             defaults
         }
 
-    /** Called after a profile is deleted; Room also removes its row via FK. */
+    /** Room deletes the row through its foreign key when a profile is removed. */
     fun removeProfileCache(profileId: Long) {
         synchronized(observers) {
             observers.remove(profileId)?.cancel()
@@ -176,7 +260,9 @@ class ProfileSettingsRepository @Inject constructor(
 
             observers[profileId] = applicationScope.launch {
                 profileSettingsDao.observe(profileId).collect { settings ->
-                    if (settings != null) publish(settings)
+                    if (settings != null) {
+                        publish(ProfileSettingsSanitizer.profile(settings))
+                    }
                 }
             }
         }
@@ -187,7 +273,9 @@ class ProfileSettingsRepository @Inject constructor(
             if (appObserver?.isActive == true) return
             appObserver = applicationScope.launch {
                 appSettingsDao.observe().collect { settings ->
-                    if (settings != null) _appSettings.value = settings
+                    if (settings != null) {
+                        _appSettings.value = ProfileSettingsSanitizer.app(settings)
+                    }
                 }
             }
         }

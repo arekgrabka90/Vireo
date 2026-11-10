@@ -1,5 +1,7 @@
 package app.vireo.player
 
+import androidx.media3.common.Timeline
+
 /**
  * Guards callbacks against the currently active Media3 source.
  */
@@ -16,6 +18,26 @@ internal object PlaybackCallbackGuard {
     ): Boolean =
         !callbackMediaId.isNullOrBlank() &&
             callbackMediaId == currentMediaId
+
+    fun isCurrentMediaItem(
+        eventTimeline: Timeline,
+        eventWindowIndex: Int,
+        currentMediaId: String?,
+    ): Boolean {
+        if (
+            eventTimeline.isEmpty ||
+            eventWindowIndex !in 0 until eventTimeline.windowCount
+        ) {
+            return false
+        }
+
+        val callbackMediaId = eventTimeline
+            .getWindow(eventWindowIndex, Timeline.Window())
+            .mediaItem
+            .mediaId
+
+        return isCurrentMediaItem(callbackMediaId, currentMediaId)
+    }
 
     fun isCurrentPlaybackState(
         callbackState: Int,

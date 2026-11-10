@@ -79,7 +79,8 @@ fun PlayerScreen(
                 playbackState: Int,
             ) {
                 if (!PlaybackCallbackGuard.isCurrentMediaItem(
-                        eventTime.mediaItem.mediaId,
+                        eventTime.timeline,
+                        eventTime.windowIndex,
                         player.currentMediaItem?.mediaId,
                     )
                 ) return
@@ -103,7 +104,17 @@ fun PlayerScreen(
                 }
             }
 
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
+            override fun onIsPlayingChanged(
+                eventTime: AnalyticsListener.EventTime,
+                isPlaying: Boolean,
+            ) {
+                if (!PlaybackCallbackGuard.isCurrentMediaItem(
+                        eventTime.timeline,
+                        eventTime.windowIndex,
+                        player.currentMediaItem?.mediaId,
+                    )
+                ) return
+
                 if (!PlaybackCallbackGuard.isCurrentBooleanValue(
                         isPlaying,
                         player.isPlaying,
@@ -114,9 +125,17 @@ fun PlayerScreen(
             }
 
             override fun onPlayWhenReadyChanged(
+                eventTime: AnalyticsListener.EventTime,
                 playWhenReady: Boolean,
                 reason: Int,
             ) {
+                if (!PlaybackCallbackGuard.isCurrentMediaItem(
+                        eventTime.timeline,
+                        eventTime.windowIndex,
+                        player.currentMediaItem?.mediaId,
+                    )
+                ) return
+
                 if (!PlaybackCallbackGuard.isCurrentBooleanValue(
                         playWhenReady,
                         player.playWhenReady,
@@ -131,7 +150,8 @@ fun PlayerScreen(
                 error: PlaybackException,
             ) {
                 if (!PlaybackCallbackGuard.isCurrentMediaItem(
-                        eventTime.mediaItem.mediaId,
+                        eventTime.timeline,
+                        eventTime.windowIndex,
                         player.currentMediaItem?.mediaId,
                     )
                 ) return

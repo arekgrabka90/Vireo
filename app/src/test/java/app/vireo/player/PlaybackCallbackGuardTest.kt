@@ -1,5 +1,8 @@
 package app.vireo.player
 
+import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
+
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +56,26 @@ class PlaybackCallbackGuardTest {
         )
         assertFalse(
             PlaybackCallbackGuard.isCurrentMediaItem("source-2", null)
+        )
+    }
+
+    @OptIn(UnstableApi::class)
+    @Test
+    fun `rejects an event without a valid timeline window`() {
+        assertFalse(
+            PlaybackCallbackGuard.isCurrentMediaItem(
+                Timeline.EMPTY,
+                0,
+                "source-2",
+            )
+        )
+
+        assertFalse(
+            PlaybackCallbackGuard.isCurrentMediaItem(
+                Timeline.EMPTY,
+                -1,
+                "source-2",
+            )
         )
     }
 

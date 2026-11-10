@@ -47,18 +47,28 @@ class Media3PlayerEngine @Inject constructor(
     private var mediaItemSequence = 0L
 
     private val listener = object : Player.Listener, AnalyticsListener {
-        override fun onPlaybackStateChanged(playbackState: Int) {
+        override fun onPlaybackStateChanged(
+            eventTime: AnalyticsListener.EventTime,
+            playbackState: Int,
+        ) {
+            if (!isCurrentEvent(eventTime)) return
             updatePlaybackState()
         }
 
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
+        override fun onIsPlayingChanged(
+            eventTime: AnalyticsListener.EventTime,
+            isPlaying: Boolean,
+        ) {
+            if (!isCurrentEvent(eventTime)) return
             updatePlaybackState()
         }
 
         override fun onPlayWhenReadyChanged(
+            eventTime: AnalyticsListener.EventTime,
             playWhenReady: Boolean,
             reason: Int,
         ) {
+            if (!isCurrentEvent(eventTime)) return
             updatePlaybackState()
         }
 
@@ -66,11 +76,7 @@ class Media3PlayerEngine @Inject constructor(
             eventTime: AnalyticsListener.EventTime,
             error: PlaybackException,
         ) {
-            if (!PlaybackCallbackGuard.isCurrentMediaItem(
-                    eventTime.mediaItem.mediaId,
-                    player.currentMediaItem?.mediaId,
-                )
-            ) return
+            if (!isCurrentEvent(eventTime)) return
 
             if (!PlaybackCallbackGuard.isCurrentError(
                     error,
@@ -167,6 +173,14 @@ class Media3PlayerEngine @Inject constructor(
         checkNotReleased()
         return player
     }
+
+    private fun isCurrentEvent(
+        eventTime: AnalyticsListener.EventTime,
+    ): Boolean = PlaybackCallbackGuard.isCurrentMediaItem(
+        eventTime.timeline,
+        eventTime.windowIndex,
+        player.currentMediaItem?.mediaId,
+    )
 
     private fun checkNotReleased() {
         check(!released) { "PlayerEngine has already been released." }

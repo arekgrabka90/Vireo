@@ -209,7 +209,7 @@ class SearchViewModel @Inject constructor(
                 if (isCurrent(generation, profileId, query)) {
                     _state.value = _state.value.copy(
                         loadingMore = false,
-                        error = error.message ?: SearchError.FIRST_PAGE,
+                        error = SearchError.PAGE,
                     )
                 }
             }
@@ -287,7 +287,7 @@ class SearchViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     loading = false,
                     loadingMore = false,
-                    error = error.message ?: SearchError.PAGE,
+                    error = SearchError.FIRST_PAGE,
                 )
             }
         }

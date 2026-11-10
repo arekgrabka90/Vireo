@@ -228,7 +228,7 @@ class DiscoveryViewModel @Inject constructor(
                 ) {
                     _state.value = _state.value.copy(
                         loadingMore = false,
-                        error = error.message ?: DiscoveryError.PAGE,
+                        error = DiscoveryError.PAGE,
                     )
                 }
             }
@@ -296,7 +296,7 @@ class DiscoveryViewModel @Inject constructor(
                 ) {
                     _state.value = _state.value.copy(
                         loading = false,
-                        error = error.message ?: DiscoveryError.FIRST_PAGE,
+                        error = DiscoveryError.FIRST_PAGE,
                     )
                 }
             }

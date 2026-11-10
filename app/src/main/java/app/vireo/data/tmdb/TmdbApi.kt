@@ -33,6 +33,36 @@ class TmdbApi @Inject constructor(
     suspend fun trendingSeries(page: Int, language: String): TmdbPageDto =
         getPopular("trending/tv/day", page, language)
 
+    suspend fun trendingMoviesWeek(page: Int, language: String): TmdbPageDto =
+        getPopular("trending/movie/week", page, language)
+
+    suspend fun trendingSeriesWeek(page: Int, language: String): TmdbPageDto =
+        getPopular("trending/tv/week", page, language)
+
+    suspend fun topRatedMovies(page: Int, language: String): TmdbPageDto =
+        getPopular("movie/top_rated", page, language)
+
+    suspend fun topRatedSeries(page: Int, language: String): TmdbPageDto =
+        getPopular("tv/top_rated", page, language)
+
+    suspend fun discoverMovies(
+        params: Map<String, String>,
+        page: Int,
+        language: String,
+    ): TmdbPageDto = discover("discover/movie", params, page, language)
+
+    suspend fun discoverSeries(
+        params: Map<String, String>,
+        page: Int,
+        language: String,
+    ): TmdbPageDto = discover("discover/tv", params, page, language)
+
+    suspend fun movieGenres(language: String): TmdbGenreListDto =
+        getGenres("genre/movie/list", language)
+
+    suspend fun seriesGenres(language: String): TmdbGenreListDto =
+        getGenres("genre/tv/list", language)
+
     suspend fun searchMovies(query: String, page: Int, language: String): TmdbPageDto =
         search("search/movie", query, page, language)
 
@@ -51,6 +81,30 @@ class TmdbApi @Inject constructor(
             addQueryParameter("page", page.toString())
             addQueryParameter("include_adult", "false")
         }
+        return json.decodeFromString(execute(request))
+    }
+
+    private suspend fun discover(
+        endpoint: String,
+        params: Map<String, String>,
+        page: Int,
+        language: String,
+    ): TmdbPageDto {
+        require(page in 1..500) { "TMDB page must be between 1 and 500." }
+        val request = request(endpoint, language) {
+            params.toSortedMap().forEach { (key, value) ->
+                addQueryParameter(key, value)
+            }
+            addQueryParameter("page", page.toString())
+        }
+        return json.decodeFromString(execute(request))
+    }
+
+    private suspend fun getGenres(
+        endpoint: String,
+        language: String,
+    ): TmdbGenreListDto {
+        val request = request(endpoint, language) { }
         return json.decodeFromString(execute(request))
     }
 

@@ -208,6 +208,11 @@ data class TmdbGenreDto(
 )
 
 @Serializable
+data class TmdbGenreListDto(
+    val genres: List<TmdbGenreDto> = emptyList(),
+)
+
+@Serializable
 data class TmdbCreditsDto(
     val cast: List<TmdbCastDto> = emptyList(),
 )

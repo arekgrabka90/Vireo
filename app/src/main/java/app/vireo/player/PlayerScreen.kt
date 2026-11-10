@@ -290,6 +290,19 @@ fun PlayerScreen(
                 }
             }
 
+            if (state.hasPrevious) {
+                FocusableBox(
+                    onClick = {
+                        vm.previous(player.currentPosition, player.duration)
+                    }
+                ) {
+                    Text(
+                        stringResource(R.string.previous_episode),
+                        color = Color.White,
+                    )
+                }
+            }
+
             if (state.hasNext) {
                 FocusableBox(
                     onClick = {

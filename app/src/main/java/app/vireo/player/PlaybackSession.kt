@@ -37,18 +37,25 @@ class PlaybackSession @Inject constructor() {
 
     private var activeAlternativeIndex: Int = 0
 
+    @Synchronized
     fun start(items: List<PlayItem>, index: Int) {
-        this.items = items
-        this.index = index.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+        this.items = items.toList()
+        this.index = if (this.items.isEmpty()) {
+            0
+        } else {
+            index.coerceIn(this.items.indices)
+        }
         activeAlternativeIndex = 0
     }
 
+    @Synchronized
     fun current(): PlayItem? {
         val item = items.getOrNull(index) ?: return null
         if (activeAlternativeIndex == 0) return item
 
-        val alternative = item.alternatives.getOrNull(activeAlternativeIndex - 1)
-            ?: return item
+        val alternative = item.alternatives.getOrNull(
+            activeAlternativeIndex - 1
+        ) ?: return item
 
         return item.copy(
             url = alternative.url,
@@ -60,6 +67,7 @@ class PlaybackSession @Inject constructor() {
         )
     }
 
+    @Synchronized
     fun nextAlternative(): PlayItem? {
         val item = items.getOrNull(index) ?: return null
         if (activeAlternativeIndex >= item.alternatives.size) return null
@@ -68,8 +76,23 @@ class PlaybackSession @Inject constructor() {
         return current()
     }
 
-    fun hasNext(): Boolean = index < items.lastIndex
+    @Synchronized
+    fun hasPrevious(): Boolean =
+        items.isNotEmpty() && index > 0 && index < items.size
 
+    @Synchronized
+    fun hasNext(): Boolean =
+        items.isNotEmpty() && index >= 0 && index < items.lastIndex
+
+    @Synchronized
+    fun previous(): PlayItem? {
+        if (!hasPrevious()) return null
+        index -= 1
+        activeAlternativeIndex = 0
+        return current()
+    }
+
+    @Synchronized
     fun next(): PlayItem? {
         if (!hasNext()) return null
         index += 1

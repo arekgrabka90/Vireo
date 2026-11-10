@@ -35,6 +35,9 @@ data class PlayerUiState(
     val hasNext: Boolean
         get() = runtime.hasNext
 
+    val hasPrevious: Boolean
+        get() = runtime.hasPrevious
+
     val error: String?
         get() = runtime.errorMessage
 }
@@ -74,6 +77,7 @@ class PlayerViewModel @Inject constructor(
         runtime = PlayerRuntimeState(
             title = item?.title.orEmpty(),
             contentType = item?.contentType,
+            hasPrevious = session.hasPrevious(),
             hasNext = session.hasNext(),
         ),
         resumePositionMs = resumePositionMs,
@@ -217,6 +221,7 @@ class PlayerViewModel @Inject constructor(
                     contentType = current.item?.contentType,
                     transportState = transport,
                     isPlaying = isPlaying,
+                    hasPrevious = session.hasPrevious(),
                     hasNext = session.hasNext(),
                 )
             )
@@ -262,6 +267,7 @@ class PlayerViewModel @Inject constructor(
                             runtime = it.runtime.copy(
                                 transportState = PlayerTransportState.ENDED,
                                 isPlaying = false,
+                                hasPrevious = session.hasPrevious(),
                                 hasNext = false,
                             )
                         )
@@ -272,6 +278,38 @@ class PlayerViewModel @Inject constructor(
                 _progress.value = PlayerProgressState()
                 _state.value = createState(next)
                 observeEpg(next)
+            } finally {
+                advancing = false
+            }
+        }
+    }
+
+    fun previous(positionMs: Long, durationMs: Long) {
+        if (advancing) return
+
+        val current = session.current() ?: return
+        advancing = true
+
+        viewModelScope.launch {
+            try {
+                persistProgress(current, positionMs, durationMs)
+
+                val previous = session.previous()
+                if (previous == null) {
+                    _state.update {
+                        it.copy(
+                            runtime = it.runtime.copy(
+                                hasPrevious = session.hasPrevious(),
+                                hasNext = session.hasNext(),
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                _progress.value = PlayerProgressState()
+                _state.value = createState(previous)
+                observeEpg(previous)
             } finally {
                 advancing = false
             }

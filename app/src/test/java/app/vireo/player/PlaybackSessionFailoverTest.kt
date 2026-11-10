@@ -176,4 +176,74 @@ class PlaybackSessionFailoverTest {
         assertEquals("E01", session.items.first().title)
     }
 
+
+    @Test
+    fun `previous episode resets alternative selection`() {
+        val session = PlaybackSession()
+        session.start(
+            listOf(
+                PlayItem(
+                    title = "Episode 1",
+                    url = "https://example.invalid/1.mp4",
+                ),
+                PlayItem(
+                    title = "Episode 2",
+                    url = "https://example.invalid/2.mp4",
+                    alternatives = listOf(
+                        PlaybackAlternative(
+                            sourceId = 2L,
+                            streamId = "alternative",
+                            url = "https://alternative.invalid/2.mp4",
+                        ),
+                    ),
+                ),
+            ),
+            1,
+        )
+
+        assertEquals(
+            "https://alternative.invalid/2.mp4",
+            session.nextAlternative()?.url,
+        )
+
+        assertEquals("Episode 1", session.previous()?.title)
+        assertEquals("https://example.invalid/1.mp4", session.current()?.url)
+        assertTrue(!session.hasPrevious())
+        assertTrue(session.hasNext())
+    }
+
+    @Test
+    fun `previous and next availability follows queue index`() {
+        val session = PlaybackSession()
+        session.start(
+            listOf(
+                PlayItem(title = "E01", url = "https://example.invalid/1"),
+                PlayItem(title = "E02", url = "https://example.invalid/2"),
+                PlayItem(title = "E03", url = "https://example.invalid/3"),
+            ),
+            1,
+        )
+
+        assertTrue(session.hasPrevious())
+        assertTrue(session.hasNext())
+
+        assertEquals("E01", session.previous()?.title)
+        assertTrue(!session.hasPrevious())
+        assertTrue(session.hasNext())
+
+        assertEquals("E02", session.next()?.title)
+        assertTrue(session.hasPrevious())
+        assertTrue(session.hasNext())
+    }
+
+    @Test
+    fun `empty queue has no previous or next item`() {
+        val session = PlaybackSession()
+        session.start(emptyList(), 0)
+
+        assertNull(session.previous())
+        assertTrue(!session.hasPrevious())
+        assertTrue(!session.hasNext())
+    }
+
 }

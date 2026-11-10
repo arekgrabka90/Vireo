@@ -10,12 +10,14 @@ import app.vireo.data.local.ProfileSettingsEntity
 import app.vireo.player.engine.Media3PlayerEngine
 import app.vireo.player.source.PlaybackSource
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.TestScope
@@ -28,7 +30,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, UnstableApi::class)
 class PlayerViewModelIntegrationTest {
 
     private lateinit var session: PlaybackSession
@@ -195,10 +197,7 @@ class PlayerViewModelIntegrationTest {
         code: Int,
         message: String,
     ): PlaybackException {
-        val error = Mockito.mock(PlaybackException::class.java)
-        Mockito.`when`(error.errorCode).thenReturn(code)
-        Mockito.`when`(error.message).thenReturn(message)
-        return error
+        return PlaybackException(message, null, code)
     }
 
     @Test
@@ -377,7 +376,7 @@ class PlayerViewModelIntegrationTest {
         viewModel.saveProgress(blankKey, 12_000L, 90_000L)
         viewModel.saveProgress(noDuration, 12_000L, 0L)
 
-        advanceUntilIdle()
+        runCurrent()
 
         Mockito.verify(library).saveProgress(
             1L,

@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Media3 dependencies to the PlayerEngine contract.
  */
 class Media3PlayerEngine @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) : PlayerEngine {
 
     private val player = ExoPlayer.Builder(context)
@@ -79,7 +79,7 @@ class Media3PlayerEngine @Inject constructor(
             .setDefaultRequestProperties(source.headers)
 
         val dataSourceFactory = DefaultDataSource.Factory(
-            player.applicationLooper.let { playerContext() },
+            context,
             httpFactory,
         )
 
@@ -95,21 +95,6 @@ class Media3PlayerEngine @Inject constructor(
 
         _state.value = PlayerEngineState()
     }
-
-    /*
-     * The engine retains the application context supplied at construction.
-     * This avoids holding an Activity or Compose view.
-     */
-    private fun playerContext(): Context = applicationContext
-
-    private val applicationContext: Context =
-        contextApplication()
-
-    private fun contextApplication(): Context =
-        storedApplicationContext
-
-    private val storedApplicationContext: Context =
-        context
 
     override fun prepare() {
         checkNotReleased()

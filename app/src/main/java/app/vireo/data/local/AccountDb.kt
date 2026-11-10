@@ -109,8 +109,10 @@ interface AccountDao {
         XtreamCatalogSyncStateEntity::class,
         EpgProgramEntity::class,
         EpgSyncStateEntity::class,
+        ProfileSettingsEntity::class,
+        AppSettingsEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -120,6 +122,8 @@ abstract class VireoDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun xtreamCatalogDao(): XtreamCatalogDao
     abstract fun epgDao(): EpgDao
+    abstract fun profileSettingsDao(): ProfileSettingsDao
+    abstract fun appSettingsDao(): AppSettingsDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -364,6 +368,89 @@ abstract class VireoDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS profile_settings (
+                        profileId INTEGER NOT NULL PRIMARY KEY,
+                        contentLanguage TEXT NOT NULL DEFAULT 'en-US',
+                        preferredAudioLanguage TEXT NOT NULL DEFAULT 'system',
+                        preferredSubtitleLanguage TEXT NOT NULL DEFAULT 'system',
+                        subtitlesEnabled INTEGER NOT NULL DEFAULT 0,
+                        subtitleSizeSp INTEGER NOT NULL DEFAULT 18,
+                        themeMode TEXT NOT NULL DEFAULT 'system',
+                        accentColor TEXT NOT NULL DEFAULT 'violet',
+                        autoplayNext INTEGER NOT NULL DEFAULT 1,
+                        liveTvHudTechStyle TEXT NOT NULL DEFAULT 'classic',
+                        liveTvHudShowEpgDescription INTEGER NOT NULL DEFAULT 1,
+                        liveTvStartOnLastChannel INTEGER NOT NULL DEFAULT 1,
+                        epgRefreshIntervalMinutes INTEGER NOT NULL DEFAULT 360,
+                        showWatched INTEGER NOT NULL DEFAULT 1,
+                        continueWatchingEnabled INTEGER NOT NULL DEFAULT 1,
+                        addonConfigsJson TEXT NOT NULL DEFAULT '{}',
+                        FOREIGN KEY(profileId) REFERENCES profiles(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
 
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        appLanguageTag TEXT NOT NULL DEFAULT 'system',
+                        notificationsEnabled INTEGER NOT NULL DEFAULT 1,
+                        diagnosticsEnabled INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO profile_settings (
+                        profileId,
+                        contentLanguage,
+                        preferredAudioLanguage,
+                        preferredSubtitleLanguage,
+                        subtitlesEnabled,
+                        subtitleSizeSp,
+                        themeMode,
+                        accentColor,
+                        autoplayNext,
+                        liveTvHudTechStyle,
+                        liveTvHudShowEpgDescription,
+                        liveTvStartOnLastChannel,
+                        epgRefreshIntervalMinutes,
+                        showWatched,
+                        continueWatchingEnabled,
+                        addonConfigsJson
+                    )
+                    SELECT
+                        id,
+                        'en-US',
+                        'system',
+                        'system',
+                        0,
+                        18,
+                        'system',
+                        'violet',
+                        1,
+                        'classic',
+                        1,
+                        1,
+                        360,
+                        1,
+                        1,
+                        '{}'
+                    FROM profiles
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    "INSERT OR IGNORE INTO app_settings (id, appLanguageTag) VALUES (1, 'system')"
+                )
+            }
+        }
     }
 }

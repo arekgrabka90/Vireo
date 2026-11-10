@@ -17,6 +17,7 @@ import javax.inject.Singleton
 class ProfileRepository @Inject constructor(
     private val dao: ProfileDao,
     private val crypto: CryptoManager,
+    private val profileSettingsRepository: ProfileSettingsRepository,
     @ApplicationContext context: Context,
 ) {
     private val prefs =
@@ -70,7 +71,7 @@ class ProfileRepository @Inject constructor(
             "PIN must contain exactly four digits"
         }
 
-        return if (profile.id == 0L) {
+        val profileId = if (profile.id == 0L) {
             val rawPin = profile.pin?.takeIf { it.isNotEmpty() }
             val hashed = rawPin?.let { crypto.hashPin(it) }
             dao.insert(profile.copy(pin = hashed))
@@ -88,6 +89,13 @@ class ProfileRepository @Inject constructor(
             dao.update(profile.copy(pin = newPin))
             profile.id
         }
+
+        profileSettingsRepository.ensure(
+            profileId = profileId,
+            kidsMode = profile.kids,
+        )
+
+        return profileId
     }
 
     suspend fun delete(profile: ProfileEntity) {

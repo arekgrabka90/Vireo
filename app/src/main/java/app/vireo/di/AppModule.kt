@@ -5,9 +5,11 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.vireo.data.local.AccountDao
+import app.vireo.data.local.AppSettingsDao
 import app.vireo.data.local.EpgDao
 import app.vireo.data.local.LibraryDao
 import app.vireo.data.local.ProfileDao
+import app.vireo.data.local.ProfileSettingsDao
 import app.vireo.data.local.VireoDatabase
 import app.vireo.data.local.XtreamContentIndexDao
 import app.vireo.data.local.XtreamCatalogDao
@@ -66,6 +68,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_7_8,
                 VireoDatabase.MIGRATION_8_9,
                 VireoDatabase.MIGRATION_9_10,
+                VireoDatabase.MIGRATION_10_11,
             )
             .build()
 
@@ -122,4 +125,12 @@ object AppModule {
 
     @Provides
     fun epgDao(db: VireoDatabase): EpgDao = db.epgDao()
+
+    @Provides
+    fun profileSettingsDao(db: VireoDatabase): ProfileSettingsDao =
+        db.profileSettingsDao()
+
+    @Provides
+    fun appSettingsDao(db: VireoDatabase): AppSettingsDao =
+        db.appSettingsDao()
 }

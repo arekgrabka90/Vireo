@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
+import app.vireo.data.ProfileSettingsRepository
 import app.vireo.data.local.LibraryItemEntity
 import app.vireo.domain.model.ContentType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,7 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -43,6 +46,7 @@ fun LibraryItemEntity.tmdbTarget(): TmdbLibraryTarget? {
 class LibraryViewModel @Inject constructor(
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
+    private val profileSettingsRepository: ProfileSettingsRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryUiState())
@@ -52,24 +56,40 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             profiles.activeIdFlow
                 .flatMapLatest { profileId ->
-                    if (profileId > 0L) {
-                        combine(
-                            library.observeWatchlist(profileId),
-                            library.observeContinueWatching(profileId),
-                            library.observeAll(profileId),
-                        ) { watchlist, continueWatching, allItems ->
-                            LibraryUiState(
-                                watchlist = watchlist,
-                                continueWatching = continueWatching,
-                                watchedContentKeys = allItems
-                                    .asSequence()
-                                    .filter { it.watched }
-                                    .map { it.contentKey }
-                                    .toSet(),
+                    if (profileId <= 0L) {
+                        flowOf(LibraryUiState())
+                    } else {
+                        flow {
+                            // Never leave the previous profile's data visible
+                            // while the new profile settings are initialized.
+                            emit(LibraryUiState())
+
+                            val profile = profiles.get(profileId)
+                                ?: return@flow
+
+                            profileSettingsRepository.ensure(
+                                profileId = profile.id,
+                                kidsMode = profile.kids,
+                            )
+
+                            emitAll(
+                                combine(
+                                    library.observeWatchlist(profileId),
+                                    library.observeContinueWatching(profileId),
+                                    library.observeAll(profileId),
+                                    profileSettingsRepository.observe(profileId),
+                                ) { watchlist, continueWatching, allItems, settings ->
+                                    applyLibraryVisibilityPolicy(
+                                        watchlist = watchlist,
+                                        continueWatching = continueWatching,
+                                        allItems = allItems,
+                                        showWatched = settings.showWatched,
+                                        continueWatchingEnabled =
+                                            settings.continueWatchingEnabled,
+                                    )
+                                }
                             )
                         }
-                    } else {
-                        flowOf(LibraryUiState())
                     }
                 }
                 .collect { _state.value = it }

@@ -29,7 +29,7 @@ class PlaybackSource(
     internal val requestIdentity: PlaybackRequestIdentity?
         get() = playbackRequestIdentity(url, headers)
 
-    fun toCandidate(): PlaybackSourceCandidate? {
+    internal fun toCandidate(): PlaybackSourceCandidate? {
         val safeSourceId = sourceId ?: return null
         val safeStreamId = streamId?.takeIf { it.isNotBlank() }
             ?: return null

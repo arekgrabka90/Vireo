@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +52,15 @@ fun PlayerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by vm.state.collectAsStateWithLifecycle()
-    val exoPlayer = remember { ExoPlayer.Builder(context).build() }
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context)
+            .setSeekBackIncrementMs(10_000L)
+            .setSeekForwardIncrementMs(10_000L)
+            .build()
+    }
+    val resumeAfterLifecycleStop = remember(exoPlayer) {
+        mutableStateOf(false)
+    }
 
     DisposableEffect(Unit) {
         val activity = context as? Activity
@@ -93,6 +102,9 @@ fun PlayerScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
+                    resumeAfterLifecycleStop.value =
+                        exoPlayer.playWhenReady && vm.state.value.error == null
+
                     val item = vm.state.value.item
                     vm.saveProgress(
                         item,
@@ -104,11 +116,12 @@ fun PlayerScreen(
 
                 Lifecycle.Event.ON_START -> {
                     if (
-                        exoPlayer.playbackState == Player.STATE_READY &&
+                        resumeAfterLifecycleStop.value &&
                         vm.state.value.error == null
                     ) {
                         exoPlayer.play()
                     }
+                    resumeAfterLifecycleStop.value = false
                 }
 
                 else -> Unit
@@ -121,22 +134,13 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.item?.url, state.item?.contentKey) {
+    LaunchedEffect(
+        state.item?.url,
+        state.item?.contentKey,
+        state.retryToken,
+    ) {
         val item = state.item ?: return@LaunchedEffect
         val resumeAt = state.resumePositionMs ?: vm.resumePosition(item)
-
-        exoPlayer.setMediaItem(
-            MediaItem.fromUri(item.url),
-            resumeAt,
-        )
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
-    }
-
-    LaunchedEffect(state.item?.url, state.retryToken) {
-        if (state.retryToken == 0) return@LaunchedEffect
-        val item = state.item ?: return@LaunchedEffect
-        val resumeAt = state.resumePositionMs ?: 0L
 
         exoPlayer.setMediaItem(
             MediaItem.fromUri(item.url),

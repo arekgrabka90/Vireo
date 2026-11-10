@@ -7,7 +7,9 @@ import androidx.media3.common.Player
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import app.vireo.di.ApplicationScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +19,6 @@ import javax.inject.Inject
 data class PlayerUiState(
     val item: PlayItem? = null,
     val runtime: PlayerRuntimeState = PlayerRuntimeState(),
-    val progress: PlayerProgressState = PlayerProgressState(),
     val resumePositionMs: Long? = null,
     val retryToken: Int = 0,
 ) {
@@ -33,6 +34,7 @@ class PlayerViewModel @Inject constructor(
     private val session: PlaybackSession,
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
+    @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     // Profil jest przypisany do całej sesji odtwarzania.
@@ -54,6 +56,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(createState(session.current()))
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
+
+    private val _progress = MutableStateFlow(PlayerProgressState())
+    val progress: StateFlow<PlayerProgressState> = _progress.asStateFlow()
 
     suspend fun resumePosition(item: PlayItem): Long {
         if (item.contentType == "LIVE") return 0L
@@ -89,8 +94,10 @@ class PlayerViewModel @Inject constructor(
         if (target.contentKey.isNullOrBlank()) return
         if (durationMs <= 0L) return
 
-        viewModelScope.launch {
-            persistProgress(target, positionMs, durationMs)
+        applicationScope.launch {
+            runCatching {
+                persistProgress(target, positionMs, durationMs)
+            }
         }
     }
 
@@ -106,7 +113,7 @@ class PlayerViewModel @Inject constructor(
             bufferedPositionMs,
             isSeekable,
         )
-        _state.update { it.copy(progress = progress) }
+        _progress.value = progress
     }
 
     fun onPlaybackStateChanged(
@@ -164,6 +171,7 @@ class PlayerViewModel @Inject constructor(
                     return@launch
                 }
 
+                _progress.value = PlayerProgressState()
                 _state.value = createState(next)
             } finally {
                 advancing = false
@@ -179,7 +187,7 @@ class PlayerViewModel @Inject constructor(
                     errorMessage = null,
                     isPlaying = false,
                 ),
-                resumePositionMs = current.progress.positionMs,
+                resumePositionMs = _progress.value.positionMs,
                 retryToken = current.retryToken + 1,
             )
         }

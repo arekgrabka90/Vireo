@@ -154,6 +154,18 @@ class Media3PlayerEngine @Inject constructor(
         player.pause()
     }
 
+    /**
+     * Removes the active Media3 source immediately so callbacks from it
+     * cannot be attributed to the next queue item.
+     */
+    fun invalidateSource() {
+        if (released) return
+
+        player.stop()
+        player.clearMediaItems()
+        _state.value = PlayerEngineState()
+    }
+
     override fun seekTo(positionMs: Long) {
         checkNotReleased()
         player.seekTo(positionMs.coerceAtLeast(0L))

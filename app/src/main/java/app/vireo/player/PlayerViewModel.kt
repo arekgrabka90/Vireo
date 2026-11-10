@@ -269,6 +269,9 @@ class PlayerViewModel @Inject constructor(
         val current = session.current() ?: return
         advancing = true
         invalidatePlaybackOperation()
+        if (session.hasNext()) {
+            media3PlayerEngine.invalidateSource()
+        }
 
         viewModelScope.launch {
             try {
@@ -304,6 +307,9 @@ class PlayerViewModel @Inject constructor(
         val current = session.current() ?: return
         advancing = true
         invalidatePlaybackOperation()
+        if (session.hasPrevious()) {
+            media3PlayerEngine.invalidateSource()
+        }
 
         viewModelScope.launch {
             try {
@@ -471,6 +477,10 @@ class PlayerViewModel @Inject constructor(
         playbackResolutionJob?.cancel()
         handlingPlaybackError = false
         resolvingPlayback = true
+
+        // Invalidate the old source before resolving a replacement URL.
+        // This also protects retry and automatic source failover.
+        media3PlayerEngine.invalidateSource()
 
         // Preserve the user's play/pause intent while resolving a fresh URL.
         media3PlayerEngine.pause()

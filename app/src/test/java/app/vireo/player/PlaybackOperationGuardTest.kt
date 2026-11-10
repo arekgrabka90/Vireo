@@ -27,6 +27,23 @@ class PlaybackOperationGuardTest {
     }
 
     @Test
+    fun `rapid navigation invalidates every older resolution`() {
+        val guard = PlaybackOperationGuard()
+
+        val firstResolution = guard.begin()
+        guard.invalidate()
+
+        val secondResolution = guard.begin()
+        guard.invalidate()
+
+        val latestResolution = guard.begin()
+
+        assertFalse(guard.isCurrent(firstResolution))
+        assertFalse(guard.isCurrent(secondResolution))
+        assertTrue(guard.isCurrent(latestResolution))
+    }
+
+    @Test
     fun `latest operation remains current until invalidated`() {
         val guard = PlaybackOperationGuard()
         val operation = guard.begin()

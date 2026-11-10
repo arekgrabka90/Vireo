@@ -8,9 +8,10 @@ import app.vireo.domain.model.Movie
 import app.vireo.domain.model.MovieDetails
 import app.vireo.domain.model.Series
 import app.vireo.domain.model.SeriesDetails
+import app.vireo.domain.provider.EpgProvider
 
 /** Wspólny interfejs źródeł treści (Xtream teraz, addony Stremio później). */
-interface ContentProvider {
+interface ContentProvider : EpgProvider {
     suspend fun authenticate(): Result<AccountInfo>
     suspend fun categories(type: ContentType): Result<List<Category>>
     suspend fun channels(categoryId: String? = null): Result<List<Channel>>

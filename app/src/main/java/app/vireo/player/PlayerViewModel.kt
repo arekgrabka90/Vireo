@@ -5,9 +5,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import app.vireo.data.LibraryRepository
+import app.vireo.data.EpgRepository
+import app.vireo.domain.model.EpgNowNext
 import app.vireo.data.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import app.vireo.di.ApplicationScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +38,7 @@ class PlayerViewModel @Inject constructor(
     private val session: PlaybackSession,
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
+    private val epgRepository: EpgRepository,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -59,6 +64,31 @@ class PlayerViewModel @Inject constructor(
 
     private val _progress = MutableStateFlow(PlayerProgressState())
     val progress: StateFlow<PlayerProgressState> = _progress.asStateFlow()
+
+    private val _epgState = MutableStateFlow(EpgNowNext(null, null))
+    val epgState: StateFlow<EpgNowNext> = _epgState.asStateFlow()
+    private var epgJob: Job? = null
+
+    init {
+        observeEpg(session.current())
+    }
+
+    private fun observeEpg(item: PlayItem?) {
+        epgJob?.cancel()
+        _epgState.value = EpgNowNext(null, null)
+
+        if (item?.contentType != "LIVE") return
+        val streamId = item.streamId?.takeIf { it.isNotBlank() } ?: return
+
+        epgJob = viewModelScope.launch {
+            while (true) {
+                epgRepository.nowNext(streamId).onSuccess {
+                    _epgState.value = it
+                }
+                delay(30_000L)
+            }
+        }
+    }
 
     suspend fun resumePosition(item: PlayItem): Long {
         if (item.contentType == "LIVE") return 0L
@@ -173,6 +203,7 @@ class PlayerViewModel @Inject constructor(
 
                 _progress.value = PlayerProgressState()
                 _state.value = createState(next)
+                observeEpg(next)
             } finally {
                 advancing = false
             }
@@ -213,6 +244,7 @@ class PlayerViewModel @Inject constructor(
         if (sourceRelated) {
             val alternative = session.nextAlternative()
             if (alternative != null) {
+                observeEpg(alternative)
                 _state.update { current ->
                     current.copy(
                         item = alternative,

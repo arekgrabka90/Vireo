@@ -18,6 +18,7 @@ data class PlayItem(
     val backdropUrl: String? = null,
     val alternatives: List<PlaybackAlternative> = emptyList(),
     val epgChannelId: String? = null,
+    val streamId: String? = null,
 )
 
 @Singleton

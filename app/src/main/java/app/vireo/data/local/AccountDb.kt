@@ -107,8 +107,10 @@ interface AccountDao {
         XtreamCatalogCategoryEntity::class,
         XtreamCatalogItemEntity::class,
         XtreamCatalogSyncStateEntity::class,
+        EpgProgramEntity::class,
+        EpgSyncStateEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -117,6 +119,7 @@ abstract class VireoDatabase : RoomDatabase() {
     abstract fun xtreamContentIndexDao(): XtreamContentIndexDao
     abstract fun libraryDao(): LibraryDao
     abstract fun xtreamCatalogDao(): XtreamCatalogDao
+    abstract fun epgDao(): EpgDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -305,5 +308,48 @@ abstract class VireoDatabase : RoomDatabase() {
                 )
             }
         }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS epg_programs (
+                        sourceId INTEGER NOT NULL,
+                        streamId TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        startTimeMs INTEGER NOT NULL,
+                        endTimeMs INTEGER NOT NULL,
+                        category TEXT,
+                        iconUrl TEXT,
+                        PRIMARY KEY(sourceId, streamId, startTimeMs),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_epg_programs_sourceId_streamId_startTimeMs " +
+                        "ON epg_programs(sourceId, streamId, startTimeMs)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_epg_programs_sourceId_streamId_endTimeMs " +
+                        "ON epg_programs(sourceId, streamId, endTimeMs)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS epg_sync_state (
+                        sourceId INTEGER NOT NULL,
+                        streamId TEXT NOT NULL,
+                        lastSuccessfulSyncAt INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, streamId),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
     }
 }

@@ -12,12 +12,12 @@ import app.vireo.domain.model.EpgChannelSchedule
 interface EpgProvider {
 
     /**
-     * Zwraca harmonogram dla wskazanego identyfikatora kanału.
+     * Zwraca harmonogram dla wskazanego stream_id Xtream.
      *
      * Zakres czasu jest wyrażony w Unix epoch milliseconds.
      */
     suspend fun schedule(
-        channelId: String,
+        streamId: String,
         fromTimeMs: Long,
         toTimeMs: Long,
     ): Result<EpgChannelSchedule>

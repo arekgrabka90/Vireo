@@ -52,6 +52,7 @@ fun PlayerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by vm.state.collectAsStateWithLifecycle()
+    val epg by vm.epgState.collectAsStateWithLifecycle()
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
             .setSeekBackIncrementMs(10_000L)
@@ -224,14 +225,38 @@ fun PlayerScreen(
                 Text(stringResource(R.string.back), color = Color.White)
             }
 
-            Text(
-                state.item?.title.orEmpty(),
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Column(
                 modifier = Modifier.weight(1f),
-            )
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    state.item?.title.orEmpty(),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                epg.current?.let { currentProgram ->
+                    Text(
+                        currentProgram.title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    currentProgram.description
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { description ->
+                            Text(
+                                description,
+                                color = Color.White.copy(alpha = 0.82f),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                }
+            }
 
             if (state.hasNext) {
                 FocusableBox(

@@ -5,6 +5,7 @@ import app.vireo.domain.model.Category
 import app.vireo.domain.model.Channel
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.Episode
+import app.vireo.domain.model.EpgChannelSchedule
 import app.vireo.domain.model.Movie
 import app.vireo.domain.model.MovieDetails
 import app.vireo.domain.model.Season
@@ -179,6 +180,25 @@ class XtreamProvider(
             cast = info?.str("cast"),
             rating = info?.str("rating"),
             seasons = seasons,
+        )
+    }
+
+    override suspend fun schedule(
+        streamId: String,
+        fromTimeMs: Long,
+        toTimeMs: Long,
+    ): Result<EpgChannelSchedule> = resultCatching {
+        require(streamId.isNotBlank()) { "Missing Xtream stream_id" }
+        require(toTimeMs > fromTimeMs) { "Invalid EPG time range" }
+
+        val payload = fetch(
+            "get_short_epg",
+            mapOf("stream_id" to streamId, "limit" to "50"),
+        )
+        EpgChannelSchedule(
+            channelId = streamId,
+            programs = XtreamEpgParser.parse(streamId, payload)
+                .filter { it.endTimeMs > fromTimeMs && it.startTimeMs < toTimeMs },
         )
     }
 

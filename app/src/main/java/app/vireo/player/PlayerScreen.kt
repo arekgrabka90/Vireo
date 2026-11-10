@@ -71,6 +71,12 @@ fun PlayerScreen(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (!PlaybackCallbackGuard.isCurrentPlaybackState(
+                        playbackState,
+                        player.playbackState,
+                    )
+                ) return
+
                 vm.onPlaybackStateChanged(playbackState, player.isPlaying)
                 if (
                     playbackState == Player.STATE_ENDED &&
@@ -81,6 +87,12 @@ fun PlayerScreen(
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (!PlaybackCallbackGuard.isCurrentBooleanValue(
+                        isPlaying,
+                        player.isPlaying,
+                    )
+                ) return
+
                 vm.onPlaybackStateChanged(player.playbackState, isPlaying)
             }
 
@@ -88,10 +100,22 @@ fun PlayerScreen(
                 playWhenReady: Boolean,
                 reason: Int,
             ) {
+                if (!PlaybackCallbackGuard.isCurrentBooleanValue(
+                        playWhenReady,
+                        player.playWhenReady,
+                    )
+                ) return
+
                 vm.onPlayWhenReadyChanged(playWhenReady, reason)
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                if (!PlaybackCallbackGuard.isCurrentError(
+                        error,
+                        player.playerError,
+                    )
+                ) return
+
                 vm.onPlaybackError(
                     error = error,
                     positionMs = player.currentPosition,

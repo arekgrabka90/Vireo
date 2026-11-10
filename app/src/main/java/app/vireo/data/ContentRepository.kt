@@ -3,6 +3,7 @@ package app.vireo.data
 import app.vireo.data.local.AccountDao
 import app.vireo.data.local.AccountEntity
 import app.vireo.data.security.CryptoManager
+import app.vireo.data.xtream.XtreamCatalogRepository
 import app.vireo.domain.model.AccountInfo
 import app.vireo.domain.model.Category
 import app.vireo.domain.model.ContentType
@@ -20,12 +21,11 @@ class ContentRepository @Inject constructor(
     private val dao: AccountDao,
     private val crypto: CryptoManager,
     private val providers: ProviderRegistry,
+    private val catalog: XtreamCatalogRepository,
 ) {
     private val stateMutex = Mutex()
 
     private var cached: ContentProvider? = null
-    private val categoryCache = mutableMapOf<ContentType, List<Category>>()
-    private val titleCache = mutableMapOf<String, List<Title>>()
 
     @Volatile
     var sourceVersion: Long = 0L
@@ -130,86 +130,14 @@ class ContentRepository @Inject constructor(
         }
     }
 
-    suspend fun categories(type: ContentType): Result<List<Category>> {
-        val cachedResult = stateMutex.withLock {
-            categoryCache[type]?.let { Result.success(it) }
-        }
-        if (cachedResult != null) return cachedResult
-
-        val (version, provider) = providerSnapshot()
-        if (provider == null) {
-            return Result.failure(NoSourceException())
-        }
-
-        val result = provider.categories(type)
-
-        return finishRequest(version, result) { categories ->
-            categoryCache[type] = categories
-        }
-    }
+    suspend fun categories(type: ContentType): Result<List<Category>> =
+        catalog.categories(type)
 
     suspend fun titles(
         type: ContentType,
         categoryId: String,
-    ): Result<List<Title>> {
-        val key = "$type:$categoryId"
-
-        val cachedResult = stateMutex.withLock {
-            titleCache[key]?.let { Result.success(it) }
-        }
-        if (cachedResult != null) return cachedResult
-
-        val (version, provider) = providerSnapshot()
-        if (provider == null) {
-            return Result.failure(NoSourceException())
-        }
-
-        val result: Result<List<Title>> = when (type) {
-            ContentType.MOVIE -> provider.movies(categoryId).map { list ->
-                list.map { item ->
-                    Title(
-                        item.id,
-                        item.title,
-                        item.posterUrl,
-                        item.rating,
-                        ContentType.MOVIE,
-                        item.categoryId,
-                    )
-                }
-            }
-
-            ContentType.SERIES -> provider.series(categoryId).map { list ->
-                list.map { item ->
-                    Title(
-                        item.id,
-                        item.title,
-                        item.posterUrl,
-                        item.rating,
-                        ContentType.SERIES,
-                        item.categoryId,
-                    )
-                }
-            }
-
-            ContentType.LIVE -> provider.channels(categoryId).map { list ->
-                list.map { item ->
-                    Title(
-                        item.id,
-                        item.name,
-                        item.iconUrl,
-                        null,
-                        ContentType.LIVE,
-                        item.categoryId,
-                        epgChannelId = item.epgChannelId,
-                    )
-                }
-            }
-        }
-
-        return finishRequest(version, result) { titles ->
-            titleCache[key] = titles
-        }
-    }
+    ): Result<List<Title>> =
+        catalog.titles(type, categoryId)
 
     suspend fun movieDetails(id: String): Result<MovieDetails> {
         val (version, provider) = providerSnapshot()
@@ -239,8 +167,6 @@ class ContentRepository @Inject constructor(
     }
 
     private fun clearCachesLocked() {
-        categoryCache.clear()
-        titleCache.clear()
         sourceVersion++
     }
 }

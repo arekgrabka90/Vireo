@@ -22,6 +22,7 @@ data class Movie(
     val streamUrl: String,
     val tmdbId: Int? = null,
     val imdbId: String? = null,
+    val containerExtension: String = "mp4",
 )
 
 data class Series(

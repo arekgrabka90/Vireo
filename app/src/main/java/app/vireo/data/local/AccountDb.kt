@@ -104,8 +104,11 @@ interface AccountDao {
         XtreamContentIndexEntity::class,
         CatalogSyncStateEntity::class,
         LibraryItemEntity::class,
+        XtreamCatalogCategoryEntity::class,
+        XtreamCatalogItemEntity::class,
+        XtreamCatalogSyncStateEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -113,6 +116,7 @@ abstract class VireoDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun xtreamContentIndexDao(): XtreamContentIndexDao
     abstract fun libraryDao(): LibraryDao
+    abstract fun xtreamCatalogDao(): XtreamCatalogDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -223,6 +227,82 @@ abstract class VireoDatabase : RoomDatabase() {
                         "ON xtream_content_index(imdbId, contentType)"
                 )
                 db.execSQL("DELETE FROM catalog_sync_state")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS xtream_catalog_categories (
+                        sourceId INTEGER NOT NULL,
+                        contentType TEXT NOT NULL,
+                        categoryId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, contentType, categoryId),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_catalog_categories_sourceId_contentType_categoryId " +
+                        "ON xtream_catalog_categories(sourceId, contentType, categoryId)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS xtream_catalog_items (
+                        sourceId INTEGER NOT NULL,
+                        contentType TEXT NOT NULL,
+                        itemId TEXT NOT NULL,
+                        categoryId TEXT,
+                        title TEXT NOT NULL,
+                        posterUrl TEXT,
+                        rating TEXT,
+                        epgChannelId TEXT,
+                        tmdbId INTEGER,
+                        imdbId TEXT,
+                        containerExtension TEXT,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, contentType, itemId),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_catalog_items_sourceId_contentType_categoryId " +
+                        "ON xtream_catalog_items(sourceId, contentType, categoryId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_catalog_items_sourceId_contentType_title " +
+                        "ON xtream_catalog_items(sourceId, contentType, title)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_xtream_catalog_items_sourceId_contentType_epgChannelId " +
+                        "ON xtream_catalog_items(sourceId, contentType, epgChannelId)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS xtream_catalog_sync_state (
+                        sourceId INTEGER NOT NULL,
+                        contentType TEXT NOT NULL,
+                        lastSuccessfulSyncAt INTEGER NOT NULL,
+                        categoryCount INTEGER NOT NULL,
+                        itemCount INTEGER NOT NULL,
+                        PRIMARY KEY(sourceId, contentType),
+                        FOREIGN KEY(sourceId) REFERENCES accounts(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }

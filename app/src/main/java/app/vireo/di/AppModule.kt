@@ -9,6 +9,7 @@ import app.vireo.data.local.LibraryDao
 import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.VireoDatabase
 import app.vireo.data.local.XtreamContentIndexDao
+import app.vireo.data.local.XtreamCatalogDao
 import app.vireo.data.security.CryptoManager
 import dagger.Module
 import dagger.Provides
@@ -61,6 +62,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_4_5,
                 VireoDatabase.MIGRATION_5_6,
                 VireoDatabase.MIGRATION_6_7,
+                VireoDatabase.MIGRATION_7_8,
             )
             .build()
 
@@ -110,4 +112,8 @@ object AppModule {
 
     @Provides
     fun libraryDao(db: VireoDatabase): LibraryDao = db.libraryDao()
+
+    @Provides
+    fun xtreamCatalogDao(db: VireoDatabase): XtreamCatalogDao =
+        db.xtreamCatalogDao()
 }

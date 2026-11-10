@@ -56,14 +56,14 @@ class XtreamProvider(
             ContentType.MOVIE -> "get_vod_categories"
             ContentType.SERIES -> "get_series_categories"
         }
-        fetch(action).objects().mapNotNull { o ->
+        fetch(action).strictObjects().mapNotNull { o ->
             val id = o.str("category_id") ?: return@mapNotNull null
             Category(id = id, name = o.str("category_name") ?: id, type = type)
         }
     }
 
     override suspend fun channels(categoryId: String?): Result<List<Channel>> = resultCatching {
-        fetch("get_live_streams", categoryParams(categoryId)).objects().mapNotNull { o ->
+        fetch("get_live_streams", categoryParams(categoryId)).strictObjects().mapNotNull { o ->
             val id = o.str("stream_id") ?: return@mapNotNull null
             Channel(
                 id = id,
@@ -91,6 +91,7 @@ class XtreamProvider(
                 imdbId = o.firstString("imdb_id", "imdb", "imdbid")
                     ?.takeIf { IMDb_ID_PATTERN.matches(it) }
                     ?.lowercase(),
+                containerExtension = ext,
             )
         }
     }
@@ -222,9 +223,6 @@ class XtreamProvider(
         }
         return array.map { it as JsonObject }
     }
-
-    private fun JsonElement.objects(): List<JsonObject> =
-        (this as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
 
     private fun JsonObject.str(key: String): String? =
         (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }

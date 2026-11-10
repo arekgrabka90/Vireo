@@ -139,7 +139,7 @@ internal object TmdbDiscoveryQueryBuilder {
             "Select either a year or a decade, not both."
         }
         require(filters.originalLanguage.isNullOrBlank() ||
-            LANGUAGE_PATTERN.matches(filters.originalLanguage.trim())) {
+            LANGUAGE_PATTERN.matches(filters.originalLanguage.trim().lowercase())) {
             "Original language must be a two-letter ISO language code."
         }
         require(

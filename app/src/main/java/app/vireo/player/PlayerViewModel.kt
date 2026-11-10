@@ -10,6 +10,7 @@ import app.vireo.domain.model.EpgNowNext
 import app.vireo.data.ProfileRepository
 import app.vireo.data.ProfileSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,6 +48,12 @@ class PlayerViewModel @Inject constructor(
     // Profil jest przypisany do całej sesji odtwarzania.
     private val playbackProfileId = profiles.activeId
     val playbackSettings = profileSettingsRepository.observe(playbackProfileId)
+
+    private val _playbackSettingsReady = MutableStateFlow(false)
+    val playbackSettingsReady: StateFlow<Boolean> =
+        _playbackSettingsReady.asStateFlow()
+
+    private var settingsInitializationJob: Job? = null
     private var advancing = false
 
     fun autoplayNextEnabled(): Boolean = playbackSettings.value.autoplayNext
@@ -75,7 +82,36 @@ class PlayerViewModel @Inject constructor(
     private var epgJob: Job? = null
 
     init {
-        observeEpg(session.current())
+        initializePlaybackSettings()
+    }
+
+    private fun initializePlaybackSettings() {
+        if (_playbackSettingsReady.value ||
+            settingsInitializationJob?.isActive == true
+        ) return
+
+        settingsInitializationJob = viewModelScope.launch {
+            try {
+                val profile = requireNotNull(profiles.get(playbackProfileId)) {
+                    "Nie można odnaleźć profilu przypisanego do sesji odtwarzania."
+                }
+
+                profileSettingsRepository.ensure(
+                    profileId = profile.id,
+                    kidsMode = profile.kids,
+                )
+
+                _playbackSettingsReady.value = true
+                observeEpg(session.current())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                onError(
+                    error.message
+                        ?: "Nie udało się wczytać ustawień profilu."
+                )
+            }
+        }
     }
 
     private fun observeEpg(item: PlayItem?) {
@@ -219,6 +255,20 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun retry() {
+        if (!_playbackSettingsReady.value) {
+            _state.update { current ->
+                current.copy(
+                    runtime = current.runtime.copy(
+                        transportState = PlayerTransportState.IDLE,
+                        errorMessage = null,
+                        isPlaying = false,
+                    )
+                )
+            }
+            initializePlaybackSettings()
+            return
+        }
+
         _state.update { current ->
             current.copy(
                 runtime = current.runtime.copy(

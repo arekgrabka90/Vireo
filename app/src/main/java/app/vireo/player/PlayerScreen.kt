@@ -56,6 +56,7 @@ fun PlayerScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val epg by vm.epgState.collectAsStateWithLifecycle()
     val settings by vm.playbackSettings.collectAsStateWithLifecycle()
+    val settingsReady by vm.playbackSettingsReady.collectAsStateWithLifecycle()
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
             .setSeekBackIncrementMs(10_000L)
@@ -142,10 +143,12 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(
+        settingsReady,
         state.item?.url,
         state.item?.contentKey,
         state.retryToken,
     ) {
+        if (!settingsReady) return@LaunchedEffect
         val item = state.item ?: return@LaunchedEffect
         val resumeAt = state.resumePositionMs ?: vm.resumePosition(item)
 
@@ -219,27 +222,29 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize(),
             update = { view ->
                 view.player = exoPlayer
-                exoPlayer.trackSelectionParameters =
-                    exoPlayer.trackSelectionParameters.buildUpon()
-                        .setPreferredAudioLanguage(
-                            settings.preferredAudioLanguage.takeUnless {
-                                it == "system"
-                            }
-                        )
-                        .setPreferredTextLanguage(
-                            settings.preferredSubtitleLanguage.takeUnless {
-                                it == "system"
-                            }
-                        )
-                        .setTrackTypeDisabled(
-                            C.TRACK_TYPE_TEXT,
-                            !settings.subtitlesEnabled,
-                        )
-                        .build()
-                view.subtitleView?.setFixedTextSize(
-                    TypedValue.COMPLEX_UNIT_SP,
-                    settings.subtitleSizeSp.toFloat(),
-                )
+                if (settingsReady) {
+                    exoPlayer.trackSelectionParameters =
+                        exoPlayer.trackSelectionParameters.buildUpon()
+                            .setPreferredAudioLanguage(
+                                settings.preferredAudioLanguage.takeUnless {
+                                    it == "system"
+                                }
+                            )
+                            .setPreferredTextLanguage(
+                                settings.preferredSubtitleLanguage.takeUnless {
+                                    it == "system"
+                                }
+                            )
+                            .setTrackTypeDisabled(
+                                C.TRACK_TYPE_TEXT,
+                                !settings.subtitlesEnabled,
+                            )
+                            .build()
+                    view.subtitleView?.setFixedTextSize(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        settings.subtitleSizeSp.toFloat(),
+                    )
+                }
             },
         )
 

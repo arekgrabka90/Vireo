@@ -381,15 +381,15 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     attempted = attempted,
                 ) ?: break
 
-                PlaybackAlternative(
+                alternatives += PlaybackAlternative(
                     sourceId = next.sourceId,
                     streamId = next.streamId,
                     url = next.url,
                     seriesId = alternativeSeries.firstOrNull {
                         it.first.sourceId == next.sourceId
                     }?.first?.streamId,
-                    seasonNumber = next.seasonNumber,
-                    episodeNumber = next.episodeNumber,
+                    seasonNumber = seasonNumber,
+                    episodeNumber = episode.number,
                 )
 
                 val identity = playbackRequestIdentity(next.url, next.headers)

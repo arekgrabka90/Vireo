@@ -117,4 +117,63 @@ class PlaybackSessionFailoverTest {
             session.current()?.url == "https://primary.example/movie.mp4",
         )
     }
+
+    @Test
+    fun `series alternative preserves exact episode source identity`() {
+        val session = PlaybackSession()
+        session.start(
+            listOf(
+                PlayItem(
+                    title = "Series · S2 E4",
+                    url = "https://primary.example/s2e4.mp4",
+                    contentType = "SERIES",
+                    sourceId = 1L,
+                    streamId = "primary-episode",
+                    seriesId = "primary-series",
+                    seasonNumber = 2,
+                    episodeNumber = 4,
+                    alternatives = listOf(
+                        PlaybackAlternative(
+                            sourceId = 2L,
+                            streamId = "alternative-episode",
+                            url = "https://alternative.example/s2e4.mp4",
+                            seriesId = "alternative-series",
+                            seasonNumber = 2,
+                            episodeNumber = 4,
+                        ),
+                    ),
+                ),
+            ),
+            0,
+        )
+
+        val alternative = session.nextAlternative()
+
+        assertEquals("https://alternative.example/s2e4.mp4", alternative?.url)
+        assertEquals(2L, alternative?.sourceId)
+        assertEquals("alternative-episode", alternative?.streamId)
+        assertEquals("alternative-series", alternative?.seriesId)
+        assertEquals(2, alternative?.seasonNumber)
+        assertEquals(4, alternative?.episodeNumber)
+    }
+
+    @Test
+    fun `series queue keeps earlier episodes and starts at selected episode`() {
+        val session = PlaybackSession()
+        session.start(
+            listOf(
+                PlayItem(title = "E01", url = "https://example.invalid/e01.mp4"),
+                PlayItem(title = "E02", url = "https://example.invalid/e02.mp4"),
+                PlayItem(title = "E03", url = "https://example.invalid/e03.mp4"),
+            ),
+            1,
+        )
+
+        assertEquals(3, session.items.size)
+        assertEquals(1, session.index)
+        assertEquals("E02", session.current()?.title)
+        assertEquals("E03", session.next()?.title)
+        assertEquals("E01", session.items.first().title)
+    }
+
 }

@@ -127,7 +127,8 @@ class XtreamCatalogRepository @Inject constructor(
         Result.failure(error)
     }
 
-    private suspend fun syncLocked(type: ContentType): Result<Unit> = try {
+    private suspend fun syncLocked(type: ContentType): Result<Unit> {
+        return try {
         val account = accountDao.getActive()
             ?: error("No active content source")
 
@@ -193,6 +194,7 @@ class XtreamCatalogRepository @Inject constructor(
         throw cancelled
     } catch (error: Exception) {
         Result.failure(error)
+    }
     }
 
     private fun Category.toCatalogEntity(

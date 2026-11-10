@@ -49,6 +49,7 @@ class TitleListViewModel @Inject constructor(
 
     fun playLive(title: Title, onReady: () -> Unit) {
         viewModelScope.launch {
+            val sourceId = repo.activeAccount()?.id
             val url = repo.liveUrl(title.id) ?: return@launch
             session.start(
                 listOf(
@@ -58,6 +59,7 @@ class TitleListViewModel @Inject constructor(
                         contentType = ContentType.LIVE.name,
                         epgChannelId = title.epgChannelId,
                         streamId = title.id,
+                        sourceId = sourceId,
                     )
                 ),
                 0,

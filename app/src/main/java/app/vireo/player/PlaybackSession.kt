@@ -7,6 +7,9 @@ data class PlaybackAlternative(
     val sourceId: Long,
     val streamId: String,
     val url: String,
+    val seriesId: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
 )
 
 data class PlayItem(
@@ -19,6 +22,10 @@ data class PlayItem(
     val alternatives: List<PlaybackAlternative> = emptyList(),
     val epgChannelId: String? = null,
     val streamId: String? = null,
+    val sourceId: Long? = null,
+    val seriesId: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
 )
 
 @Singleton
@@ -43,7 +50,14 @@ class PlaybackSession @Inject constructor() {
         val alternative = item.alternatives.getOrNull(activeAlternativeIndex - 1)
             ?: return item
 
-        return item.copy(url = alternative.url)
+        return item.copy(
+            url = alternative.url,
+            sourceId = alternative.sourceId,
+            streamId = alternative.streamId,
+            seriesId = alternative.seriesId ?: item.seriesId,
+            seasonNumber = alternative.seasonNumber ?: item.seasonNumber,
+            episodeNumber = alternative.episodeNumber ?: item.episodeNumber,
+        )
     }
 
     fun nextAlternative(): PlayItem? {

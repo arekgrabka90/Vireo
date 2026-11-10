@@ -160,6 +160,8 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     posterUrl = detail?.posterUrl,
                     backdropUrl = detail?.backdropUrl,
                     alternatives = alternativeUrls,
+                    sourceId = variant.sourceId,
+                    streamId = variant.streamId,
                 )
             ),
             0,
@@ -379,10 +381,15 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     attempted = attempted,
                 ) ?: break
 
-                alternatives += PlaybackAlternative(
+                PlaybackAlternative(
                     sourceId = next.sourceId,
                     streamId = next.streamId,
                     url = next.url,
+                    seriesId = alternativeSeries.firstOrNull {
+                        it.first.sourceId == next.sourceId
+                    }?.first?.streamId,
+                    seasonNumber = next.seasonNumber,
+                    episodeNumber = next.episodeNumber,
                 )
 
                 val identity = playbackRequestIdentity(next.url, next.headers)
@@ -400,6 +407,11 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                 posterUrl = detail?.posterUrl,
                 backdropUrl = detail?.backdropUrl,
                 alternatives = alternatives,
+                sourceId = selectedSourceId,
+                streamId = episode.id,
+                seriesId = series.id,
+                seasonNumber = seasonNumber,
+                episodeNumber = episode.number,
             )
         }
 

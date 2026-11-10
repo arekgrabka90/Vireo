@@ -16,6 +16,8 @@ class PlaybackSessionFailoverTest {
                     title = "Movie",
                     url = "https://primary.example/movie.mp4",
                     contentKey = "tmdb:MOVIE:123",
+                    sourceId = 1L,
+                    streamId = "primary-1",
                     alternatives = listOf(
                         PlaybackAlternative(
                             sourceId = 2L,
@@ -36,6 +38,8 @@ class PlaybackSessionFailoverTest {
         )
         assertEquals("tmdb:MOVIE:123", next?.contentKey)
         assertEquals("Movie", next?.title)
+        assertEquals(2L, next?.sourceId)
+        assertEquals("alt-2", next?.streamId)
     }
 
     @Test

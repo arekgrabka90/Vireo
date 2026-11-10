@@ -98,6 +98,10 @@ class Media3PlayerEngine @Inject constructor(
             MediaItem.fromUri(source.url)
         )
 
+        // Nie pozostawiamy starego źródła ani jego bufora przy zmianie.
+        player.stop()
+        player.clearMediaItems()
+
         player.setMediaSource(
             mediaSource,
             startPositionMs.coerceAtLeast(0L),

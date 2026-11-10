@@ -11,6 +11,8 @@ import app.vireo.domain.model.MovieDetails
 import app.vireo.domain.model.SeriesDetails
 import app.vireo.domain.model.Title
 import app.vireo.domain.provider.ContentProvider
+import app.vireo.player.PlayItem
+import app.vireo.player.source.PlaybackSource
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -164,6 +166,83 @@ class ContentRepository @Inject constructor(
         return stateMutex.withLock {
             if (version == sourceVersion) url else null
         }
+    }
+
+    /**
+     * Resolves a fresh playback URL from the account that owns the item.
+     * The stored URL is only a backward-compatible fallback for legacy
+     * queue entries that do not carry a source identifier.
+     */
+    suspend fun resolvePlaybackSource(item: PlayItem): PlaybackSource {
+        val sourceId = item.sourceId
+            ?: return PlaybackSource(
+                url = item.url,
+                streamId = item.streamId,
+            )
+
+        require(sourceId > 0L) {
+            "Nieprawidłowy identyfikator źródła."
+        }
+
+        val streamId = item.streamId
+            ?.takeIf { it.isNotBlank() }
+            ?: error("Brak identyfikatora strumienia.")
+
+        val account = dao.getById(sourceId)
+            ?: error("Konto źródłowe nie jest już dostępne.")
+
+        // Tworzymy providera dla konkretnego konta, a nie dla
+        // aktualnie aktywnego konta z cache ContentRepository.
+        val provider = providers.create(account)
+
+        val resolvedUrl = when (item.contentType?.uppercase()) {
+            "LIVE" -> provider.liveUrl(streamId)
+
+            "MOVIE" -> provider.movieDetails(streamId)
+                .getOrThrow()
+                .streamUrl
+
+            "SERIES" -> {
+                val seriesId = item.seriesId
+                    ?.takeIf { it.isNotBlank() }
+                    ?: error("Brak identyfikatora serialu.")
+
+                val seasonNumber = item.seasonNumber
+                    ?: error("Brak numeru sezonu.")
+
+                val episodeNumber = item.episodeNumber
+                    ?: error("Brak numeru odcinka.")
+
+                val series = provider.seriesDetails(seriesId).getOrThrow()
+
+                val matches = series.seasons
+                    .asSequence()
+                    .filter { it.number == seasonNumber }
+                    .flatMap { it.episodes.asSequence() }
+                    .filter {
+                        it.number == episodeNumber && it.id == streamId
+                    }
+                    .toList()
+
+                require(matches.size == 1) {
+                    "Nie można jednoznacznie odnaleźć odcinka w źródle."
+                }
+
+                matches.single().streamUrl
+            }
+
+            else -> item.url
+        }.trim()
+
+        require(resolvedUrl.isNotBlank()) {
+            "Provider zwrócił pusty adres strumienia."
+        }
+
+        return PlaybackSource(
+            url = resolvedUrl,
+            sourceId = sourceId,
+            streamId = streamId,
+        )
     }
 
     private fun clearCachesLocked() {

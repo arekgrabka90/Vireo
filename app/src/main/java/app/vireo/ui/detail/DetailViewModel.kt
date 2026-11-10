@@ -23,6 +23,7 @@ data class DetailState(
     val movie: MovieDetails? = null,
     val series: SeriesDetails? = null,
     val season: Int = 1,
+    val sourceId: Long? = null,
 )
 
 @HiltViewModel
@@ -44,6 +45,9 @@ class DetailViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _state.update { st -> st.copy(loading = true, error = null) }
+            val sourceId = repo.activeAccount()?.id
+            _state.update { st -> st.copy(sourceId = sourceId) }
+
             if (type == ContentType.SERIES) {
                 repo.seriesDetails(id)
                     .onSuccess { s ->
@@ -81,6 +85,8 @@ class DetailViewModel @Inject constructor(
                     contentType = type.name,
                     posterUrl = m.posterUrl,
                     backdropUrl = m.backdropUrl,
+                    streamId = m.id,
+                    sourceId = _state.value.sourceId,
                 )
             ),
             0,
@@ -99,6 +105,11 @@ class DetailViewModel @Inject constructor(
                 contentType = type.name,
                 posterUrl = s.posterUrl,
                 backdropUrl = s.backdropUrl,
+                streamId = pair.second.id,
+                sourceId = _state.value.sourceId,
+                seriesId = s.id,
+                seasonNumber = pair.first,
+                episodeNumber = pair.second.number,
             )
         }
         session.start(items, idx.coerceAtLeast(0))

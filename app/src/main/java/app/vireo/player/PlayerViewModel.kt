@@ -6,6 +6,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import app.vireo.player.engine.Media3PlayerEngine
 import app.vireo.player.source.PlaybackSource
+import app.vireo.data.ContentRepository
 import app.vireo.data.LibraryRepository
 import app.vireo.data.EpgRepository
 import app.vireo.domain.model.EpgNowNext
@@ -28,6 +29,7 @@ data class PlayerUiState(
     val item: PlayItem? = null,
     val runtime: PlayerRuntimeState = PlayerRuntimeState(),
     val resumePositionMs: Long? = null,
+    val desiredPlayWhenReady: Boolean = true,
     val retryToken: Int = 0,
 ) {
     val hasNext: Boolean
@@ -41,6 +43,7 @@ data class PlayerUiState(
 class PlayerViewModel @Inject constructor(
     private val session: PlaybackSession,
     private val media3PlayerEngine: Media3PlayerEngine,
+    private val contentRepository: ContentRepository,
     private val library: LibraryRepository,
     private val profiles: ProfileRepository,
     private val epgRepository: EpgRepository,
@@ -57,6 +60,8 @@ class PlayerViewModel @Inject constructor(
         _playbackSettingsReady.asStateFlow()
 
     private var settingsInitializationJob: Job? = null
+    private var playbackResolutionJob: Job? = null
+    private var resolvingPlayback = false
     private var advancing = false
 
     fun autoplayNextEnabled(): Boolean = playbackSettings.value.autoplayNext
@@ -218,6 +223,22 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun onPlayWhenReadyChanged(
+        playWhenReady: Boolean,
+        reason: Int,
+    ) {
+        if (resolvingPlayback) return
+
+        if (
+            reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST ||
+            reason == Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE
+        ) {
+            _state.update {
+                it.copy(desiredPlayWhenReady = playWhenReady)
+            }
+        }
+    }
+
     fun onControlsVisibilityChanged(visible: Boolean) {
         _state.update {
             it.copy(runtime = it.runtime.copy(controlsVisible = visible))
@@ -354,31 +375,61 @@ class PlayerViewModel @Inject constructor(
         media3PlayerEngine.playerForView()
 
     fun startPlayback(item: PlayItem, positionMs: Long) {
-        try {
-            media3PlayerEngine.setSource(
-                PlaybackSource(
-                    url = item.url,
-                    streamId = item.streamId,
-                ),
-                positionMs.coerceAtLeast(0L),
-            )
-            media3PlayerEngine.prepare()
-            media3PlayerEngine.play()
-        } catch (error: Exception) {
-            onError(error.message ?: "Playback failed.")
+        playbackResolutionJob?.cancel()
+        resolvingPlayback = true
+
+        // Wstrzymujemy poprzedni element podczas pobierania świeżego URL.
+        // Zmiana playWhenReady nie nadpisuje w tym czasie intencji użytkownika.
+        media3PlayerEngine.pause()
+
+        playbackResolutionJob = viewModelScope.launch {
+            try {
+                val source = contentRepository.resolvePlaybackSource(item)
+
+                if (_state.value.item != item) {
+                    resolvingPlayback = false
+                    return@launch
+                }
+
+                val startPosition = if (item.contentType == "LIVE") {
+                    0L
+                } else {
+                    positionMs.coerceAtLeast(0L)
+                }
+
+                media3PlayerEngine.setSource(source, startPosition)
+                media3PlayerEngine.prepare()
+
+                val shouldPlay = _state.value.desiredPlayWhenReady
+                resolvingPlayback = false
+
+                if (shouldPlay) {
+                    media3PlayerEngine.play()
+                } else {
+                    media3PlayerEngine.pause()
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                resolvingPlayback = false
+                onError(error.message ?: "Playback failed.")
+            }
         }
     }
 
     fun pausePlayback() {
+        _state.update { it.copy(desiredPlayWhenReady = false) }
         media3PlayerEngine.pause()
     }
 
     fun resumePlayback() {
+        _state.update { it.copy(desiredPlayWhenReady = true) }
         media3PlayerEngine.play()
     }
 
     override fun onCleared() {
         epgJob?.cancel()
+        playbackResolutionJob?.cancel()
         media3PlayerEngine.release()
         super.onCleared()
     }

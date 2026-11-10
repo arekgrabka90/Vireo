@@ -84,6 +84,13 @@ fun PlayerScreen(
                 vm.onPlaybackStateChanged(player.playbackState, isPlaying)
             }
 
+            override fun onPlayWhenReadyChanged(
+                playWhenReady: Boolean,
+                reason: Int,
+            ) {
+                vm.onPlayWhenReadyChanged(playWhenReady, reason)
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 vm.onPlaybackError(
                     error = error,
@@ -103,7 +110,8 @@ fun PlayerScreen(
             when (event) {
                 Lifecycle.Event.ON_STOP -> {
                     resumeAfterLifecycleStop.value =
-                        player.playWhenReady && vm.state.value.error == null
+                        vm.state.value.desiredPlayWhenReady &&
+                            vm.state.value.error == null
 
                     val item = vm.state.value.item
                     vm.saveProgress(
@@ -173,11 +181,11 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(player, state.item?.contentKey, state.item?.url) {
-        val item = state.item
+    DisposableEffect(player) {
         onDispose {
+            val latestItem = vm.state.value.item
             vm.saveProgress(
-                item,
+                latestItem,
                 player.currentPosition,
                 player.duration,
             )

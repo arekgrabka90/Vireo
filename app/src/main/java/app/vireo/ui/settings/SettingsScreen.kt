@@ -287,7 +287,7 @@ fun SettingsScreen(
 @Composable
 private fun SettingsHeader(
     profileName: String?,
-    profileColor: String?,
+    profileColor: Int?,
     onSwitchProfile: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -301,7 +301,7 @@ private fun SettingsHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (profileName != null) {
-                ProfileAvatar(profileName, profileColor.orEmpty(), 48.dp)
+                ProfileAvatar(profileName, profileColor ?: 0, 48.dp)
             }
 
             Column(modifier = Modifier.weight(1f)) {

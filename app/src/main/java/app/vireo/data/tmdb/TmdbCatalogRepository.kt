@@ -156,6 +156,9 @@ class TmdbCatalogRepository @Inject constructor(
                         .distinctBy { it.tmdbId }
                         .sortedByDescending { it.popularity }
                         .take(10),
+                    page = response.page,
+                    totalPages = response.totalPages.coerceIn(0, 500),
+                    totalResults = response.totalResults,
                 )
             )
         } catch (cancelled: CancellationException) {

@@ -310,4 +310,7 @@ data class TmdbPersonSearchItem(
 data class TmdbMultiSearchResult(
     val media: List<TmdbCatalogItem>,
     val people: List<TmdbPersonSearchItem>,
+    val page: Int = 1,
+    val totalPages: Int = 0,
+    val totalResults: Int = 0,
 )

@@ -34,4 +34,16 @@
     <string name="discovery_sort_date">Data premiery</string>
     <string name="discovery_sort_hidden">Mniej popularne</string>
     <string name="discovery_retry">Spróbuj ponownie</string>
+    <string name="search_retry">Spróbuj ponownie</string>
+    <string name="search_empty">Nie znaleziono wyników.</string>
+    <string name="search_error">Nie udało się wykonać wyszukiwania.</string>
+    <string name="discovery_empty">Brak pozycji spełniających wybrane kryteria.</string>
+    <string name="discovery_error_load">Nie udało się pobrać katalogu.</string>
+    <string name="discovery_error_page">Nie udało się pobrać kolejnej strony.</string>
+    <string name="discovery_active_rating">Minimalna ocena: %1$s</string>
+    <string name="discovery_active_votes">Minimalna liczba głosów: %1$s</string>
+    <string name="discovery_active_year">Rok: %1$s</string>
+    <string name="discovery_active_decade">Dekada: %1$s</string>
+    <string name="discovery_active_language">Język: %1$s</string>
+    <string name="search_page_error">Nie udało się pobrać kolejnych wyników wyszukiwania.</string>
 </resources>

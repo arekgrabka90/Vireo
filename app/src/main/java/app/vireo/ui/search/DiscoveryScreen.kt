@@ -148,7 +148,16 @@ fun DiscoveryScreen(
         state.error?.let { error ->
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(error, color = colors.error)
+                    Text(
+                    stringResource(
+                        when (error) {
+                            DiscoveryError.FIRST_PAGE -> R.string.discovery_error_load
+                            DiscoveryError.PAGE -> R.string.discovery_error_page
+                            DiscoveryError.EMPTY -> R.string.discovery_empty
+                        },
+                    ),
+                    color = colors.error,
+                )
                     FocusableBox(onClick = vm::retry) {
                         Text(
                             stringResource(R.string.discovery_retry),
@@ -156,6 +165,16 @@ fun DiscoveryScreen(
                         )
                     }
                 }
+            }
+        }
+
+        if (!state.loading && state.error == null && state.items.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    stringResource(R.string.discovery_empty),
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 18.dp),
+                )
             }
         }
 
@@ -259,6 +278,82 @@ private fun DiscoveryFilterPanel(
                     stringResource(R.string.discovery_clear),
                     color = colors.primary,
                 )
+            }
+        }
+
+        val hasActiveFilters =
+            filters.genreIds.isNotEmpty() ||
+            filters.minRating != null ||
+            filters.minVoteCount != null ||
+            filters.year != null ||
+            filters.decade != null ||
+            !filters.originalLanguage.isNullOrBlank() ||
+            filters.sortBy != TmdbDiscoverySort.POPULARITY_DESC
+
+        if (hasActiveFilters) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                filters.genreIds.forEach { genreId ->
+                    val genreName = state.genres
+                        .firstOrNull { it.id == genreId }?.name ?: "#$genreId"
+                    SelectChip(genreName, false) {
+                        onGenres(filters.genreIds.filterNot { it == genreId })
+                    }
+                }
+
+                if (filters.minRating != null) {
+                    SelectChip(
+                        stringResource(R.string.discovery_active_rating, filters.minRating),
+                        false,
+                    ) { onRating(null) }
+                }
+
+                if (filters.minVoteCount != null) {
+                    SelectChip(
+                        stringResource(R.string.discovery_active_votes, filters.minVoteCount),
+                        false,
+                    ) { onVotes(null) }
+                }
+
+                if (filters.year != null) {
+                    SelectChip(
+                        stringResource(R.string.discovery_active_year, filters.year),
+                        false,
+                    ) { onYear(null) }
+                }
+
+                if (filters.decade != null) {
+                    SelectChip(
+                        stringResource(R.string.discovery_active_decade, filters.decade),
+                        false,
+                    ) { onDecade(null) }
+                }
+
+                if (!filters.originalLanguage.isNullOrBlank()) {
+                    SelectChip(
+                        stringResource(
+                            R.string.discovery_active_language,
+                            filters.originalLanguage,
+                        ),
+                        false,
+                    ) { onLanguage(null) }
+                }
+
+                if (filters.sortBy != TmdbDiscoverySort.POPULARITY_DESC) {
+                    val sortLabel = when (filters.sortBy) {
+                        TmdbDiscoverySort.POPULARITY_ASC -> R.string.discovery_sort_hidden
+                        TmdbDiscoverySort.RATING_DESC -> R.string.discovery_sort_rating
+                        TmdbDiscoverySort.VOTE_COUNT_DESC -> R.string.discovery_sort_votes
+                        TmdbDiscoverySort.RELEASE_DATE_DESC -> R.string.discovery_sort_date
+                        TmdbDiscoverySort.POPULARITY_DESC -> R.string.discovery_sort_popular
+                    }
+                    SelectChip(
+                        stringResource(sortLabel),
+                        false,
+                    ) { onSort(TmdbDiscoverySort.POPULARITY_DESC) }
+                }
             }
         }
 

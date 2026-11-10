@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+enum class DiscoveryError { FIRST_PAGE, PAGE, EMPTY }
+
 data class DiscoveryState(
     val type: ContentType = ContentType.MOVIE,
     val category: TmdbDiscoveryCategory = TmdbDiscoveryCategory.TRENDING_WEEK,
@@ -34,7 +36,7 @@ data class DiscoveryState(
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
     val genresLoading: Boolean = false,
-    val error: String? = null,
+    val error: DiscoveryError? = null,
     val page: Int = 0,
     val totalPages: Int = 0,
 )
@@ -96,6 +98,7 @@ class DiscoveryViewModel @Inject constructor(
         if (type != ContentType.MOVIE && type != ContentType.SERIES) return
         if (_state.value.type == type) return
 
+        invalidatePendingRequests()
         _state.value = _state.value.copy(
             type = type,
             items = emptyList(),
@@ -110,6 +113,7 @@ class DiscoveryViewModel @Inject constructor(
     fun selectCategory(category: TmdbDiscoveryCategory) {
         if (_state.value.category == category) return
 
+        invalidatePendingRequests()
         _state.value = _state.value.copy(
             category = category,
             filters = TmdbDiscoveryFilters(),
@@ -122,6 +126,7 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun updateFilters(filters: TmdbDiscoveryFilters) {
+        invalidatePendingRequests()
         _state.value = _state.value.copy(
             category = TmdbDiscoveryCategory.CUSTOM,
             filters = filters,
@@ -167,7 +172,16 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun retry() {
-        loadFirstPage()
+        val current = _state.value
+        if (
+            current.items.isNotEmpty() &&
+            current.page > 0 &&
+            current.page < current.totalPages
+        ) {
+            loadNextPage()
+        } else {
+            loadFirstPage()
+        }
     }
 
     fun loadNextPage() {
@@ -178,7 +192,7 @@ class DiscoveryViewModel @Inject constructor(
         ) return
 
         val nextPage = current.page + 1
-        val generation = requestGeneration
+        val generation = ++requestGeneration
         val profileId = activeProfileId
 
         requestJob?.cancel()
@@ -203,7 +217,7 @@ class DiscoveryViewModel @Inject constructor(
                     items = (latest.items + result.items)
                         .distinctBy { "${it.type.name}:${it.tmdbId}" },
                     page = result.page,
-                    totalPages = result.totalPages,
+                    totalPages = result.totalPages.coerceAtMost(500),
                     loadingMore = false,
                 )
             } catch (cancelled: CancellationException) {
@@ -214,11 +228,23 @@ class DiscoveryViewModel @Inject constructor(
                 ) {
                     _state.value = _state.value.copy(
                         loadingMore = false,
-                        error = error.message ?: "Nie udało się pobrać kolejnej strony.",
+                        error = error.message ?: DiscoveryError.PAGE,
                     )
                 }
             }
         }
+    }
+
+    private fun invalidatePendingRequests() {
+        requestGeneration += 1
+        requestJob?.cancel()
+        requestJob = null
+        filterJob?.cancel()
+        filterJob = null
+        _state.value = _state.value.copy(
+            loading = false,
+            loadingMore = false,
+        )
     }
 
     private fun loadFirstPage() {
@@ -260,9 +286,7 @@ class DiscoveryViewModel @Inject constructor(
                     },
                     page = result.page,
                     totalPages = result.totalPages.coerceAtMost(500),
-                    error = if (result.items.isEmpty()) {
-                        "Brak wyników dla wybranych kryteriów."
-                    } else null,
+                    error = null,
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -272,7 +296,7 @@ class DiscoveryViewModel @Inject constructor(
                 ) {
                     _state.value = _state.value.copy(
                         loading = false,
-                        error = error.message ?: "Nie udało się pobrać katalogu.",
+                        error = error.message ?: DiscoveryError.FIRST_PAGE,
                     )
                 }
             }

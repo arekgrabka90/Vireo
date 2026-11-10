@@ -34,4 +34,16 @@
     <string name="discovery_sort_date">Release date</string>
     <string name="discovery_sort_hidden">Less popular</string>
     <string name="discovery_retry">Try again</string>
+    <string name="search_retry">Try again</string>
+    <string name="search_empty">No results found.</string>
+    <string name="search_error">Search could not be completed.</string>
+    <string name="discovery_empty">No titles match the selected criteria.</string>
+    <string name="discovery_error_load">Could not load the catalogue.</string>
+    <string name="discovery_error_page">Could not load the next page.</string>
+    <string name="discovery_active_rating">Minimum rating: %1$s</string>
+    <string name="discovery_active_votes">Minimum votes: %1$s</string>
+    <string name="discovery_active_year">Year: %1$s</string>
+    <string name="discovery_active_decade">Decade: %1$s</string>
+    <string name="discovery_active_language">Language: %1$s</string>
+    <string name="search_page_error">Could not load the next search results.</string>
 </resources>

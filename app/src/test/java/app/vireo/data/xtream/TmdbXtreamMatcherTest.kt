@@ -170,7 +170,13 @@ class TmdbXtreamMatcherTest {
     fun `missing candidate year requires review`() {
         val result = TmdbXtreamMatcher.match(
             tmdb(year = 2021),
-            listOf(indexed(year = null)),
+            listOf(
+                indexed(
+                    title = "Dune",
+                    normalizedTitle = "dune",
+                    year = null,
+                )
+            ),
         )
 
         assertEquals(TmdbXtreamMatchStatus.NEEDS_REVIEW, result.status)

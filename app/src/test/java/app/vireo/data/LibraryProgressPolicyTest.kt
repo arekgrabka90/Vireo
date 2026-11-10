@@ -6,7 +6,7 @@ import org.junit.Test
 class LibraryProgressPolicyTest {
 
     @Test
-    fun `position is clamped to media duration`() {
+    fun `position beyond duration marks item watched and clears resume`() {
         val result = normalizeLibraryProgress(
             positionMs = 120_000L,
             durationMs = 100_000L,
@@ -14,7 +14,7 @@ class LibraryProgressPolicyTest {
             alreadyWatched = false,
         )
 
-        assertEquals(100_000L, result.positionMs)
+        assertEquals(0L, result.positionMs)
         assertEquals(100_000L, result.durationMs)
         assertEquals(true, result.watched)
     }

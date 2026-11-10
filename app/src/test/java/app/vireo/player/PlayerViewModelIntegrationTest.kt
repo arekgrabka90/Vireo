@@ -8,9 +8,9 @@ import app.vireo.data.ProfileSettingsRepository
 import app.vireo.data.local.ProfileEntity
 import app.vireo.data.local.ProfileSettingsEntity
 import app.vireo.player.engine.Media3PlayerEngine
+import android.os.Bundle
 import app.vireo.player.source.PlaybackSource
 import androidx.media3.common.PlaybackException
-import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -30,7 +30,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 
-@OptIn(ExperimentalCoroutinesApi::class, UnstableApi::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModelIntegrationTest {
 
     private lateinit var session: PlaybackSession
@@ -193,11 +193,22 @@ class PlayerViewModelIntegrationTest {
         Mockito.verify(engine, Mockito.times(2)).invalidateSource()
     }
 
+    private class TestPlaybackException(
+        message: String,
+        errorCode: Int,
+    ) : PlaybackException(
+        message,
+        null,
+        errorCode,
+        Mockito.mock(Bundle::class.java),
+        0L,
+    )
+
     private fun playbackException(
         code: Int,
         message: String,
     ): PlaybackException {
-        return PlaybackException(message, null, code)
+        return TestPlaybackException(message, code)
     }
 
     @Test
@@ -297,7 +308,7 @@ class PlayerViewModelIntegrationTest {
 
         viewModel.onPlaybackError(
             playbackException(
-                Int.MIN_VALUE,
+                PlaybackException.ERROR_CODE_INVALID_STATE,
                 "Fatal playback failure",
             ),
             12_000L,

@@ -66,6 +66,18 @@ class PlayerViewModel @Inject constructor(
     private var playbackResolutionJob: Job? = null
     private var resolvingPlayback = false
     private var advancing = false
+    private var handlingPlaybackError = false
+    private var recoveryAttempts = 0
+    private var recoveryItem: PlayItem? = null
+    private val playbackOperationGuard = PlaybackOperationGuard()
+
+    private fun invalidatePlaybackOperation() {
+        playbackOperationGuard.invalidate()
+        playbackResolutionJob?.cancel()
+        playbackResolutionJob = null
+        resolvingPlayback = false
+        handlingPlaybackError = false
+    }
 
     fun autoplayNextEnabled(): Boolean = playbackSettings.value.autoplayNext
 
@@ -255,6 +267,7 @@ class PlayerViewModel @Inject constructor(
 
         val current = session.current() ?: return
         advancing = true
+        invalidatePlaybackOperation()
 
         viewModelScope.launch {
             try {
@@ -289,6 +302,7 @@ class PlayerViewModel @Inject constructor(
 
         val current = session.current() ?: return
         advancing = true
+        invalidatePlaybackOperation()
 
         viewModelScope.launch {
             try {
@@ -317,6 +331,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun retry() {
+        recoveryAttempts = 0
+        handlingPlaybackError = false
+
         if (!_playbackSettingsReady.value) {
             _state.update { current ->
                 current.copy(
@@ -348,23 +365,54 @@ class PlayerViewModel @Inject constructor(
         error: PlaybackException,
         positionMs: Long,
     ) {
-        val sourceRelated = when (error.errorCode) {
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
-            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
-            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
-            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
-            PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> true
-            else -> false
+        // Ignore callbacks while another playback operation is active.
+        if (
+            resolvingPlayback ||
+            advancing ||
+            handlingPlaybackError ||
+            _state.value.item == null
+        ) return
+
+        handlingPlaybackError = true
+
+        val action = PlaybackRecoveryPolicy.classify(error.errorCode)
+        val safePosition = positionMs.coerceAtLeast(0L)
+
+        if (
+            action == PlaybackRecoveryAction.RETRY_CURRENT &&
+            recoveryAttempts < PlaybackRecoveryPolicy.MAX_CURRENT_SOURCE_RETRIES
+        ) {
+            recoveryAttempts++
+            _progress.value = _progress.value.copy(
+                positionMs = safePosition,
+            )
+
+            _state.update { current ->
+                current.copy(
+                    runtime = current.runtime.copy(
+                        transportState = PlayerTransportState.IDLE,
+                        isPlaying = false,
+                        errorMessage = null,
+                    ),
+                    resumePositionMs = safePosition,
+                    retryToken = current.retryToken + 1,
+                )
+            }
+            return
         }
 
-        if (sourceRelated) {
+        if (
+            action == PlaybackRecoveryAction.FAILOVER ||
+            action == PlaybackRecoveryAction.RETRY_CURRENT
+        ) {
             val alternative = session.nextAlternative()
+
             if (alternative != null) {
+                _progress.value = _progress.value.copy(
+                    positionMs = safePosition,
+                )
                 observeEpg(alternative)
+
                 _state.update { current ->
                     current.copy(
                         item = alternative,
@@ -375,7 +423,7 @@ class PlayerViewModel @Inject constructor(
                             isPlaying = false,
                             errorMessage = null,
                         ),
-                        resumePositionMs = positionMs.coerceAtLeast(0L),
+                        resumePositionMs = safePosition,
                         retryToken = current.retryToken + 1,
                     )
                 }
@@ -413,21 +461,27 @@ class PlayerViewModel @Inject constructor(
         media3PlayerEngine.playerForView()
 
     fun startPlayback(item: PlayItem, positionMs: Long) {
+        if (recoveryItem != item) {
+            recoveryItem = item
+            recoveryAttempts = 0
+        }
+
+        val operation = playbackOperationGuard.begin()
         playbackResolutionJob?.cancel()
+        handlingPlaybackError = false
         resolvingPlayback = true
 
-        // Wstrzymujemy poprzedni element podczas pobierania świeżego URL.
-        // Zmiana playWhenReady nie nadpisuje w tym czasie intencji użytkownika.
+        // Preserve the user's play/pause intent while resolving a fresh URL.
         media3PlayerEngine.pause()
 
         playbackResolutionJob = viewModelScope.launch {
             try {
                 val source = contentRepository.resolvePlaybackSource(item)
 
-                if (_state.value.item != item) {
-                    resolvingPlayback = false
-                    return@launch
-                }
+                if (
+                    !playbackOperationGuard.isCurrent(operation) ||
+                    _state.value.item != item
+                ) return@launch
 
                 val startPosition = if (item.contentType == "LIVE") {
                     0L
@@ -438,8 +492,11 @@ class PlayerViewModel @Inject constructor(
                 media3PlayerEngine.setSource(source, startPosition)
                 media3PlayerEngine.prepare()
 
+                if (!playbackOperationGuard.isCurrent(operation)) {
+                    return@launch
+                }
+
                 val shouldPlay = _state.value.desiredPlayWhenReady
-                resolvingPlayback = false
 
                 if (shouldPlay) {
                     media3PlayerEngine.play()
@@ -449,8 +506,17 @@ class PlayerViewModel @Inject constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                resolvingPlayback = false
-                onError(error.message ?: "Playback failed.")
+                if (
+                    playbackOperationGuard.isCurrent(operation) &&
+                    _state.value.item == item
+                ) {
+                    onError(error.message ?: "Playback failed.")
+                }
+            } finally {
+                if (playbackOperationGuard.isCurrent(operation)) {
+                    resolvingPlayback = false
+                    playbackResolutionJob = null
+                }
             }
         }
     }
@@ -467,7 +533,7 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         epgJob?.cancel()
-        playbackResolutionJob?.cancel()
+        invalidatePlaybackOperation()
         media3PlayerEngine.release()
         super.onCleared()
     }

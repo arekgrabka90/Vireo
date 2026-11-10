@@ -114,6 +114,9 @@ interface AppSettingsDao {
     @Query("SELECT * FROM app_settings WHERE id = 1 LIMIT 1")
     suspend fun get(): AppSettingsEntity?
 
+    @Query("SELECT * FROM app_settings WHERE id = 1 LIMIT 1")
+    fun observe(): Flow<AppSettingsEntity?>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfAbsent(settings: AppSettingsEntity)
 

@@ -90,8 +90,7 @@ fun ProfileSelectScreen(
                             } else if (!p.pin.isNullOrBlank()) {
                                 pinTarget = p
                             } else {
-                                vm.select(p)
-                                onSelected()
+                                vm.select(p, onSelected)
                             }
                         },
                     )
@@ -99,6 +98,21 @@ fun ProfileSelectScreen(
                 if (state.profiles.size < 5) {
                     item { AddTile(onClick = onAdd) }
                 }
+            }
+            if (state.selectionError) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Nie udało się przygotować ustawień profilu. Spróbuj ponownie.",
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (state.isSelecting) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Przygotowywanie profilu…",
+                    color = colors.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             Spacer(Modifier.height(36.dp))
             FocusableBox(onClick = vm::toggleManage) {
@@ -116,9 +130,10 @@ fun ProfileSelectScreen(
             onVerify = { entered, result ->
                 vm.verifyPin(target, entered) { valid ->
                     if (valid) {
-                        vm.select(target)
-                        pinTarget = null
-                        onSelected()
+                        vm.select(target) {
+                            pinTarget = null
+                            onSelected()
+                        }
                     } else {
                         result(false)
                     }

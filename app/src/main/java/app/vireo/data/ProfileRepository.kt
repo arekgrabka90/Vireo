@@ -41,13 +41,42 @@ class ProfileRepository @Inject constructor(
 
     suspend fun get(id: Long): ProfileEntity? = dao.get(id)
 
+    /**
+     * Prepare the selected profile's persisted settings before publishing
+     * its ID. UI navigation should happen only after this method succeeds.
+     */
+    suspend fun activateProfile(profileId: Long): ProfileEntity {
+        require(profileId > 0L) { "Profile ID must be positive" }
+
+        val profile = requireNotNull(dao.get(profileId)) {
+            "Profile does not exist"
+        }
+
+        profileSettingsRepository.ensure(
+            profileId = profile.id,
+            kidsMode = profile.kids,
+        )
+        activeId = profile.id
+        return profile
+    }
+
     suspend fun activeProfile(): ProfileEntity? {
         val selected = dao.get(activeId)
-        if (selected != null) return selected
+        if (selected != null) {
+            profileSettingsRepository.ensure(
+                profileId = selected.id,
+                kidsMode = selected.kids,
+            )
+            return selected
+        }
 
         val fallback = dao.first()
-        activeId = fallback?.id ?: 0L
-        return fallback
+        if (fallback == null) {
+            activeId = 0L
+            return null
+        }
+
+        return activateProfile(fallback.id)
     }
 
     suspend fun verifyPin(
@@ -99,10 +128,25 @@ class ProfileRepository @Inject constructor(
     }
 
     suspend fun delete(profile: ProfileEntity) {
-        dao.delete(profile)
+        val deletingActive = activeId == profile.id
+        val fallback = if (deletingActive) {
+            dao.first()?.takeIf { it.id != profile.id }
+        } else {
+            null
+        }
 
-        if (activeId == profile.id) {
-            val fallback = dao.first()
+        // Ensure the replacement settings before switching the active ID.
+        if (fallback != null) {
+            profileSettingsRepository.ensure(
+                profileId = fallback.id,
+                kidsMode = fallback.kids,
+            )
+        }
+
+        dao.delete(profile)
+        profileSettingsRepository.removeProfileCache(profile.id)
+
+        if (deletingActive) {
             activeId = fallback?.id ?: 0L
         }
     }

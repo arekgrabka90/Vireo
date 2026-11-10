@@ -19,6 +19,8 @@ data class ProfilesState(
     val loaded: Boolean = false,
     val profiles: List<ProfileEntity> = emptyList(),
     val manage: Boolean = false,
+    val isSelecting: Boolean = false,
+    val selectionError: Boolean = false,
 )
 
 @HiltViewModel
@@ -27,15 +29,21 @@ class ProfilesViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val manage = MutableStateFlow(false)
+    private val isSelecting = MutableStateFlow(false)
+    private val selectionError = MutableStateFlow(false)
 
     val state: StateFlow<ProfilesState> = combine(
         repo.profiles,
         manage,
-    ) { profiles, managing ->
+        isSelecting,
+        selectionError,
+    ) { profiles, managing, selecting, failed ->
         ProfilesState(
             loaded = true,
             profiles = profiles,
             manage = managing,
+            isSelecting = selecting,
+            selectionError = failed,
         )
     }.stateIn(
         viewModelScope,
@@ -47,8 +55,25 @@ class ProfilesViewModel @Inject constructor(
         manage.update { current -> !current }
     }
 
-    fun select(profile: ProfileEntity) {
-        repo.activeId = profile.id
+    fun select(profile: ProfileEntity, onSelected: () -> Unit) {
+        if (isSelecting.value) return
+
+        isSelecting.value = true
+        selectionError.value = false
+
+        viewModelScope.launch {
+            try {
+                repo.activateProfile(profile.id)
+                isSelecting.value = false
+                onSelected()
+            } catch (cancelled: CancellationException) {
+                isSelecting.value = false
+                throw cancelled
+            } catch (_: Exception) {
+                isSelecting.value = false
+                selectionError.value = true
+            }
+        }
     }
 
     fun verifyPin(

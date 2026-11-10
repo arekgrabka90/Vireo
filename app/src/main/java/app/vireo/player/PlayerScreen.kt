@@ -39,11 +39,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.PlayerView
 import app.vireo.R
 import app.vireo.ui.components.FocusableBox
 import kotlinx.coroutines.delay
 
+@OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit,
@@ -69,15 +72,29 @@ fun PlayerScreen(
     }
 
     DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
+        val listener = object : Player.Listener, AnalyticsListener {
+
+            override fun onPlaybackStateChanged(
+                eventTime: AnalyticsListener.EventTime,
+                playbackState: Int,
+            ) {
+                if (!PlaybackCallbackGuard.isCurrentMediaItem(
+                        eventTime.mediaItem.mediaId,
+                        player.currentMediaItem?.mediaId,
+                    )
+                ) return
+
                 if (!PlaybackCallbackGuard.isCurrentPlaybackState(
                         playbackState,
                         player.playbackState,
                     )
                 ) return
 
-                vm.onPlaybackStateChanged(playbackState, player.isPlaying)
+                vm.onPlaybackStateChanged(
+                    player.playbackState,
+                    player.isPlaying,
+                )
+
                 if (
                     playbackState == Player.STATE_ENDED &&
                     vm.autoplayNextEnabled()
@@ -109,7 +126,16 @@ fun PlayerScreen(
                 vm.onPlayWhenReadyChanged(playWhenReady, reason)
             }
 
-            override fun onPlayerError(error: PlaybackException) {
+            override fun onPlayerError(
+                eventTime: AnalyticsListener.EventTime,
+                error: PlaybackException,
+            ) {
+                if (!PlaybackCallbackGuard.isCurrentMediaItem(
+                        eventTime.mediaItem.mediaId,
+                        player.currentMediaItem?.mediaId,
+                    )
+                ) return
+
                 if (!PlaybackCallbackGuard.isCurrentError(
                         error,
                         player.playerError,
@@ -124,8 +150,10 @@ fun PlayerScreen(
         }
 
         player.addListener(listener)
+        player.addAnalyticsListener(listener)
         onDispose {
             player.removeListener(listener)
+            player.removeAnalyticsListener(listener)
         }
     }
 

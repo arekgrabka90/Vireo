@@ -4,10 +4,13 @@ import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import app.vireo.player.PlaybackCallbackGuard
 import app.vireo.player.PlayerProgressState
 import app.vireo.player.PlayerTransportState
 import app.vireo.player.normalizePlayerProgress
@@ -26,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * PlayerView through an internal bridge. The PlayerEngine contract
  * remains independent of Media3.
  */
+@OptIn(UnstableApi::class)
 @ViewModelScoped
 class Media3PlayerEngine @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -40,8 +44,9 @@ class Media3PlayerEngine @Inject constructor(
     override val state: StateFlow<PlayerEngineState> = _state.asStateFlow()
 
     private var released = false
+    private var mediaItemSequence = 0L
 
-    private val listener = object : Player.Listener {
+    private val listener = object : Player.Listener, AnalyticsListener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             updatePlaybackState()
         }
@@ -57,7 +62,22 @@ class Media3PlayerEngine @Inject constructor(
             updatePlaybackState()
         }
 
-        override fun onPlayerError(error: PlaybackException) {
+        override fun onPlayerError(
+            eventTime: AnalyticsListener.EventTime,
+            error: PlaybackException,
+        ) {
+            if (!PlaybackCallbackGuard.isCurrentMediaItem(
+                    eventTime.mediaItem.mediaId,
+                    player.currentMediaItem?.mediaId,
+                )
+            ) return
+
+            if (!PlaybackCallbackGuard.isCurrentError(
+                    error,
+                    player.playerError,
+                )
+            ) return
+
             _state.value = _state.value.copy(
                 transportState = PlayerTransportState.ERROR,
                 isPlaying = false,
@@ -77,6 +97,7 @@ class Media3PlayerEngine @Inject constructor(
 
     init {
         player.addListener(listener)
+        player.addAnalyticsListener(listener)
     }
 
     override fun setSource(
@@ -94,9 +115,11 @@ class Media3PlayerEngine @Inject constructor(
         )
 
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-        val mediaSource = mediaSourceFactory.createMediaSource(
-            MediaItem.fromUri(source.url)
-        )
+        val mediaItem = MediaItem.Builder()
+            .setUri(source.url)
+            .setMediaId("vireo-source-${++mediaItemSequence}")
+            .build()
+        val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
 
         // Nie pozostawiamy starego źródła ani jego bufora przy zmianie.
         player.stop()
@@ -134,12 +157,13 @@ class Media3PlayerEngine @Inject constructor(
         if (released) return
         released = true
         player.removeListener(listener)
+        player.removeAnalyticsListener(listener)
         player.release()
         _state.value = PlayerEngineState()
     }
 
     /** Internal PlayerView bridge; the engine contract stays Media3-independent. */
-    internal fun playerForView(): Player {
+    internal fun playerForView(): ExoPlayer {
         checkNotReleased()
         return player
     }

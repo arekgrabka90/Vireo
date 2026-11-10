@@ -1,21 +1,14 @@
 package app.vireo.player
 
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.util.UnstableApi
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-@OptIn(UnstableApi::class)
 class PlaybackCallbackGuardTest {
 
     @Test
     fun `accepts only the exact active playback error instance`() {
-        val activeError = PlaybackException(
-            "active",
-            null,
-            PlaybackException.ERROR_CODE_TIMEOUT,
-        )
+        val activeError = Any()
 
         assertTrue(
             PlaybackCallbackGuard.isCurrentError(activeError, activeError)
@@ -24,16 +17,8 @@ class PlaybackCallbackGuardTest {
 
     @Test
     fun `rejects an error from a previous playback instance`() {
-        val oldError = PlaybackException(
-            "old",
-            null,
-            PlaybackException.ERROR_CODE_TIMEOUT,
-        )
-        val activeError = PlaybackException(
-            "active",
-            null,
-            PlaybackException.ERROR_CODE_TIMEOUT,
-        )
+        val oldError = Any()
+        val activeError = Any()
 
         assertFalse(
             PlaybackCallbackGuard.isCurrentError(oldError, activeError)
@@ -42,14 +27,32 @@ class PlaybackCallbackGuardTest {
 
     @Test
     fun `rejects an error when player has no active error`() {
-        val oldError = PlaybackException(
-            "old",
-            null,
-            PlaybackException.ERROR_CODE_TIMEOUT,
-        )
-
         assertFalse(
-            PlaybackCallbackGuard.isCurrentError(oldError, null)
+            PlaybackCallbackGuard.isCurrentError(Any(), null)
+        )
+    }
+
+    @Test
+    fun `accepts only the active media item id`() {
+        assertTrue(
+            PlaybackCallbackGuard.isCurrentMediaItem("source-2", "source-2")
+        )
+    }
+
+    @Test
+    fun `rejects a callback from a previous media item`() {
+        assertFalse(
+            PlaybackCallbackGuard.isCurrentMediaItem("source-1", "source-2")
+        )
+    }
+
+    @Test
+    fun `rejects missing media item identity`() {
+        assertFalse(
+            PlaybackCallbackGuard.isCurrentMediaItem(null, "source-2")
+        )
+        assertFalse(
+            PlaybackCallbackGuard.isCurrentMediaItem("source-2", null)
         )
     }
 

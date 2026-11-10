@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import app.vireo.player.engine.Media3PlayerEngine
 import app.vireo.player.source.PlaybackSource
 import app.vireo.data.ContentRepository
@@ -457,7 +458,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    internal fun playerForView(): Player =
+    internal fun playerForView(): ExoPlayer =
         media3PlayerEngine.playerForView()
 
     fun startPlayback(item: PlayItem, positionMs: Long) {

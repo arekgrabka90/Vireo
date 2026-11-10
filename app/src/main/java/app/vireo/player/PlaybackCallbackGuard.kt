@@ -1,16 +1,21 @@
 package app.vireo.player
 
-import androidx.media3.common.PlaybackException
-
 /**
- * Rejects Media3 callbacks whose payload no longer matches current player state.
+ * Guards callbacks against the currently active Media3 source.
  */
 internal object PlaybackCallbackGuard {
 
-    fun isCurrentError(
-        callbackError: PlaybackException,
-        currentPlayerError: PlaybackException?,
+    fun <T : Any> isCurrentError(
+        callbackError: T,
+        currentPlayerError: T?,
     ): Boolean = callbackError === currentPlayerError
+
+    fun isCurrentMediaItem(
+        callbackMediaId: String?,
+        currentMediaId: String?,
+    ): Boolean =
+        !callbackMediaId.isNullOrBlank() &&
+            callbackMediaId == currentMediaId
 
     fun isCurrentPlaybackState(
         callbackState: Int,

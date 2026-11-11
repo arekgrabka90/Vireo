@@ -106,7 +106,6 @@ internal object TmdbDetailMapper {
                     .thenByDescending { it.width }
             )
             .firstOrNull()
-            ?: logos.firstOrNull()
 
         return imageUrl(logo?.filePath, "w500")
     }

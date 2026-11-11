@@ -62,7 +62,7 @@ class TmdbDetailMapperTest {
     }
 
     @Test
-    fun `logo selection falls back to first TMDB logo`() {
+    fun `SVG-only logo set returns no renderable logo`() {
         val result = TmdbDetailMapper.map(
             detail(),
             ContentType.MOVIE,
@@ -74,10 +74,7 @@ class TmdbDetailMapperTest {
             ),
         )
 
-        assertEquals(
-            "https://image.tmdb.org/t/p/w500/fallback.svg",
-            result?.logoUrl,
-        )
+        assertNull(result?.logoUrl)
     }
 
     @Test

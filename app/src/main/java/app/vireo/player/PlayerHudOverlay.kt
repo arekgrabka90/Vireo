@@ -5,11 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,19 +43,18 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.theme.VireoColors
 import kotlinx.coroutines.delay
-import java.net.URI
 
 @Composable
 fun PlayerHudOverlay(
@@ -77,6 +72,7 @@ fun PlayerHudOverlay(
     var visible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableStateOf(0) }
     var hasFocusedControl by remember { mutableStateOf(false) }
+    var showRemainingTime by remember { mutableStateOf(false) }
 
     val registerInteraction: () -> Unit = {
         visible = true
@@ -172,13 +168,11 @@ fun PlayerHudOverlay(
                         Spacer(Modifier.width(18.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = contentTitle(hudState.content),
-                                color = Color.White,
-                                fontSize = if (wide) 25.sp else 20.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                            PlayerHudIdentity(
+                                content = hudState.content,
+                                wide = wide,
+                                isBuffering =
+                                    hudState.transportState == PlayerTransportState.BUFFERING,
                             )
                             Text(
                                 text = contentSubtitle(hudState.content),
@@ -189,24 +183,23 @@ fun PlayerHudOverlay(
                             )
                         }
 
-                        if (hudState.transportState == PlayerTransportState.BUFFERING) {
-                            when (hudState.content) {
-                                is PlayerHudContent.Movie, is PlayerHudContent.Series -> {
-                                    AnimatedLoadingLogo(bufferingLogoUrl)
-                                }
-                                is PlayerHudContent.Live,
-                                is PlayerHudContent.Other -> CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    strokeWidth = 2.dp,
-                                )
-                            }
+                        if (
+                            hudState.transportState == PlayerTransportState.BUFFERING &&
+                            hudState.content !is PlayerHudContent.Movie &&
+                            hudState.content !is PlayerHudContent.Series
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White.copy(alpha = 0.82f),
+                                strokeWidth = 2.dp,
+                            )
                         }
                     }
 
                     ContentInformation(
                         content = hudState.content,
                         wide = wide,
+                        isPlaying = hudState.isPlaying,
                     )
                 }
 
@@ -228,29 +221,99 @@ fun PlayerHudOverlay(
                             style = MaterialTheme.typography.labelMedium,
                         )
 
-                        Slider(
-                            value = progress.positionMs
-                                .coerceAtLeast(0L)
-                                .toFloat()
-                                .coerceAtMost(progress.durationMs.coerceAtLeast(1L).toFloat()),
-                            onValueChange = { registerInteraction(); onSeekTo(it.toLong()) },
-                            enabled = progress.isSeekable && progress.durationMs > 0L,
-                            valueRange = 0f..progress.durationMs.coerceAtLeast(1L).toFloat(),
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(horizontal = 12.dp)
-                                .onFocusChanged { handleFocusChange(it.hasFocus) },
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.28f),
-                                disabledThumbColor = Color.White.copy(alpha = 0.35f),
-                                disabledActiveTrackColor = Color.White.copy(alpha = 0.35f),
-                            ),
-                        )
+                                .height(40.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Canvas(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp),
+                            ) {
+                                val duration = progress.normalizedDurationMs
+                                val bufferedFraction = if (duration > 0L) {
+                                    (progress.normalizedBufferedPositionMs.toFloat() /
+                                        duration.toFloat()).coerceIn(0f, 1f)
+                                } else {
+                                    0f
+                                }
+                                val playedFraction = if (duration > 0L) {
+                                    (progress.normalizedPositionMs.toFloat() /
+                                        duration.toFloat()).coerceIn(0f, 1f)
+                                } else {
+                                    0f
+                                }
+                                val barHeight = 4.dp.toPx()
+                                val top = (size.height - barHeight) / 2f
+                                val corner = CornerRadius(barHeight / 2f)
+
+                                drawRoundRect(
+                                    color = Color.White.copy(alpha = 0.20f),
+                                    topLeft = Offset(0f, top),
+                                    size = Size(size.width, barHeight),
+                                    cornerRadius = corner,
+                                )
+                                drawRoundRect(
+                                    color = Color.White.copy(alpha = 0.48f),
+                                    topLeft = Offset(0f, top),
+                                    size = Size(size.width * bufferedFraction, barHeight),
+                                    cornerRadius = corner,
+                                )
+                                drawRoundRect(
+                                    color = Color.White,
+                                    topLeft = Offset(0f, top),
+                                    size = Size(size.width * playedFraction, barHeight),
+                                    cornerRadius = corner,
+                                )
+                            }
+
+                            Slider(
+                                value = progress.positionMs
+                                    .coerceAtLeast(0L)
+                                    .toFloat()
+                                    .coerceAtMost(
+                                        progress.durationMs.coerceAtLeast(1L).toFloat()
+                                    ),
+                                onValueChange = {
+                                    registerInteraction()
+                                    onSeekTo(it.toLong())
+                                },
+                                enabled = progress.isSeekable && progress.durationMs > 0L,
+                                valueRange = 0f..progress.durationMs
+                                    .coerceAtLeast(1L).toFloat(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onFocusChanged {
+                                        handleFocusChange(it.hasFocus)
+                                    },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color.Transparent,
+                                    inactiveTrackColor = Color.Transparent,
+                                    disabledThumbColor = Color.White.copy(alpha = 0.35f),
+                                    disabledActiveTrackColor = Color.Transparent,
+                                    disabledInactiveTrackColor = Color.Transparent,
+                                ),
+                            )
+                        }
 
                         Text(
-                            formatPlayerTime(progress.durationMs),
+                            text = if (
+                                showRemainingTime && progress.durationMs > 0L
+                            ) {
+                                "-${formatPlayerTime(
+                                    (progress.durationMs - progress.positionMs)
+                                        .coerceAtLeast(0L)
+                                )}"
+                            } else {
+                                formatPlayerTime(progress.durationMs)
+                            },
+                            modifier = Modifier.clickable {
+                                showRemainingTime = !showRemainingTime
+                            },
                             color = Color.White.copy(alpha = 0.78f),
                             style = MaterialTheme.typography.labelMedium,
                         )
@@ -312,84 +375,18 @@ fun PlayerHudOverlay(
 }
 
 @Composable
-private fun AnimatedLoadingLogo(logoUrl: String?) {
-    val validUrl = remember(logoUrl) {
-        runCatching {
-            val uri = URI(logoUrl.orEmpty())
-            (uri.scheme == "https" || uri.scheme == "http") &&
-                !uri.host.isNullOrBlank()
-        }.getOrDefault(false)
-    }
-
-    var imageFailed by remember(logoUrl) { mutableStateOf(false) }
-
-    if (!validUrl || imageFailed) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(22.dp),
-            color = Color.White.copy(alpha = 0.82f),
-            strokeWidth = 2.dp,
-        )
-        return
-    }
-
-    val transition = rememberInfiniteTransition(label = "buffering-logo")
-    val scale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.07f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "buffering-logo-scale",
-    )
-    val alpha by transition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "buffering-logo-alpha",
-    )
-
-    AsyncImage(
-        model = logoUrl,
-        contentDescription = "Loading",
-        onError = { imageFailed = true },
-        modifier = Modifier
-            .width(112.dp)
-            .height(42.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
-            },
-        contentScale = ContentScale.Fit,
-    )
-}
-
-@Composable
 private fun ContentInformation(
     content: PlayerHudContent,
     wide: Boolean,
+    isPlaying: Boolean,
 ) {
     when (content) {
         is PlayerHudContent.Movie -> {
-            Column(
-                modifier = Modifier.fillMaxWidth(if (wide) 0.66f else 0.94f),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                MetadataLine(content.year, content.genre, content.duration, content.rating)
-                content.description?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        it,
-                        color = Color.White.copy(alpha = 0.84f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = if (wide) 3 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            MovieHudContent(
+                content = content,
+                wide = wide,
+                isPlaying = isPlaying,
+            )
         }
 
         is PlayerHudContent.Series -> {

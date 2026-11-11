@@ -5,6 +5,7 @@ import app.vireo.data.EpgRepository
 import app.vireo.data.LibraryRepository
 import app.vireo.data.ProfileRepository
 import app.vireo.data.ProfileSettingsRepository
+import app.vireo.data.local.LiveChannelHistoryDao
 import app.vireo.data.local.ProfileEntity
 import app.vireo.data.local.ProfileSettingsEntity
 import app.vireo.player.engine.Media3PlayerEngine
@@ -40,6 +41,7 @@ class PlayerViewModelIntegrationTest {
     private lateinit var profiles: ProfileRepository
     private lateinit var epg: EpgRepository
     private lateinit var settings: ProfileSettingsRepository
+    private lateinit var liveChannelHistoryDao: LiveChannelHistoryDao
 
     private val profile = ProfileEntity(
         id = 1L,
@@ -62,6 +64,7 @@ class PlayerViewModelIntegrationTest {
         profiles = Mockito.mock(ProfileRepository::class.java)
         epg = Mockito.mock(EpgRepository::class.java)
         settings = Mockito.mock(ProfileSettingsRepository::class.java)
+        liveChannelHistoryDao = Mockito.mock(LiveChannelHistoryDao::class.java)
 
         Mockito.`when`(profiles.activeId).thenReturn(1L)
         Mockito.`when`(settings.observe(1L)).thenReturn(
@@ -93,6 +96,7 @@ class PlayerViewModelIntegrationTest {
             profiles = profiles,
             epgRepository = epg,
             profileSettingsRepository = settings,
+            liveChannelHistoryDao = liveChannelHistoryDao,
             applicationScope = scope.backgroundScope,
         )
 

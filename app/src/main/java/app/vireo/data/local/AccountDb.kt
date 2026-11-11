@@ -112,8 +112,9 @@ interface AccountDao {
         ProfileSettingsEntity::class,
         AppSettingsEntity::class,
         RecentSearchEntity::class,
+        LiveChannelHistoryEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -126,6 +127,7 @@ abstract class VireoDatabase : RoomDatabase() {
     abstract fun profileSettingsDao(): ProfileSettingsDao
     abstract fun appSettingsDao(): AppSettingsDao
     abstract fun recentSearchDao(): RecentSearchDao
+    abstract fun liveChannelHistoryDao(): LiveChannelHistoryDao
 
     companion object {
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -451,6 +453,30 @@ abstract class VireoDatabase : RoomDatabase() {
 
                 db.execSQL(
                     "INSERT OR IGNORE INTO app_settings (id, appLanguageTag) VALUES (1, 'system')"
+                )
+            }
+        }
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS live_channel_history (
+                        profileId INTEGER NOT NULL,
+                        sourceId INTEGER NOT NULL,
+                        streamId TEXT NOT NULL,
+                        channelName TEXT NOT NULL,
+                        epgChannelId TEXT,
+                        logoUrl TEXT,
+                        lastPlayedAt INTEGER NOT NULL,
+                        PRIMARY KEY(profileId, sourceId, streamId),
+                        FOREIGN KEY(profileId) REFERENCES profiles(id)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""".trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_live_channel_history_profileId_lastPlayedAt " +
+                        "ON live_channel_history(profileId, lastPlayedAt)"
                 )
             }
         }

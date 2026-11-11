@@ -8,6 +8,7 @@ import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.SeriesDetails
 import app.vireo.player.PlayItem
 import app.vireo.player.PlaybackAlternative
+import app.vireo.player.PlaybackEpisode
 import app.vireo.player.PlaybackSession
 import app.vireo.player.playbackRequestIdentity
 import app.vireo.player.nextFailoverCandidate
@@ -162,6 +163,13 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     alternatives = alternativeUrls,
                     sourceId = variant.sourceId,
                     streamId = variant.streamId,
+                    description = detail?.overview ?: movie.plot,
+                    year = detail?.year?.toString() ?: movie.year,
+                    genre = detail?.genres?.joinToString(", ")
+                        ?.takeIf { it.isNotBlank() } ?: movie.genre,
+                    duration = detail?.runtimeMinutes?.let { "$it min" }
+                        ?: movie.duration,
+                    rating = detail?.rating?.toString() ?: movie.rating,
                 )
             ),
             0,
@@ -412,6 +420,24 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                 seriesId = series.id,
                 seasonNumber = seasonNumber,
                 episodeNumber = episode.number,
+                description = detail?.overview ?: series.plot,
+                year = detail?.year?.toString() ?: series.year,
+                genre = detail?.genres?.joinToString(", ")
+                    ?.takeIf { it.isNotBlank() } ?: series.genre,
+                rating = detail?.rating?.toString() ?: series.rating,
+                episodeDescription = episode.plot,
+                duration = episode.duration,
+                episodeThumbnailUrl = episode.thumbUrl,
+                episodes = playableEpisodes.map { (season, queuedEpisode) ->
+                    PlaybackEpisode(
+                        title = queuedEpisode.title,
+                        seasonNumber = season,
+                        episodeNumber = queuedEpisode.number,
+                        description = queuedEpisode.plot,
+                        duration = queuedEpisode.duration,
+                        thumbnailUrl = queuedEpisode.thumbUrl,
+                    )
+                },
             )
         }
 

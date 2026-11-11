@@ -12,6 +12,15 @@ data class PlaybackAlternative(
     val episodeNumber: Int? = null,
 )
 
+data class PlaybackEpisode(
+    val title: String,
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val description: String? = null,
+    val duration: String? = null,
+    val thumbnailUrl: String? = null,
+)
+
 data class PlayItem(
     val title: String,
     val url: String,
@@ -26,6 +35,14 @@ data class PlayItem(
     val seriesId: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
+    val description: String? = null,
+    val year: String? = null,
+    val genre: String? = null,
+    val duration: String? = null,
+    val rating: String? = null,
+    val episodeDescription: String? = null,
+    val episodeThumbnailUrl: String? = null,
+    val episodes: List<PlaybackEpisode> = emptyList(),
 )
 
 @Singleton

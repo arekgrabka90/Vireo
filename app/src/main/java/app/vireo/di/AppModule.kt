@@ -8,6 +8,7 @@ import app.vireo.data.local.AccountDao
 import app.vireo.data.local.AppSettingsDao
 import app.vireo.data.local.EpgDao
 import app.vireo.data.local.LibraryDao
+import app.vireo.data.local.LiveChannelHistoryDao
 import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.ProfileSettingsDao
 import app.vireo.data.local.RecentSearchDao
@@ -71,6 +72,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_9_10,
                 VireoDatabase.MIGRATION_10_11,
                 VireoDatabase.MIGRATION_11_12,
+                VireoDatabase.MIGRATION_12_13,
             )
             .build()
 
@@ -139,4 +141,8 @@ object AppModule {
     @Provides
     fun recentSearchDao(db: VireoDatabase): RecentSearchDao =
         db.recentSearchDao()
+
+    @Provides
+    fun liveChannelHistoryDao(db: VireoDatabase): LiveChannelHistoryDao =
+        db.liveChannelHistoryDao()
 }

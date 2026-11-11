@@ -13,6 +13,8 @@ import app.vireo.data.EpgRepository
 import app.vireo.domain.model.EpgNowNext
 import app.vireo.data.ProfileRepository
 import app.vireo.data.ProfileSettingsRepository
+import app.vireo.data.local.LiveChannelHistoryDao
+import app.vireo.data.local.LiveChannelHistoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +54,7 @@ class PlayerViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     private val epgRepository: EpgRepository,
     private val profileSettingsRepository: ProfileSettingsRepository,
+    private val liveChannelHistoryDao: LiveChannelHistoryDao,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -519,6 +522,36 @@ class PlayerViewModel @Inject constructor(
 
                 if (!playbackOperationGuard.isCurrent(operation)) {
                     return@launch
+                }
+
+                // Nie zapisuj historii ani nie uruchamiaj sesji
+                // przypisanej do profilu, który przestał być aktywny.
+                if (profiles.activeId != playbackProfileId) {
+                    return@launch
+                }
+
+                if (
+                    item.contentType == "LIVE" &&
+                    item.sourceId != null &&
+                    !item.streamId.isNullOrBlank()
+                ) {
+                    try {
+                        liveChannelHistoryDao.record(
+                            LiveChannelHistoryEntity(
+                                profileId = playbackProfileId,
+                                sourceId = item.sourceId,
+                                streamId = item.streamId,
+                                channelName = item.title,
+                                epgChannelId = item.epgChannelId,
+                                logoUrl = item.posterUrl,
+                                lastPlayedAt = System.currentTimeMillis(),
+                            )
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // Historia nie może przerwać odtwarzania.
+                    }
                 }
 
                 val shouldPlay = _state.value.desiredPlayWhenReady

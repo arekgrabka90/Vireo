@@ -69,7 +69,7 @@ class PlayerHudStateTest {
 
         val series = result.content as PlayerHudContent.Series
         assertEquals(episode, series.currentEpisode)
-        assertEquals("Independent episode title", series.currentEpisodeTitle)
+        assertEquals("The episode", series.currentEpisodeTitle)
         assertEquals("series-logo", series.logoUrl)
         assertEquals(listOf(episode), series.episodes)
     }

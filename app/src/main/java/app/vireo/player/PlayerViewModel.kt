@@ -636,6 +636,20 @@ class PlayerViewModel @Inject constructor(
         seekBy(10_000L)
     }
 
+    fun seekTo(positionMs: Long) {
+        val current = _progress.value
+        if (!current.isSeekable) return
+
+        val target = positionMs.coerceAtLeast(0L)
+        val bounded = if (current.durationMs > 0L) {
+            target.coerceAtMost(current.durationMs)
+        } else {
+            target
+        }
+
+        media3PlayerEngine.seekTo(bounded)
+    }
+
     private fun seekBy(offsetMs: Long) {
         val current = _progress.value
         if (!current.isSeekable) return

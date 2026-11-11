@@ -3,15 +3,8 @@ package app.vireo.player
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.util.TypedValue
-import android.view.View
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,12 +16,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,7 +32,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.PlayerView
-import app.vireo.R
+import app.vireo.player.PlayerHudOverlay
 import app.vireo.ui.components.FocusableBox
 import kotlinx.coroutines.delay
 
@@ -55,7 +45,8 @@ fun PlayerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by vm.state.collectAsStateWithLifecycle()
-    val epg by vm.epgState.collectAsStateWithLifecycle()
+    val hudState by vm.hudState.collectAsStateWithLifecycle()
+    val progress by vm.progress.collectAsStateWithLifecycle()
     val settings by vm.playbackSettings.collectAsStateWithLifecycle()
     val settingsReady by vm.playbackSettingsReady.collectAsStateWithLifecycle()
     val player = remember(vm) { vm.playerForView() }
@@ -275,15 +266,7 @@ fun PlayerScreen(
                 PlayerView(ctx).apply {
                     setPlayer(player)
                     keepScreenOn = true
-                    useController = true
-                    controllerShowTimeoutMs = 5_000
-                    setShowRewindButton(true)
-                    setShowFastForwardButton(true)
-                    setControllerVisibilityListener(
-                        PlayerView.ControllerVisibilityListener { visibility ->
-                            vm.onControlsVisibilityChanged(visibility == View.VISIBLE)
-                        }
-                    )
+                    useController = false
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -315,79 +298,25 @@ fun PlayerScreen(
             },
         )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FocusableBox(onClick = onBack) {
-                Text(stringResource(R.string.back), color = Color.White)
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    state.item?.title.orEmpty(),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                epg.current?.let { currentProgram ->
-                    Text(
-                        currentProgram.title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (settings.liveTvHudShowEpgDescription) {
-                        currentProgram.description
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { description ->
-                                Text(
-                                    description,
-                                    color = Color.White.copy(alpha = 0.82f),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                    }
-                }
-            }
-
-            if (state.hasPrevious) {
-                FocusableBox(
-                    onClick = {
-                        vm.previous(player.currentPosition, player.duration)
-                    }
-                ) {
-                    Text(
-                        stringResource(R.string.previous_episode),
-                        color = Color.White,
-                    )
-                }
-            }
-
-            if (state.hasNext) {
-                FocusableBox(
-                    onClick = {
-                        vm.next(player.currentPosition, player.duration)
-                    }
-                ) {
-                    Text(
-                        stringResource(R.string.next_episode),
-                        color = Color.White,
-                    )
-                }
-            }
-        }
+        PlayerHudOverlay(
+            hudState = hudState,
+            progress = progress,
+            onBack = onBack,
+            onPlayPause = {
+                if (hudState.isPlaying) vm.pausePlayback()
+                else vm.resumePlayback()
+            },
+            onSeekBackward = vm::seekBackward,
+            onSeekForward = vm::seekForward,
+            onSeekTo = vm::seekTo,
+            onPrevious = {
+                vm.previous(player.currentPosition, player.duration)
+            },
+            onNext = {
+                vm.next(player.currentPosition, player.duration)
+            },
+            onVisibilityChanged = vm::onControlsVisibilityChanged,
+        )
 
         state.error?.let { error ->
             Column(

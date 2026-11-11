@@ -34,6 +34,7 @@ fun FocusableBox(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     focusRequester: FocusRequester? = null,
+    onFocusChange: ((Boolean) -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -58,7 +59,7 @@ fun FocusableBox(
                 scaleY = scale
             }
             .hoverable(interactionSource)
-            .onFocusChanged { focused = it.hasFocus }
+            .onFocusChanged { focused = it.hasFocus; onFocusChange?.invoke(it.hasFocus) }
             .clip(shape)
             .background(
                 if (selected || focused) colors.primary.copy(alpha = 0.16f)

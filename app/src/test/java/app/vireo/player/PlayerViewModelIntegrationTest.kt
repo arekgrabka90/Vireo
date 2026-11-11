@@ -399,6 +399,7 @@ class PlayerViewModelIntegrationTest {
             12_000L,
             90_000L,
         )
+        Mockito.verify(library).observeAll(1L)
         Mockito.verifyNoMoreInteractions(library)
     }
 

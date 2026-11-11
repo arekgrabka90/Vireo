@@ -33,3 +33,25 @@ internal fun exactEpisodeFailoverCandidates(
             )
         }
         .toList()
+
+internal data class EpisodeFailoverSeriesCandidate(
+    val candidate: EpisodeFailoverCandidate,
+    val seriesId: String,
+)
+
+internal fun exactEpisodeSeriesIds(
+    candidates: List<EpisodeFailoverSeriesCandidate>,
+): Map<Triple<Long, String, String>, String> =
+    candidates
+        .groupBy {
+            Triple(it.candidate.sourceId, it.candidate.streamId, it.candidate.url)
+        }
+        .mapNotNull { (key, entries) ->
+            val seriesIds = entries.map { it.seriesId }.distinct()
+            if (seriesIds.size == 1 && seriesIds.single().isNotBlank()) {
+                key to seriesIds.single()
+            } else {
+                null
+            }
+        }
+        .toMap()

@@ -18,6 +18,8 @@ import app.vireo.player.exactEpisodeFailoverCandidates
 import app.vireo.player.PlaybackSourceCandidate
 import app.vireo.player.PlaybackRequestIdentity
 import app.vireo.player.EpisodeFailoverCandidate
+import app.vireo.player.exactEpisodeSeriesIds
+import app.vireo.player.EpisodeFailoverSeriesCandidate
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -287,14 +289,17 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
 
         // TMDB jest katalogiem odcinków. Xtream służy wyłącznie
         // do znalezienia odpowiadającego mu strumienia.
-        val tmdbEpisodes = buildList {
-            for (season in tmdb.seasons.sortedBy { it.seasonNumber }) {
-                val result = tmdbDetailRepository.seasonEpisodes(
-                    seriesId = tmdb.tmdbId,
-                    seasonNumber = season.seasonNumber,
-                )
-                addAll(result.getOrNull().orEmpty())
+        val tmdbEpisodes = mutableListOf<TmdbEpisodeItem>()
+        for (season in tmdb.seasons.sortedBy { it.seasonNumber }) {
+            val result = tmdbDetailRepository.seasonEpisodes(
+                seriesId = tmdb.tmdbId,
+                seasonNumber = season.seasonNumber,
+            )
+            val seasonItems = result.getOrElse { error ->
+                if (error is CancellationException) throw error
+                return false
             }
+            tmdbEpisodes.addAll(seasonItems)
         }
 
         val playableEpisodes = mapTmdbEpisodeStreams(tmdbEpisodes, series)
@@ -363,7 +368,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             val seasonNumber = tmdbEpisode.seasonNumber
             val episodeNumber = tmdbEpisode.episodeNumber
 
-            val rawCandidates = alternativeSeries.mapNotNull { (variant, otherSeries) ->
+            val rawCandidatesWithSeries = alternativeSeries.mapNotNull { (variant, otherSeries) ->
                 val exactMatches = otherSeries.seasons
                     .asSequence()
                     .filter { it.number == seasonNumber }
@@ -372,19 +377,27 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     .toList()
 
                 val alternativeEpisode = exactMatches.singleOrNull()
-                    ?.takeIf {
-                        it.id.isNotBlank() && it.streamUrl.isNotBlank()
-                    }
+                    ?.takeIf { it.id.isNotBlank() && it.streamUrl.isNotBlank() }
                     ?: return@mapNotNull null
 
-                EpisodeFailoverCandidate(
-                    sourceId = variant.sourceId,
-                    streamId = alternativeEpisode.id,
-                    seasonNumber = seasonNumber,
-                    episodeNumber = episodeNumber,
-                    url = alternativeEpisode.streamUrl,
+                EpisodeFailoverSeriesCandidate(
+                    candidate = EpisodeFailoverCandidate(
+                        sourceId = variant.sourceId,
+                        streamId = alternativeEpisode.id,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        url = alternativeEpisode.streamUrl,
+                    ),
+                    seriesId = variant.streamId,
                 )
             }
+
+            val seriesIdsByCandidate = exactEpisodeSeriesIds(rawCandidatesWithSeries)
+            val rawCandidates = rawCandidatesWithSeries
+                .map { it.candidate }
+                .filter {
+                    Triple(it.sourceId, it.streamId, it.url) in seriesIdsByCandidate
+                }
 
             val candidates = exactEpisodeFailoverCandidates(
                 seasonNumber = seasonNumber,
@@ -407,9 +420,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     sourceId = next.sourceId,
                     streamId = next.streamId,
                     url = next.url,
-                    seriesId = alternativeSeries.firstOrNull {
-                        it.first.sourceId == next.sourceId
-                    }?.first?.streamId,
+                    seriesId = seriesIdsByCandidate[Triple(next.sourceId, next.streamId, next.url)],
                     seasonNumber = seasonNumber,
                     episodeNumber = episodeNumber,
                 )

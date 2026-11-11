@@ -126,4 +126,16 @@ class TmdbDetailMapperTest {
 
         assertNull(result?.trailerYoutubeKey)
     }
+    @Test
+    fun `missing TMDB episode name stays empty instead of being fabricated`() {
+        val result = TmdbDetailMapper.mapEpisode(
+            TmdbEpisodeDto(
+                id = 10,
+                seasonNumber = 1,
+                episodeNumber = 2,
+            )
+        )
+
+        assertEquals("", result?.title)
+    }
 }

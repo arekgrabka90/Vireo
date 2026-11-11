@@ -129,8 +129,8 @@ internal object TmdbDetailMapper {
 
     fun mapEpisode(dto: TmdbEpisodeDto): TmdbEpisodeItem? {
         if (dto.seasonNumber < 0 || dto.episodeNumber <= 0) return null
-        val title = dto.name?.trim()?.takeIf { it.isNotBlank() }
-            ?: "Odcinek ${dto.episodeNumber}"
+        // Brak tytułu w TMDB pozostaje brakiem tytułu.
+        val title = dto.name?.trim()?.takeIf { it.isNotBlank() }.orEmpty()
         return TmdbEpisodeItem(
             tmdbEpisodeId = dto.id,
             seasonNumber = dto.seasonNumber,

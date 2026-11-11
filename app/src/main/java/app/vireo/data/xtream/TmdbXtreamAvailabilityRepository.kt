@@ -3,6 +3,8 @@ package app.vireo.data.xtream
 import app.vireo.data.ProviderRegistry
 import app.vireo.data.local.AccountDao
 import app.vireo.data.tmdb.TmdbDetail
+import app.vireo.data.tmdb.TmdbDetailRepository
+import app.vireo.data.tmdb.TmdbEpisodeItem
 import app.vireo.data.xtream.TmdbXtreamMatchConfidence
 import app.vireo.domain.model.ContentType
 import app.vireo.domain.model.SeriesDetails
@@ -31,6 +33,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
     private val indexRepository: XtreamContentIndexRepository,
     private val accountDao: AccountDao,
     private val providers: ProviderRegistry,
+    private val tmdbDetailRepository: TmdbDetailRepository,
     private val playbackSession: PlaybackSession,
 ) {
     suspend fun find(detail: TmdbDetail): Result<TmdbXtreamAvailability> = try {
@@ -102,19 +105,22 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         alternatives: List<TmdbXtreamMatchVariant>,
         detail: TmdbDetail?,
     ): Result<Unit> = try {
+        val tmdb = detail?.takeIf { it.type == ContentType.MOVIE }
+            ?: error("Brak prawidłowych szczegółów filmu z TMDB.")
+
         val account = accountDao.getById(variant.sourceId)
             ?: error("Konto źródłowe nie jest już dostępne.")
         val provider = providers.create(account)
         val movie = provider.movieDetails(variant.streamId).getOrThrow()
+        val streamUrl = movie.streamUrl.trim()
 
-        if (movie.streamUrl.isBlank()) {
+        if (streamUrl.isBlank()) {
             error("Wybrane źródło nie ma prawidłowego adresu strumienia.")
         }
 
-        // Alternatywy pochodzą wyłącznie z potwierdzonych dopasowań
-        // tego samego tytułu TMDB. Niepewne warianty wymagają ręcznej selekcji.
+        // Xtream dostarcza adres odtwarzania, nie metadane filmu.
         val alternativeUrls = buildList {
-            val seenUrls = mutableSetOf(movie.streamUrl)
+            val seenUrls = mutableSetOf(streamUrl)
 
             for (candidate in alternatives) {
                 if (candidate.sourceId == variant.sourceId &&
@@ -145,8 +151,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    // Niedostępny wariant pomijamy.
-                    // Nie blokuje to odtwarzania głównego źródła.
+                    // Niedostępne źródło alternatywne pomijamy.
                 }
             }
         }
@@ -154,23 +159,22 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         playbackSession.start(
             listOf(
                 PlayItem(
-                    title = movie.name,
-                    url = movie.streamUrl,
-                    contentKey = detail?.let { "tmdb:${it.type.name}:${it.tmdbId}" },
-                    contentType = detail?.type?.name ?: "MOVIE",
-                    posterUrl = detail?.posterUrl,
-                    logoUrl = detail?.logoUrl,
-                    backdropUrl = detail?.backdropUrl,
+                    title = tmdb.title,
+                    url = streamUrl,
+                    contentKey = "tmdb:${tmdb.type.name}:${tmdb.tmdbId}",
+                    contentType = tmdb.type.name,
+                    posterUrl = tmdb.posterUrl,
+                    logoUrl = tmdb.logoUrl,
+                    backdropUrl = tmdb.backdropUrl,
                     alternatives = alternativeUrls,
                     sourceId = variant.sourceId,
                     streamId = variant.streamId,
-                    description = detail?.overview ?: movie.plot,
-                    year = detail?.year?.toString() ?: movie.year,
-                    genre = detail?.genres?.joinToString(", ")
-                        ?.takeIf { it.isNotBlank() } ?: movie.genre,
-                    duration = detail?.runtimeMinutes?.let { "$it min" }
-                        ?: movie.duration,
-                    rating = detail?.rating?.toString() ?: movie.rating,
+                    description = tmdb.overview,
+                    year = tmdb.year?.toString(),
+                    genre = tmdb.genres.joinToString(", ")
+                        .takeIf { it.isNotBlank() },
+                    duration = tmdb.runtimeMinutes?.let { "$it min" },
+                    rating = tmdb.rating?.toString(),
                 )
             ),
             0,
@@ -276,28 +280,33 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         targetEpisodeNumber: Int? = null,
         watchedEpisodeKeys: Set<String>? = null,
     ): Boolean {
+        val tmdb = detail?.takeIf { it.type == ContentType.SERIES }
+            ?: return false
+
         if (selectedSourceId <= 0L || series.id.isBlank()) return false
 
-        val playableEpisodes = series.seasons
-            .sortedBy { it.number }
-            .flatMap { season ->
-                season.episodes
-                    .sortedBy { it.number }
-                    .map { season.number to it }
+        // TMDB jest katalogiem odcinków. Xtream służy wyłącznie
+        // do znalezienia odpowiadającego mu strumienia.
+        val tmdbEpisodes = buildList {
+            for (season in tmdb.seasons.sortedBy { it.seasonNumber }) {
+                val result = tmdbDetailRepository.seasonEpisodes(
+                    seriesId = tmdb.tmdbId,
+                    seasonNumber = season.seasonNumber,
+                )
+                addAll(result.getOrNull().orEmpty())
             }
-            .filter { (seasonNumber, episode) ->
-                seasonNumber >= 0 &&
-                    episode.number > 0 &&
-                    episode.id.isNotBlank() &&
-                    episode.streamUrl.isNotBlank()
-            }
+        }
 
-        val queueEpisodes = playableEpisodes.filterNot { (season, episode) ->
-            if (watchedEpisodeKeys == null || detail == null) {
+        val playableEpisodes = mapTmdbEpisodeStreams(tmdbEpisodes, series)
+        if (playableEpisodes.isEmpty()) return false
+
+        val queueEpisodes = playableEpisodes.filterNot { match ->
+            if (watchedEpisodeKeys == null) {
                 false
             } else {
+                val episode = match.tmdbEpisode
                 val key =
-                    "tmdb:${detail.type.name}:${detail.tmdbId}:S${season}E${episode.number}"
+                    "tmdb:${tmdb.type.name}:${tmdb.tmdbId}:S${episode.seasonNumber}E${episode.episodeNumber}"
                 key in watchedEpisodeKeys
             }
         }
@@ -307,9 +316,9 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
         val selectedIndex = if (
             targetSeasonNumber != null && targetEpisodeNumber != null
         ) {
-            queueEpisodes.indexOfFirst { (season, episode) ->
-                season == targetSeasonNumber &&
-                    episode.number == targetEpisodeNumber
+            queueEpisodes.indexOfFirst { match ->
+                match.tmdbEpisode.seasonNumber == targetSeasonNumber &&
+                    match.tmdbEpisode.episodeNumber == targetEpisodeNumber
             }
         } else {
             0
@@ -317,8 +326,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
 
         if (selectedIndex !in queueEpisodes.indices) return false
 
-        // Pobieramy katalogi alternatywnych źródeł tylko raz na sesję.
-        // Niepewne dopasowania nie są używane automatycznie.
+        // Alternatywne źródła dostarczają wyłącznie adresy strumieni.
         val alternativeSeries = mutableListOf<Pair<TmdbXtreamMatchVariant, SeriesDetails>>()
 
         val confirmedVariants = variants
@@ -345,17 +353,22 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                // Brak dostępu do alternatywnego katalogu nie blokuje źródła głównego.
+                // Niedostępny katalog alternatywny nie blokuje źródła głównego.
             }
         }
 
-        val items = queueEpisodes.map { (seasonNumber, episode) ->
+        val items = queueEpisodes.map { match ->
+            val tmdbEpisode = match.tmdbEpisode
+            val streamEpisode = match.streamEpisode
+            val seasonNumber = tmdbEpisode.seasonNumber
+            val episodeNumber = tmdbEpisode.episodeNumber
+
             val rawCandidates = alternativeSeries.mapNotNull { (variant, otherSeries) ->
                 val exactMatches = otherSeries.seasons
                     .asSequence()
                     .filter { it.number == seasonNumber }
                     .flatMap { it.episodes.asSequence() }
-                    .filter { it.number == episode.number }
+                    .filter { it.number == episodeNumber }
                     .toList()
 
                 val alternativeEpisode = exactMatches.singleOrNull()
@@ -368,18 +381,18 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     sourceId = variant.sourceId,
                     streamId = alternativeEpisode.id,
                     seasonNumber = seasonNumber,
-                    episodeNumber = episode.number,
+                    episodeNumber = episodeNumber,
                     url = alternativeEpisode.streamUrl,
                 )
             }
 
             val candidates = exactEpisodeFailoverCandidates(
                 seasonNumber = seasonNumber,
-                episodeNumber = episode.number,
+                episodeNumber = episodeNumber,
                 candidates = rawCandidates,
             )
 
-            val currentIdentity = playbackRequestIdentity(episode.streamUrl)
+            val currentIdentity = playbackRequestIdentity(streamEpisode.streamUrl)
             val attempted = mutableSetOf<PlaybackRequestIdentity>()
             val alternatives = mutableListOf<PlaybackAlternative>()
 
@@ -398,7 +411,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                         it.first.sourceId == next.sourceId
                     }?.first?.streamId,
                     seasonNumber = seasonNumber,
-                    episodeNumber = episode.number,
+                    episodeNumber = episodeNumber,
                 )
 
                 val identity = playbackRequestIdentity(next.url, next.headers)
@@ -407,38 +420,38 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             }
 
             PlayItem(
-                title = series.name,
-                episodeTitle = episode.title,
-                url = episode.streamUrl,
-                contentKey = detail?.let {
-                    "tmdb:${it.type.name}:${it.tmdbId}:S${seasonNumber}E${episode.number}"
-                },
-                contentType = detail?.type?.name ?: "SERIES",
-                posterUrl = detail?.posterUrl,
-                logoUrl = detail?.logoUrl,
-                backdropUrl = detail?.backdropUrl,
+                title = tmdb.title,
+                episodeTitle = tmdbEpisode.title.takeIf { it.isNotBlank() },
+                url = streamEpisode.streamUrl,
+                contentKey =
+                    "tmdb:${tmdb.type.name}:${tmdb.tmdbId}:S${seasonNumber}E${episodeNumber}",
+                contentType = tmdb.type.name,
+                posterUrl = tmdb.posterUrl,
+                logoUrl = tmdb.logoUrl,
+                backdropUrl = tmdb.backdropUrl,
                 alternatives = alternatives,
                 sourceId = selectedSourceId,
-                streamId = episode.id,
+                streamId = streamEpisode.id,
                 seriesId = series.id,
                 seasonNumber = seasonNumber,
-                episodeNumber = episode.number,
-                description = detail?.overview ?: series.plot,
-                year = detail?.year?.toString() ?: series.year,
-                genre = detail?.genres?.joinToString(", ")
-                    ?.takeIf { it.isNotBlank() } ?: series.genre,
-                rating = detail?.rating?.toString() ?: series.rating,
-                episodeDescription = episode.plot,
-                duration = episode.duration,
-                episodeThumbnailUrl = episode.thumbUrl,
-                episodes = playableEpisodes.map { (season, queuedEpisode) ->
+                episodeNumber = episodeNumber,
+                description = tmdb.overview,
+                year = tmdb.year?.toString(),
+                genre = tmdb.genres.joinToString(", ")
+                    .takeIf { it.isNotBlank() },
+                rating = tmdb.rating?.toString(),
+                episodeDescription = tmdbEpisode.overview,
+                duration = tmdbEpisode.runtimeMinutes?.let { "$it min" },
+                episodeThumbnailUrl = tmdbEpisode.stillUrl,
+                episodes = playableEpisodes.map { episodeMatch ->
+                    val episode = episodeMatch.tmdbEpisode
                     PlaybackEpisode(
-                        title = queuedEpisode.title,
-                        seasonNumber = season,
-                        episodeNumber = queuedEpisode.number,
-                        description = queuedEpisode.plot,
-                        duration = queuedEpisode.duration,
-                        thumbnailUrl = queuedEpisode.thumbUrl,
+                        title = episode.title,
+                        seasonNumber = episode.seasonNumber,
+                        episodeNumber = episode.episodeNumber,
+                        description = episode.overview,
+                        duration = episode.runtimeMinutes?.let { "$it min" },
+                        thumbnailUrl = episode.stillUrl,
                     )
                 },
             )

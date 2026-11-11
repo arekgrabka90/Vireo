@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -58,6 +59,7 @@ import coil.compose.AsyncImage
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.theme.VireoColors
 import kotlinx.coroutines.delay
+import java.net.URI
 
 @Composable
 fun PlayerHudOverlay(
@@ -192,17 +194,11 @@ fun PlayerHudOverlay(
                                 is PlayerHudContent.Movie, is PlayerHudContent.Series -> {
                                     AnimatedLoadingLogo(bufferingLogoUrl)
                                 }
-                                is PlayerHudContent.Live -> Text(
-                                    "LIVE · BUFFERING",
-                                    color = Color.White.copy(alpha = 0.78f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                else -> Text(
-                                    "BUFFERING",
-                                    color = Color.White.copy(alpha = 0.78f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
+                                is PlayerHudContent.Live,
+                                is PlayerHudContent.Other -> CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White.copy(alpha = 0.82f),
+                                    strokeWidth = 2.dp,
                                 )
                             }
                         }
@@ -317,11 +313,21 @@ fun PlayerHudOverlay(
 
 @Composable
 private fun AnimatedLoadingLogo(logoUrl: String?) {
-    if (logoUrl.isNullOrBlank()) {
-        Text(
-            "Loading…",
+    val validUrl = remember(logoUrl) {
+        runCatching {
+            val uri = URI(logoUrl.orEmpty())
+            (uri.scheme == "https" || uri.scheme == "http") &&
+                !uri.host.isNullOrBlank()
+        }.getOrDefault(false)
+    }
+
+    var imageFailed by remember(logoUrl) { mutableStateOf(false) }
+
+    if (!validUrl || imageFailed) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(22.dp),
             color = Color.White.copy(alpha = 0.82f),
-            style = MaterialTheme.typography.labelSmall,
+            strokeWidth = 2.dp,
         )
         return
     }
@@ -349,6 +355,7 @@ private fun AnimatedLoadingLogo(logoUrl: String?) {
     AsyncImage(
         model = logoUrl,
         contentDescription = "Loading",
+        onError = { imageFailed = true },
         modifier = Modifier
             .width(112.dp)
             .height(42.dp)

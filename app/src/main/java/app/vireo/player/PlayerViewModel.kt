@@ -25,6 +25,10 @@ import app.vireo.di.ApplicationScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
@@ -107,6 +111,41 @@ class PlayerViewModel @Inject constructor(
 
     private val _epgState = MutableStateFlow(EpgNowNext(null, null))
     val epgState: StateFlow<EpgNowNext> = _epgState.asStateFlow()
+
+    val recentLiveChannels: StateFlow<List<RecentLiveChannel>> =
+        liveChannelHistoryDao.observe(playbackProfileId)
+            .map { entries ->
+                entries.map {
+                    RecentLiveChannel(
+                        sourceId = it.sourceId,
+                        streamId = it.streamId,
+                        channelName = it.channelName,
+                        epgChannelId = it.epgChannelId,
+                        logoUrl = it.logoUrl,
+                        lastPlayedAt = it.lastPlayedAt,
+                    )
+                }
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000L),
+                emptyList(),
+            )
+
+    val hudState: StateFlow<PlayerHudState> =
+        combine(_state, _epgState, recentLiveChannels) {
+                playerState, epg, history ->
+            buildPlayerHudState(playerState, epg, history)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000L),
+            buildPlayerHudState(
+                _state.value,
+                _epgState.value,
+                emptyList(),
+            ),
+        )
+
     private var epgJob: Job? = null
 
     init {
@@ -587,6 +626,28 @@ class PlayerViewModel @Inject constructor(
     fun resumePlayback() {
         _state.update { it.copy(desiredPlayWhenReady = true) }
         media3PlayerEngine.play()
+    }
+
+    fun seekBackward() {
+        seekBy(-10_000L)
+    }
+
+    fun seekForward() {
+        seekBy(10_000L)
+    }
+
+    private fun seekBy(offsetMs: Long) {
+        val current = _progress.value
+        if (!current.isSeekable) return
+
+        val target = (current.positionMs + offsetMs).coerceAtLeast(0L)
+        val bounded = if (current.durationMs > 0L) {
+            target.coerceAtMost(current.durationMs)
+        } else {
+            target
+        }
+
+        media3PlayerEngine.seekTo(bounded)
     }
 
     override fun onCleared() {

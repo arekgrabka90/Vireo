@@ -429,4 +429,72 @@ class PlayerViewModelIntegrationTest {
         )
     }
 
+    @Test
+    fun `next changes queue item when progress persistence fails`() = runTest {
+        val first = PlayItem(
+            title = "First movie",
+            url = "https://example.invalid/first.mp4",
+            contentKey = "movie:first",
+            contentType = "MOVIE",
+        )
+        val second = PlayItem(
+            title = "Second movie",
+            url = "https://example.invalid/second.mp4",
+            contentKey = "movie:second",
+            contentType = "MOVIE",
+        )
+
+        session.start(listOf(first, second), 0)
+        val viewModel = createViewModel(this)
+
+        Mockito.doThrow(IllegalStateException("Database unavailable"))
+            .`when`(library)
+            .saveProgress(1L, first, 30_000L, 120_000L)
+
+        viewModel.next(30_000L, 120_000L)
+        advanceUntilIdle()
+
+        assertEquals(second, viewModel.state.value.item)
+        Mockito.verify(library).saveProgress(
+            1L,
+            first,
+            30_000L,
+            120_000L,
+        )
+    }
+
+    @Test
+    fun `previous changes queue item when progress persistence fails`() = runTest {
+        val first = PlayItem(
+            title = "First movie",
+            url = "https://example.invalid/first.mp4",
+            contentKey = "movie:first",
+            contentType = "MOVIE",
+        )
+        val second = PlayItem(
+            title = "Second movie",
+            url = "https://example.invalid/second.mp4",
+            contentKey = "movie:second",
+            contentType = "MOVIE",
+        )
+
+        session.start(listOf(first, second), 1)
+        val viewModel = createViewModel(this)
+
+        Mockito.doThrow(IllegalStateException("Database unavailable"))
+            .`when`(library)
+            .saveProgress(1L, second, 30_000L, 120_000L)
+
+        viewModel.previous(30_000L, 120_000L)
+        advanceUntilIdle()
+
+        assertEquals(first, viewModel.state.value.item)
+        Mockito.verify(library).saveProgress(
+            1L,
+            second,
+            30_000L,
+            120_000L,
+        )
+    }
+
 }

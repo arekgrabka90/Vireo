@@ -263,6 +263,20 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private suspend fun persistProgressBeforeNavigation(
+        item: PlayItem?,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        try {
+            persistProgress(item, positionMs, durationMs)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Progress persistence must not prevent queue navigation.
+        }
+    }
+
     fun next(positionMs: Long, durationMs: Long) {
         if (advancing) return
 
@@ -275,7 +289,7 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                persistProgress(current, positionMs, durationMs)
+                persistProgressBeforeNavigation(current, positionMs, durationMs)
 
                 val next = session.next()
                 if (next == null) {
@@ -313,7 +327,7 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                persistProgress(current, positionMs, durationMs)
+                persistProgressBeforeNavigation(current, positionMs, durationMs)
 
                 val previous = session.previous()
                 if (previous == null) {

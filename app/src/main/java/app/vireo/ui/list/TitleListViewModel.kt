@@ -56,6 +56,7 @@ class TitleListViewModel @Inject constructor(
                     PlayItem(
                         title = title.name,
                         url = url,
+                        logoUrl = title.logoUrl,
                         contentType = ContentType.LIVE.name,
                         epgChannelId = title.epgChannelId,
                         streamId = title.id,

@@ -56,6 +56,7 @@ data class XtreamCatalogItemEntity(
     val categoryId: String?,
     val title: String,
     val posterUrl: String?,
+    val logoUrl: String?,
     val rating: String?,
     val epgChannelId: String?,
     val tmdbId: Int?,

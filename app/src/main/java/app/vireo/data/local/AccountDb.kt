@@ -114,7 +114,7 @@ interface AccountDao {
         RecentSearchEntity::class,
         LiveChannelHistoryEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 abstract class VireoDatabase : RoomDatabase() {
@@ -477,6 +477,19 @@ abstract class VireoDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS " +
                         "index_live_channel_history_profileId_lastPlayedAt " +
                         "ON live_channel_history(profileId, lastPlayedAt)"
+                )
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE xtream_catalog_items ADD COLUMN logoUrl TEXT"
+                )
+                db.execSQL(
+                    "UPDATE xtream_catalog_items " +
+                        "SET logoUrl = posterUrl, posterUrl = NULL " +
+                        "WHERE contentType = 'LIVE' AND posterUrl IS NOT NULL"
                 )
             }
         }

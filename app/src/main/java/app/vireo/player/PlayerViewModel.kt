@@ -582,7 +582,7 @@ class PlayerViewModel @Inject constructor(
                                 streamId = item.streamId,
                                 channelName = item.title,
                                 epgChannelId = item.epgChannelId,
-                                logoUrl = item.posterUrl,
+                                logoUrl = item.logoUrl,
                                 lastPlayedAt = System.currentTimeMillis(),
                             )
                         )

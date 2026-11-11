@@ -21,6 +21,7 @@ class PlayerHudStateTest {
             duration = "120 min",
             rating = "8.1",
             posterUrl = "poster",
+            logoUrl = "movie-logo",
             backdropUrl = "backdrop",
         )
 
@@ -36,6 +37,7 @@ class PlayerHudStateTest {
         assertEquals("2026", movie.year)
         assertEquals("120 min", movie.duration)
         assertEquals("poster", movie.posterUrl)
+        assertEquals("movie-logo", movie.logoUrl)
     }
 
     @Test
@@ -54,6 +56,8 @@ class PlayerHudStateTest {
             seriesId = "series-1",
             seasonNumber = 2,
             episodeNumber = 3,
+            episodeTitle = "Independent episode title",
+            logoUrl = "series-logo",
             episodes = listOf(episode),
         )
 
@@ -65,6 +69,8 @@ class PlayerHudStateTest {
 
         val series = result.content as PlayerHudContent.Series
         assertEquals(episode, series.currentEpisode)
+        assertEquals("Independent episode title", series.currentEpisodeTitle)
+        assertEquals("series-logo", series.logoUrl)
         assertEquals(listOf(episode), series.episodes)
     }
 

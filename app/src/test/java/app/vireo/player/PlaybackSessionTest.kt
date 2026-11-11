@@ -34,6 +34,8 @@ class PlaybackSessionTest {
             year = "2025",
             genre = "Drama",
             episodeDescription = "Episode overview",
+            episodeTitle = "Episode title",
+            logoUrl = "series-logo",
             episodeThumbnailUrl = "https://example.invalid/still.jpg",
             episodes = listOf(
                 PlaybackEpisode(
@@ -52,6 +54,8 @@ class PlaybackSessionTest {
         assertEquals("Series overview", session.current()?.description)
         assertEquals("2025", session.current()?.year)
         assertEquals("Episode overview", session.current()?.episodeDescription)
+        assertEquals("Episode title", session.current()?.episodeTitle)
+        assertEquals("series-logo", session.current()?.logoUrl)
         assertEquals(1, session.current()?.episodes?.size)
         assertEquals("Episode 1", session.current()?.episodes?.first()?.title)
         assertEquals("First episode", session.current()?.episodes?.first()?.description)

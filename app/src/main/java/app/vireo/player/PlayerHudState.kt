@@ -25,6 +25,7 @@ sealed interface PlayerHudContent {
         val duration: String?,
         val rating: String?,
         val posterUrl: String?,
+        val logoUrl: String?,
         val backdropUrl: String?,
     ) : PlayerHudContent
 
@@ -35,8 +36,12 @@ sealed interface PlayerHudContent {
         val genre: String?,
         val rating: String?,
         val posterUrl: String?,
+        val logoUrl: String?,
         val backdropUrl: String?,
         val currentEpisode: PlaybackEpisode?,
+        val currentEpisodeTitle: String?,
+        val currentSeasonNumber: Int?,
+        val currentEpisodeNumber: Int?,
         val currentEpisodeDescription: String?,
         val currentEpisodeThumbnailUrl: String?,
         val episodes: List<PlaybackEpisode>,
@@ -84,7 +89,7 @@ internal fun buildPlayerHudState(
             channelName = item.title,
             epgChannelId = item.epgChannelId,
             streamId = item.streamId,
-            logoUrl = item.posterUrl,
+            logoUrl = item.logoUrl,
             currentProgram = epg.current,
             currentProgramDescription = epg.current?.description,
             nextProgram = epg.next,
@@ -106,8 +111,12 @@ internal fun buildPlayerHudState(
                 genre = item.genre,
                 rating = item.rating,
                 posterUrl = item.posterUrl,
+                logoUrl = item.logoUrl,
                 backdropUrl = item.backdropUrl,
                 currentEpisode = currentEpisode,
+                currentEpisodeTitle = currentEpisode?.title ?: item.episodeTitle,
+                currentSeasonNumber = currentEpisode?.seasonNumber ?: item.seasonNumber,
+                currentEpisodeNumber = currentEpisode?.episodeNumber ?: item.episodeNumber,
                 currentEpisodeDescription =
                     currentEpisode?.description ?: item.episodeDescription,
                 currentEpisodeThumbnailUrl =
@@ -124,6 +133,7 @@ internal fun buildPlayerHudState(
             duration = item.duration,
             rating = item.rating,
             posterUrl = item.posterUrl,
+            logoUrl = item.logoUrl,
             backdropUrl = item.backdropUrl,
         )
 

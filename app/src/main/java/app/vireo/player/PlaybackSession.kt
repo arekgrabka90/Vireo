@@ -27,6 +27,7 @@ data class PlayItem(
     val contentKey: String? = null,
     val contentType: String? = null,
     val posterUrl: String? = null,
+    val logoUrl: String? = null,
     val backdropUrl: String? = null,
     val alternatives: List<PlaybackAlternative> = emptyList(),
     val epgChannelId: String? = null,
@@ -41,6 +42,7 @@ data class PlayItem(
     val duration: String? = null,
     val rating: String? = null,
     val episodeDescription: String? = null,
+    val episodeTitle: String? = null,
     val episodeThumbnailUrl: String? = null,
     val episodes: List<PlaybackEpisode> = emptyList(),
 )

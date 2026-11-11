@@ -99,7 +99,8 @@ class DetailViewModel @Inject constructor(
         val idx = flat.indexOfFirst { pair -> pair.first == season && pair.second.id == episodeId }
         val items = flat.map { pair ->
             PlayItem(
-                title = "${s.name} · S${pair.first} E${pair.second.number} · ${pair.second.title}",
+                title = s.name,
+                episodeTitle = pair.second.title,
                 url = pair.second.streamUrl,
                 contentKey = "xtream:${type.name}:${s.id}:S${pair.first}E${pair.second.number}",
                 contentType = type.name,

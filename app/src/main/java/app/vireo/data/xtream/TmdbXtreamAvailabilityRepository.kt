@@ -159,6 +159,7 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
                     contentKey = detail?.let { "tmdb:${it.type.name}:${it.tmdbId}" },
                     contentType = detail?.type?.name ?: "MOVIE",
                     posterUrl = detail?.posterUrl,
+                    logoUrl = detail?.logoUrl,
                     backdropUrl = detail?.backdropUrl,
                     alternatives = alternativeUrls,
                     sourceId = variant.sourceId,
@@ -406,13 +407,15 @@ class TmdbXtreamAvailabilityRepository @Inject constructor(
             }
 
             PlayItem(
-                title = "${series.name} · S${seasonNumber} E${episode.number} · ${episode.title}",
+                title = series.name,
+                episodeTitle = episode.title,
                 url = episode.streamUrl,
                 contentKey = detail?.let {
                     "tmdb:${it.type.name}:${it.tmdbId}:S${seasonNumber}E${episode.number}"
                 },
                 contentType = detail?.type?.name ?: "SERIES",
                 posterUrl = detail?.posterUrl,
+                logoUrl = detail?.logoUrl,
                 backdropUrl = detail?.backdropUrl,
                 alternatives = alternatives,
                 sourceId = selectedSourceId,

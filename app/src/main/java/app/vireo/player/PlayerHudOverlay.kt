@@ -5,6 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +46,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -91,15 +97,13 @@ fun PlayerHudOverlay(
         }
     }
 
-    val backdrop = when (val content = hudState.content) {
-        is PlayerHudContent.Movie -> content.backdropUrl ?: content.posterUrl
-        is PlayerHudContent.Series -> content.backdropUrl ?: content.posterUrl
-        is PlayerHudContent.Live -> content.logoUrl
-        is PlayerHudContent.Other -> content.posterUrl
+    val bufferingLogoUrl = when (val content = hudState.content) {
+        is PlayerHudContent.Movie -> content.logoUrl
+        is PlayerHudContent.Series -> content.logoUrl
+        else -> null
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val containerMaxHeight = maxHeight
         val wide = maxWidth >= 850.dp
         val horizontal = if (wide) 56.dp else 24.dp
         val top = if (wide) 38.dp else 22.dp
@@ -125,18 +129,6 @@ fun PlayerHudOverlay(
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 35 }),
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                if (!backdrop.isNullOrBlank()) {
-                    AsyncImage(
-                        model = backdrop,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (wide) containerMaxHeight * 0.72f else containerMaxHeight * 0.62f)
-                            .align(Alignment.TopCenter),
-                        contentScale = ContentScale.Crop,
-                    )
-                }
-
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -196,12 +188,23 @@ fun PlayerHudOverlay(
                         }
 
                         if (hudState.transportState == PlayerTransportState.BUFFERING) {
-                            Text(
-                                "BUFFERING",
-                                color = Color.White.copy(alpha = 0.78f),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
+                            when (hudState.content) {
+                                is PlayerHudContent.Movie, is PlayerHudContent.Series -> {
+                                    AnimatedLoadingLogo(bufferingLogoUrl)
+                                }
+                                is PlayerHudContent.Live -> Text(
+                                    "LIVE · BUFFERING",
+                                    color = Color.White.copy(alpha = 0.78f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                else -> Text(
+                                    "BUFFERING",
+                                    color = Color.White.copy(alpha = 0.78f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
                         }
                     }
 
@@ -313,6 +316,52 @@ fun PlayerHudOverlay(
 }
 
 @Composable
+private fun AnimatedLoadingLogo(logoUrl: String?) {
+    if (logoUrl.isNullOrBlank()) {
+        Text(
+            "Loading…",
+            color = Color.White.copy(alpha = 0.82f),
+            style = MaterialTheme.typography.labelSmall,
+        )
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "buffering-logo")
+    val scale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.07f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "buffering-logo-scale",
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "buffering-logo-alpha",
+    )
+
+    AsyncImage(
+        model = logoUrl,
+        contentDescription = "Loading",
+        modifier = Modifier
+            .width(112.dp)
+            .height(42.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+            },
+        contentScale = ContentScale.Fit,
+    )
+}
+
+@Composable
 private fun ContentInformation(
     content: PlayerHudContent,
     wide: Boolean,
@@ -342,9 +391,27 @@ private fun ContentInformation(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 MetadataLine(content.year, content.genre, null, content.rating)
-                content.currentEpisode?.let { episode ->
+                val episodeTitle = content.currentEpisodeTitle
+                    ?.takeIf { it.isNotBlank() }
+                    ?: content.currentEpisode?.title
+                val seasonNumber = content.currentSeasonNumber
+                    ?: content.currentEpisode?.seasonNumber
+                val episodeNumber = content.currentEpisodeNumber
+                    ?: content.currentEpisode?.episodeNumber
+                if (episodeTitle != null || seasonNumber != null || episodeNumber != null) {
+                    val episodeLabel = buildString {
+                        if (seasonNumber != null) append("S${seasonNumber.toString().padStart(2, '0')}")
+                        if (episodeNumber != null) {
+                            if (isNotEmpty()) append("  ·  ")
+                            append("E${episodeNumber.toString().padStart(2, '0')}")
+                        }
+                        if (!episodeTitle.isNullOrBlank()) {
+                            if (isNotEmpty()) append("  ·  ")
+                            append(episodeTitle)
+                        }
+                    }
                     Text(
-                        "S${episode.seasonNumber.toString().padStart(2, '0')}  ·  E${episode.episodeNumber.toString().padStart(2, '0')}  ·  ${episode.title}",
+                        episodeLabel,
                         color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.titleSmall,

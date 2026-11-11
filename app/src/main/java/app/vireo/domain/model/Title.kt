@@ -8,4 +8,5 @@ data class Title(
     val type: ContentType,
     val categoryId: String?,
     val epgChannelId: String? = null,
+    val logoUrl: String? = null,
 )

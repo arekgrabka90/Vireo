@@ -99,6 +99,7 @@ fun PlayerHudOverlay(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val containerMaxHeight = maxHeight
         val wide = maxWidth >= 850.dp
         val horizontal = if (wide) 56.dp else 24.dp
         val top = if (wide) 38.dp else 22.dp
@@ -130,7 +131,7 @@ fun PlayerHudOverlay(
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (wide) maxHeight * 0.72f else maxHeight * 0.62f)
+                            .height(if (wide) containerMaxHeight * 0.72f else containerMaxHeight * 0.62f)
                             .align(Alignment.TopCenter),
                         contentScale = ContentScale.Crop,
                     )

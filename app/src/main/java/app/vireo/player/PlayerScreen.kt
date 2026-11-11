@@ -1,5 +1,8 @@
 package app.vireo.player
 
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.util.TypedValue

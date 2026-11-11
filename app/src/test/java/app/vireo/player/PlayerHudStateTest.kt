@@ -3,6 +3,7 @@ package app.vireo.player
 import app.vireo.domain.model.EpgNowNext
 import app.vireo.domain.model.EpgProgram
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,6 +73,9 @@ class PlayerHudStateTest {
         assertEquals("The episode", series.currentEpisodeTitle)
         assertEquals("series-logo", series.logoUrl)
         assertEquals(listOf(episode), series.episodes)
+        assertEquals("Episode description", series.currentEpisodeDescription)
+        assertFalse(series.descriptionIsSeriesFallback)
+        assertTrue(series.episodes.first().isSelectable)
     }
 
     @Test
@@ -178,6 +182,41 @@ class PlayerHudStateTest {
             "fallback-thumbnail",
             series.currentEpisodeThumbnailUrl,
         )
+    }
+
+
+    @Test
+    fun `series overview is an intentional fallback and watched state is exposed`() {
+        val episode = PlaybackEpisode(
+            title = "Episode without overview",
+            seasonNumber = 1,
+            episodeNumber = 1,
+            description = null,
+            thumbnailUrl = "https://example.invalid/still.jpg",
+        )
+        val item = PlayItem(
+            title = "Test series",
+            url = "https://example.invalid/episode.mp4",
+            contentType = "SERIES",
+            contentKey = "tmdb:SERIES:77:S1E1",
+            seasonNumber = 1,
+            episodeNumber = 1,
+            description = "Series overview",
+            episodes = listOf(episode),
+        )
+
+        val result = buildPlayerHudState(
+            state = PlayerUiState(item = item),
+            epg = EpgNowNext(null, null),
+            recentChannels = emptyList(),
+            watchedEpisodeKeys = setOf("tmdb:SERIES:77:S1E1"),
+        )
+
+        val series = result.content as PlayerHudContent.Series
+        assertEquals("Series overview", series.currentEpisodeDescription)
+        assertTrue(series.descriptionIsSeriesFallback)
+        assertTrue(series.episodes.first().isWatched)
+        assertTrue(series.episodes.first().isSelectable)
     }
 
 }

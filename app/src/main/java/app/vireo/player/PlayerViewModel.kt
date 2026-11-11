@@ -38,6 +38,7 @@ data class PlayerUiState(
     val resumePositionMs: Long? = null,
     val desiredPlayWhenReady: Boolean = true,
     val retryToken: Int = 0,
+    val seriesNextEpisodeCountdownSeconds: Int? = null,
 ) {
     val hasNext: Boolean
         get() = runtime.hasNext
@@ -77,6 +78,7 @@ class PlayerViewModel @Inject constructor(
     private var handlingPlaybackError = false
     private var recoveryAttempts = 0
     private var recoveryItem: PlayItem? = null
+    private var seriesNextEpisodeCountdownJob: Job? = null
     private val playbackOperationGuard = PlaybackOperationGuard()
 
     private fun invalidatePlaybackOperation() {
@@ -88,6 +90,65 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun autoplayNextEnabled(): Boolean = playbackSettings.value.autoplayNext
+
+    fun usesSeriesNextEpisodeCountdown(): Boolean =
+        _state.value.item?.contentType == "SERIES" && session.hasNext()
+
+    private fun startSeriesNextEpisodeCountdown() {
+        if (seriesNextEpisodeCountdownJob?.isActive == true) return
+
+        seriesNextEpisodeCountdownJob = viewModelScope.launch {
+            for (seconds in 10 downTo 1) {
+                if (
+                    !usesSeriesNextEpisodeCountdown() ||
+                    !autoplayNextEnabled()
+                ) {
+                    _state.update {
+                        it.copy(seriesNextEpisodeCountdownSeconds = null)
+                    }
+                    seriesNextEpisodeCountdownJob = null
+                    return@launch
+                }
+
+                _state.update {
+                    it.copy(seriesNextEpisodeCountdownSeconds = seconds)
+                }
+                delay(1_000L)
+            }
+
+            if (
+                usesSeriesNextEpisodeCountdown() &&
+                _state.value.seriesNextEpisodeCountdownSeconds == 1
+            ) {
+                val latestProgress = _progress.value
+                _state.update {
+                    it.copy(seriesNextEpisodeCountdownSeconds = null)
+                }
+                seriesNextEpisodeCountdownJob = null
+                next(
+                    latestProgress.positionMs,
+                    latestProgress.durationMs,
+                )
+            } else {
+                _state.update {
+                    it.copy(seriesNextEpisodeCountdownSeconds = null)
+                }
+                seriesNextEpisodeCountdownJob = null
+            }
+        }
+    }
+
+    fun cancelSeriesNextEpisodeCountdown() {
+        seriesNextEpisodeCountdownJob?.cancel()
+        seriesNextEpisodeCountdownJob = null
+        _state.update { current ->
+            if (current.seriesNextEpisodeCountdownSeconds == null) {
+                current
+            } else {
+                current.copy(seriesNextEpisodeCountdownSeconds = null)
+            }
+        }
+    }
 
     private fun createState(
         item: PlayItem?,
@@ -132,17 +193,43 @@ class PlayerViewModel @Inject constructor(
                 emptyList(),
             )
 
+    private val watchedEpisodeKeys: StateFlow<Set<String>> =
+        library.observeAll(playbackProfileId)
+            .map { entries ->
+                entries.asSequence()
+                    .filter { it.watched && it.contentType == "SERIES" }
+                    .map { it.contentKey }
+                    .toSet()
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000L),
+                emptySet(),
+            )
+
     val hudState: StateFlow<PlayerHudState> =
-        combine(_state, _epgState, recentLiveChannels) {
-                playerState, epg, history ->
-            buildPlayerHudState(playerState, epg, history)
+        combine(
+            _state,
+            _epgState,
+            recentLiveChannels,
+            watchedEpisodeKeys,
+        ) { playerState, epg, history, watched ->
+            buildPlayerHudState(
+                state = playerState,
+                epg = epg,
+                recentChannels = history,
+                watchedEpisodeKeys = watched,
+                playbackQueue = session.items,
+            )
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000L),
             buildPlayerHudState(
-                _state.value,
-                _epgState.value,
-                emptyList(),
+                state = _state.value,
+                epg = _epgState.value,
+                recentChannels = emptyList(),
+                watchedEpisodeKeys = emptySet(),
+                playbackQueue = session.items,
             ),
         )
 
@@ -281,6 +368,19 @@ class PlayerViewModel @Inject constructor(
                 )
             )
         }
+
+        if (playbackState == Player.STATE_ENDED) {
+            if (
+                usesSeriesNextEpisodeCountdown() &&
+                autoplayNextEnabled()
+            ) {
+                startSeriesNextEpisodeCountdown()
+            } else {
+                cancelSeriesNextEpisodeCountdown()
+            }
+        } else {
+            cancelSeriesNextEpisodeCountdown()
+        }
     }
 
     fun onPlayWhenReadyChanged(
@@ -321,6 +421,7 @@ class PlayerViewModel @Inject constructor(
 
     fun next(positionMs: Long, durationMs: Long) {
         if (advancing) return
+        cancelSeriesNextEpisodeCountdown()
 
         val current = session.current() ?: return
         advancing = true
@@ -359,6 +460,7 @@ class PlayerViewModel @Inject constructor(
 
     fun previous(positionMs: Long, durationMs: Long) {
         if (advancing) return
+        cancelSeriesNextEpisodeCountdown()
 
         val current = session.current() ?: return
         advancing = true
@@ -393,7 +495,55 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun selectEpisode(
+        seasonNumber: Int,
+        episodeNumber: Int,
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        if (advancing) return
+
+        val current = session.current() ?: return
+        val targetExists = session.items.any {
+            it.contentType == "SERIES" &&
+                it.seasonNumber == seasonNumber &&
+                it.episodeNumber == episodeNumber
+        }
+        if (!targetExists) return
+        if (
+            current.seasonNumber == seasonNumber &&
+            current.episodeNumber == episodeNumber
+        ) return
+
+        cancelSeriesNextEpisodeCountdown()
+        advancing = true
+        invalidatePlaybackOperation()
+        media3PlayerEngine.invalidateSource()
+
+        viewModelScope.launch {
+            try {
+                persistProgressBeforeNavigation(
+                    current,
+                    positionMs,
+                    durationMs,
+                )
+
+                val selected = session.selectEpisode(
+                    seasonNumber,
+                    episodeNumber,
+                ) ?: return@launch
+
+                _progress.value = PlayerProgressState()
+                _state.value = createState(selected)
+                observeEpg(selected)
+            } finally {
+                advancing = false
+            }
+        }
+    }
+
     fun retry() {
+        cancelSeriesNextEpisodeCountdown()
         recoveryAttempts = 0
         handlingPlaybackError = false
 
@@ -436,6 +586,7 @@ class PlayerViewModel @Inject constructor(
             _state.value.item == null
         ) return
 
+        cancelSeriesNextEpisodeCountdown()
         handlingPlaybackError = true
 
         val action = PlaybackRecoveryPolicy.classify(error.errorCode)
@@ -524,6 +675,7 @@ class PlayerViewModel @Inject constructor(
         media3PlayerEngine.playerForView()
 
     fun startPlayback(item: PlayItem, positionMs: Long) {
+        cancelSeriesNextEpisodeCountdown()
         if (recoveryItem != item) {
             recoveryItem = item
             recoveryAttempts = 0
@@ -666,6 +818,7 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         epgJob?.cancel()
+        cancelSeriesNextEpisodeCountdown()
         invalidatePlaybackOperation()
         media3PlayerEngine.release()
         super.onCleared()

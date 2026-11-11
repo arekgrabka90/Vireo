@@ -19,6 +19,8 @@ data class PlaybackEpisode(
     val description: String? = null,
     val duration: String? = null,
     val thumbnailUrl: String? = null,
+    val isWatched: Boolean = false,
+    val isSelectable: Boolean = true,
 )
 
 data class PlayItem(
@@ -107,6 +109,26 @@ class PlaybackSession @Inject constructor() {
     fun previous(): PlayItem? {
         if (!hasPrevious()) return null
         index -= 1
+        activeAlternativeIndex = 0
+        return current()
+    }
+
+    @Synchronized
+    fun selectEpisode(
+        seasonNumber: Int,
+        episodeNumber: Int,
+    ): PlayItem? {
+        if (seasonNumber < 0 || episodeNumber <= 0) return null
+
+        val targetIndex = items.indexOfFirst {
+            it.contentType == "SERIES" &&
+                it.seasonNumber == seasonNumber &&
+                it.episodeNumber == episodeNumber
+        }
+
+        if (targetIndex !in items.indices) return null
+
+        index = targetIndex
         activeAlternativeIndex = 0
         return current()
     }

@@ -95,4 +95,43 @@ class PlaybackSessionTest {
             session.current()?.url,
         )
     }
+
+    @Test
+    fun `select episode moves queue and resets alternative source`() {
+        val session = PlaybackSession()
+        val first = PlayItem(
+            title = "Test series",
+            url = "https://example.invalid/s1e1.mp4",
+            contentType = "SERIES",
+            seasonNumber = 1,
+            episodeNumber = 1,
+            alternatives = listOf(
+                PlaybackAlternative(
+                    sourceId = 2L,
+                    streamId = "alternative",
+                    url = "https://example.invalid/alternative.mp4",
+                )
+            ),
+        )
+        val second = PlayItem(
+            title = "Test series",
+            url = "https://example.invalid/s1e2.mp4",
+            contentType = "SERIES",
+            seasonNumber = 1,
+            episodeNumber = 2,
+        )
+
+        session.start(listOf(first, second), 0)
+        session.nextAlternative()
+
+        val selected = session.selectEpisode(1, 2)
+
+        assertEquals(2, selected?.episodeNumber)
+        assertEquals(
+            "https://example.invalid/s1e2.mp4",
+            session.current()?.url,
+        )
+        assertNull(session.selectEpisode(9, 9))
+    }
+
 }

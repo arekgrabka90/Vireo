@@ -14,6 +14,7 @@ data class PlayerHudState(
     val hasNext: Boolean,
     val controlsVisible: Boolean,
     val errorMessage: String?,
+    val seriesNextEpisodeCountdownSeconds: Int? = null,
 )
 
 sealed interface PlayerHudContent {
@@ -45,6 +46,7 @@ sealed interface PlayerHudContent {
         val currentEpisodeDescription: String?,
         val currentEpisodeThumbnailUrl: String?,
         val episodes: List<PlaybackEpisode>,
+        val descriptionIsSeriesFallback: Boolean = false,
     ) : PlayerHudContent
 
     data class Live(
@@ -77,6 +79,8 @@ internal fun buildPlayerHudState(
     state: PlayerUiState,
     epg: EpgNowNext,
     recentChannels: List<RecentLiveChannel>,
+    watchedEpisodeKeys: Set<String> = emptySet(),
+    playbackQueue: List<PlayItem> = listOfNotNull(state.item),
 ): PlayerHudState {
     val item = state.item
 
@@ -99,10 +103,48 @@ internal fun buildPlayerHudState(
         contentType == "SERIES" ||
             item.seriesId != null ||
             item.episodes.isNotEmpty() -> {
-            val currentEpisode = item.episodes.firstOrNull {
+            val contentKeyPrefix = item.contentKey
+                ?.takeIf { ":S" in it }
+                ?.substringBeforeLast(":S")
+
+            val queuedEpisodeNumbers = playbackQueue
+                .asSequence()
+                .filter { it.contentType == "SERIES" }
+                .mapNotNull { queued ->
+                    val season = queued.seasonNumber ?: return@mapNotNull null
+                    val episode = queued.episodeNumber ?: return@mapNotNull null
+                    season to episode
+                }
+                .toSet()
+
+            val episodes = item.episodes.map { episode ->
+                val episodeKey = contentKeyPrefix?.let {
+                    "$it:S${episode.seasonNumber}E${episode.episodeNumber}"
+                }
+                episode.copy(
+                    isWatched = episodeKey != null &&
+                        episodeKey in watchedEpisodeKeys,
+                    isSelectable =
+                        (episode.seasonNumber to episode.episodeNumber) in
+                            queuedEpisodeNumbers,
+                )
+            }
+
+            val currentEpisode = episodes.firstOrNull {
                 it.seasonNumber == item.seasonNumber &&
                     it.episodeNumber == item.episodeNumber
             }
+
+            val episodeDescription = currentEpisode?.description
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: item.episodeDescription
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+
+            val descriptionIsSeriesFallback =
+                episodeDescription == null &&
+                    !item.description.isNullOrBlank()
 
             PlayerHudContent.Series(
                 title = item.title,
@@ -117,11 +159,12 @@ internal fun buildPlayerHudState(
                 currentEpisodeTitle = currentEpisode?.title ?: item.episodeTitle,
                 currentSeasonNumber = currentEpisode?.seasonNumber ?: item.seasonNumber,
                 currentEpisodeNumber = currentEpisode?.episodeNumber ?: item.episodeNumber,
-                currentEpisodeDescription =
-                    currentEpisode?.description ?: item.episodeDescription,
+                currentEpisodeDescription = episodeDescription
+                    ?: item.description?.trim()?.takeIf { it.isNotBlank() },
                 currentEpisodeThumbnailUrl =
                     currentEpisode?.thumbnailUrl ?: item.episodeThumbnailUrl,
-                episodes = item.episodes,
+                episodes = episodes,
+                descriptionIsSeriesFallback = descriptionIsSeriesFallback,
             )
         }
 
@@ -151,5 +194,7 @@ internal fun buildPlayerHudState(
         hasNext = state.hasNext,
         controlsVisible = state.runtime.controlsVisible,
         errorMessage = state.error,
+        seriesNextEpisodeCountdownSeconds =
+            state.seriesNextEpisodeCountdownSeconds,
     )
 }

@@ -67,6 +67,8 @@ fun PlayerHudOverlay(
     onSeekTo: (Long) -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    onSelectEpisode: (Int, Int) -> Unit,
+    onCancelNextEpisodeCountdown: () -> Unit,
     onVisibilityChanged: (Boolean) -> Unit,
 ) {
     var visible by remember { mutableStateOf(true) }
@@ -200,6 +202,7 @@ fun PlayerHudOverlay(
                         content = hudState.content,
                         wide = wide,
                         isPlaying = hudState.isPlaying,
+                        onSelectEpisode = onSelectEpisode,
                     )
                 }
 
@@ -211,6 +214,34 @@ fun PlayerHudOverlay(
                         .padding(bottom = if (wide) 34.dp else 20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    hudState.seriesNextEpisodeCountdownSeconds?.let { seconds ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Następny odcinek za $seconds s",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            FocusableBox(
+                                onClick = {
+                                    registerInteraction()
+                                    onCancelNextEpisodeCountdown()
+                                },
+                            ) {
+                                Text(
+                                    "Anuluj",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -379,6 +410,7 @@ private fun ContentInformation(
     content: PlayerHudContent,
     wide: Boolean,
     isPlaying: Boolean,
+    onSelectEpisode: (Int, Int) -> Unit,
 ) {
     when (content) {
         is PlayerHudContent.Movie -> {
@@ -390,70 +422,12 @@ private fun ContentInformation(
         }
 
         is PlayerHudContent.Series -> {
-            Column(
-                modifier = Modifier.fillMaxWidth(if (wide) 0.72f else 0.96f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MetadataLine(content.year, content.genre, null, content.rating)
-                val episodeTitle = content.currentEpisodeTitle
-                    ?.takeIf { it.isNotBlank() }
-                    ?: content.currentEpisode?.title
-                val seasonNumber = content.currentSeasonNumber
-                    ?: content.currentEpisode?.seasonNumber
-                val episodeNumber = content.currentEpisodeNumber
-                    ?: content.currentEpisode?.episodeNumber
-                if (episodeTitle != null || seasonNumber != null || episodeNumber != null) {
-                    val episodeLabel = buildString {
-                        if (seasonNumber != null) append("S${seasonNumber.toString().padStart(2, '0')}")
-                        if (episodeNumber != null) {
-                            if (isNotEmpty()) append("  ·  ")
-                            append("E${episodeNumber.toString().padStart(2, '0')}")
-                        }
-                        if (!episodeTitle.isNullOrBlank()) {
-                            if (isNotEmpty()) append("  ·  ")
-                            append(episodeTitle)
-                        }
-                    }
-                    Text(
-                        episodeLabel,
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                content.currentEpisodeDescription
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let {
-                        Text(
-                            it,
-                            color = Color.White.copy(alpha = 0.82f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = if (wide) 2 else 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                if (content.episodes.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        content.episodes.take(if (wide) 5 else 3).forEach { episode ->
-                            val current = episode == content.currentEpisode
-                            Surface(
-                                color = if (current) Color.White else Color.White.copy(alpha = 0.13f),
-                                shape = RoundedCornerShape(9.dp),
-                            ) {
-                                Text(
-                                    "S${episode.seasonNumber} E${episode.episodeNumber}",
-                                    color = if (current) Color.Black else Color.White,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            SeriesHudContent(
+                content = content,
+                wide = wide,
+                isPlaying = isPlaying,
+                onEpisodeSelected = onSelectEpisode,
+            )
         }
 
         is PlayerHudContent.Live -> {

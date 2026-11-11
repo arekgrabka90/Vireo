@@ -92,7 +92,8 @@ fun PlayerScreen(
 
                 if (
                     playbackState == Player.STATE_ENDED &&
-                    vm.autoplayNextEnabled()
+                    vm.autoplayNextEnabled() &&
+                    !vm.usesSeriesNextEpisodeCountdown()
                 ) {
                     vm.next(player.currentPosition, player.duration)
                 }
@@ -318,6 +319,16 @@ fun PlayerScreen(
             onNext = {
                 vm.next(player.currentPosition, player.duration)
             },
+            onSelectEpisode = { season, episode ->
+                vm.selectEpisode(
+                    seasonNumber = season,
+                    episodeNumber = episode,
+                    positionMs = player.currentPosition,
+                    durationMs = player.duration,
+                )
+            },
+            onCancelNextEpisodeCountdown =
+                vm::cancelSeriesNextEpisodeCountdown,
             onVisibilityChanged = vm::onControlsVisibilityChanged,
         )
 

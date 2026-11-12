@@ -111,7 +111,7 @@ internal fun HudTransportRow(
                 description = stringResource(R.string.hud_seek_backward),
                 onFocusChange = onFocusChange,
             ) {
-                Text(stringResource(R.string.hud_seek_backward)Label, color = HudColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.hud_seek_backward_label), color = HudColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.width(16.dp))
         }
@@ -120,7 +120,7 @@ internal fun HudTransportRow(
             onClick = { onInteraction(); onPlayPause() },
             modifier = Modifier
                 .size(if (compact) 52.dp else 60.dp)
-                .semantics { contentDescription = if (isPlaying) HudStrings.Pause else HudStrings.Play },
+                .semantics { contentDescription = playPauseDescription },
             onFocusChange = onFocusChange,
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -135,7 +135,7 @@ internal fun HudTransportRow(
                 description = stringResource(R.string.hud_seek_forward),
                 onFocusChange = onFocusChange,
             ) {
-                Text(stringResource(R.string.hud_seek_forward)Label, color = HudColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.hud_seek_forward_label), color = HudColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
 

@@ -29,6 +29,7 @@ data class PlayItem(
     val contentKey: String? = null,
     val contentType: String? = null,
     val posterUrl: String? = null,
+    /** TMDB title logo for Movie/Series; Xtream stream_icon for LIVE. Never poster/backdrop. */
     val logoUrl: String? = null,
     val backdropUrl: String? = null,
     val alternatives: List<PlaybackAlternative> = emptyList(),

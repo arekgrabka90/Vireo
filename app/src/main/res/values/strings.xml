@@ -11,4 +11,21 @@
     <string name="tab_live">Live TV</string>
     <string name="retry">Retry</string>
     <string name="empty">No categories</string>
+
+    <string name="hud_back">Back</string>
+    <string name="hud_previous">Previous</string>
+    <string name="hud_next">Next</string>
+    <string name="hud_seek_backward">Back 10 seconds</string>
+    <string name="hud_seek_forward">Forward 10 seconds</string>
+    <string name="hud_seek_backward_label">−10</string>
+    <string name="hud_seek_forward_label">+10</string>
+    <string name="hud_guide">Guide</string>
+    <string name="hud_tv_guide">TV Guide</string>
+    <string name="hud_play">Play</string>
+    <string name="hud_pause">Pause</string>
+    <string name="hud_minutes_left">%1$d min left</string>
+    <string name="hud_current_program">NOW</string>
+    <string name="hud_next_program">UP NEXT</string>
+    <string name="hud_next_episode_countdown">Next episode in %1$d s</string>
+    <string name="hud_cancel">Cancel</string>
 </resources>

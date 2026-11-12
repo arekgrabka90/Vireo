@@ -330,6 +330,7 @@ fun PlayerScreen(
             onCancelNextEpisodeCountdown =
                 vm::cancelSeriesNextEpisodeCountdown,
             onVisibilityChanged = vm::onControlsVisibilityChanged,
+            onSelectRecentChannel = vm::selectRecentChannel,
         )
 
         state.error?.let { error ->

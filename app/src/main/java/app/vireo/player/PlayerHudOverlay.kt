@@ -1,62 +1,64 @@
 package app.vireo.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import app.vireo.R
 import app.vireo.ui.components.FocusableBox
-import app.vireo.ui.theme.VireoColors
+import app.vireo.player.hud.HudGuideOverlay
+import app.vireo.player.hud.HudBottomScrim
+import app.vireo.player.hud.HudInfoBlock
+import app.vireo.player.hud.HudMotion
+import app.vireo.player.hud.HudProgressLine
+import app.vireo.player.hud.HudSeekTimeline
+import app.vireo.player.hud.HudSpacing
+import app.vireo.player.hud.HudTileRow
+import app.vireo.player.hud.HudTopBar
+import app.vireo.player.hud.HudTopScrim
+import app.vireo.player.hud.HudTransportRow
+import app.vireo.player.hud.buildHudTiles
+import app.vireo.player.hud.progressAt
+import app.vireo.player.hud.rememberHudTimeFormat
+import app.vireo.player.hud.rememberWallClockMs
 import kotlinx.coroutines.delay
 
+/**
+ * Transparent HUD drawn above the real video surface.
+ * It never draws a poster, backdrop or any full-screen image: legibility comes from edge scrims only.
+ *
+ * The first ten parameters keep the original contract, so PlayerScreen does not have to change.
+ */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun PlayerHudOverlay(
     hudState: PlayerHudState,
     progress: PlayerProgressState,
@@ -70,11 +72,15 @@ fun PlayerHudOverlay(
     onSelectEpisode: (Int, Int) -> Unit,
     onCancelNextEpisodeCountdown: () -> Unit,
     onVisibilityChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    onSelectRecentChannel: ((RecentLiveChannel) -> Unit)? = null,
+    onOpenGuide: (() -> Unit)? = null,
 ) {
+    // ---- visibility state machine: unchanged behaviour ----
     var visible by remember { mutableStateOf(true) }
-    var interactionTick by remember { mutableStateOf(0) }
+    var interactionTick by remember { mutableIntStateOf(0) }
     var hasFocusedControl by remember { mutableStateOf(false) }
-    var showRemainingTime by remember { mutableStateOf(false) }
+    var guideVisible by remember { mutableStateOf(false) }
 
     val registerInteraction: () -> Unit = {
         visible = true
@@ -86,134 +92,110 @@ fun PlayerHudOverlay(
         interactionTick++
     }
 
-    LaunchedEffect(visible) {
-        onVisibilityChanged(visible)
+    BackHandler(enabled = guideVisible) {
+        guideVisible = false
+        registerInteraction()
     }
 
-    LaunchedEffect(visible, hudState.isPlaying, interactionTick, hasFocusedControl) {
-        if (visible && hudState.isPlaying && !hasFocusedControl) {
+    LaunchedEffect(visible) { onVisibilityChanged(visible) }
+
+    LaunchedEffect(visible, hudState.isPlaying, interactionTick, hasFocusedControl, guideVisible) {
+        if (visible && hudState.isPlaying && !hasFocusedControl && !guideVisible) {
             delay(6_000L)
             visible = false
         }
     }
+    // ---------------------------------------------------------
 
-    val bufferingLogoUrl = when (val content = hudState.content) {
-        is PlayerHudContent.Movie -> content.logoUrl
-        is PlayerHudContent.Series -> content.logoUrl
-        else -> null
-    }
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val compact = maxWidth < 850.dp || maxHeight < 520.dp
+        val horizontal = if (compact) HudSpacing.ScreenHorizontalCompact else HudSpacing.ScreenHorizontal
+        val top = if (compact) HudSpacing.ScreenTopCompact else HudSpacing.ScreenTop
+        val bottom = if (compact) HudSpacing.ScreenBottomCompact else HudSpacing.ScreenBottom
+        val screenHeight = maxHeight
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val wide = maxWidth >= 850.dp
-        val horizontal = if (wide) 56.dp else 24.dp
-        val top = if (wide) 38.dp else 22.dp
-
-        // Tapnięcie poza kontrolkami pokazuje lub ukrywa HUD.
+        // Tap outside the controls toggles the HUD (unchanged). Transparent: the video stays visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable(
                     indication = null,
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    interactionSource = remember { MutableInteractionSource() },
                 ) {
-                    visible = !visible
-                hasFocusedControl = false
-                interactionTick++
+                    if (guideVisible) {
+                        guideVisible = false
+                        visible = true
+                    } else {
+                        visible = !visible
+                    }
+                    hasFocusedControl = false
+                    interactionTick++
                 },
         )
 
         AnimatedVisibility(
             visible = visible,
             modifier = Modifier.fillMaxSize(),
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 35 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 35 }),
+            enter = fadeIn(tween(HudMotion.EnterMs)) +
+                slideInVertically(tween(HudMotion.EnterMs)) { it / 40 },
+            exit = fadeOut(tween(HudMotion.ExitMs)) +
+                slideOutVertically(tween(HudMotion.ExitMs)) { it / 40 },
         ) {
+            val nowMs by rememberWallClockMs()
+            val timeFormat = rememberHudTimeFormat()
+            val content = hudState.content
+
             Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.84f),
-                                0.25f to Color.Black.copy(alpha = 0.42f),
-                                0.55f to Color.Transparent,
-                                0.78f to Color.Black.copy(alpha = 0.72f),
-                                1f to Color.Black.copy(alpha = 0.96f),
-                            )
-                        ),
+                HudTopScrim(modifier = Modifier.align(Alignment.TopCenter))
+                HudBottomScrim(
+                    height = screenHeight * 0.6f,
+                    modifier = Modifier.align(Alignment.BottomCenter),
                 )
 
-                Column(
+                HudTopBar(
+                    transportState = hudState.transportState,
+                    nowMs = nowMs,
+                    timeFormat = timeFormat,
+                    compact = compact,
+                    onBack = { registerInteraction(); onBack() },
+                    onFocusChange = handleFocusChange,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = horizontal, vertical = top),
-                    verticalArrangement = Arrangement.spacedBy(if (wide) 18.dp else 10.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        HudIconButton(
-                            onClick = { registerInteraction(); onBack() },
-                            description = "Back",
-                            onFocusChange = handleFocusChange,
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-
-                        Spacer(Modifier.width(18.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            PlayerHudIdentity(
-                                content = hudState.content,
-                                wide = wide,
-                                isBuffering =
-                                    hudState.transportState == PlayerTransportState.BUFFERING,
-                            )
-                            Text(
-                                text = contentSubtitle(hudState.content),
-                                color = Color.White.copy(alpha = 0.72f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-
-                        if (
-                            hudState.transportState == PlayerTransportState.BUFFERING &&
-                            hudState.content !is PlayerHudContent.Movie &&
-                            hudState.content !is PlayerHudContent.Series
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = Color.White.copy(alpha = 0.82f),
-                                strokeWidth = 2.dp,
-                            )
-                        }
-                    }
-
-                    ContentInformation(
-                        content = hudState.content,
-                        wide = wide,
-                        isPlaying = hudState.isPlaying,
-                        onSelectEpisode = onSelectEpisode,
-                    )
-                }
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = horizontal)
+                        .padding(top = top),
+                )
 
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = horizontal)
-                        .padding(bottom = if (wide) 34.dp else 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                        .padding(bottom = bottom),
+                    verticalArrangement = Arrangement.spacedBy(HudSpacing.Block),
                 ) {
+                    HudInfoBlock(
+                        content = content,
+                        nowMs = nowMs,
+                        timeFormat = timeFormat,
+                        compact = compact,
+                    )
+
+                    // Timeline: only with real data.
+                    when (content) {
+                        is PlayerHudContent.Live ->
+                            content.currentProgram?.progressAt(nowMs)?.let { HudProgressLine(fraction = it) }
+
+                        else -> if (progress.normalizedDurationMs > 0L) {
+                            HudSeekTimeline(
+                                progress = progress,
+                                onSeekTo = onSeekTo,
+                                onInteraction = registerInteraction,
+                                onFocusChange = handleFocusChange,
+                                compact = compact,
+                            )
+                        }
+                    }
+
                     hudState.seriesNextEpisodeCountdownSeconds?.let { seconds ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -221,368 +203,66 @@ fun PlayerHudOverlay(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "Następny odcinek za $seconds s",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelLarge,
+                                stringResource(R.string.hud_next_episode_countdown, seconds),
+                                color = app.vireo.player.hud.HudColors.TextPrimary,
+                                fontWeight = FontWeight.SemiBold,
                             )
                             Spacer(Modifier.width(12.dp))
                             FocusableBox(
-                                onClick = {
-                                    registerInteraction()
-                                    onCancelNextEpisodeCountdown()
-                                },
+                                onClick = { registerInteraction(); onCancelNextEpisodeCountdown() },
+                                onFocusChange = handleFocusChange,
                             ) {
                                 Text(
-                                    "Anuluj",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    stringResource(R.string.hud_cancel),
+                                    color = app.vireo.player.hud.HudColors.TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                             }
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            formatPlayerTime(progress.positionMs),
-                            color = Color.White.copy(alpha = 0.78f),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
+                    HudTransportRow(
+                        isPlaying = hudState.isPlaying,
+                        hasPrevious = hudState.hasPrevious,
+                        hasNext = hudState.hasNext,
+                        showSeek = content !is PlayerHudContent.Live && progress.isSeekable,
+                        compact = compact,
+                        onPlayPause = onPlayPause,
+                        onPrevious = onPrevious,
+                        onSeekBackward = onSeekBackward,
+                        onSeekForward = onSeekForward,
+                        onNext = onNext,
+                        onInteraction = registerInteraction,
+                        onFocusChange = handleFocusChange,
+                    )
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 12.dp)
-                                .height(40.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(4.dp),
-                            ) {
-                                val duration = progress.normalizedDurationMs
-                                val bufferedFraction = if (duration > 0L) {
-                                    (progress.normalizedBufferedPositionMs.toFloat() /
-                                        duration.toFloat()).coerceIn(0f, 1f)
-                                } else {
-                                    0f
-                                }
-                                val playedFraction = if (duration > 0L) {
-                                    (progress.normalizedPositionMs.toFloat() /
-                                        duration.toFloat()).coerceIn(0f, 1f)
-                                } else {
-                                    0f
-                                }
-                                val barHeight = 4.dp.toPx()
-                                val top = (size.height - barHeight) / 2f
-                                val corner = CornerRadius(barHeight / 2f)
-
-                                drawRoundRect(
-                                    color = Color.White.copy(alpha = 0.20f),
-                                    topLeft = Offset(0f, top),
-                                    size = Size(size.width, barHeight),
-                                    cornerRadius = corner,
-                                )
-                                drawRoundRect(
-                                    color = Color.White.copy(alpha = 0.48f),
-                                    topLeft = Offset(0f, top),
-                                    size = Size(size.width * bufferedFraction, barHeight),
-                                    cornerRadius = corner,
-                                )
-                                drawRoundRect(
-                                    color = Color.White,
-                                    topLeft = Offset(0f, top),
-                                    size = Size(size.width * playedFraction, barHeight),
-                                    cornerRadius = corner,
-                                )
-                            }
-
-                            Slider(
-                                value = progress.positionMs
-                                    .coerceAtLeast(0L)
-                                    .toFloat()
-                                    .coerceAtMost(
-                                        progress.durationMs.coerceAtLeast(1L).toFloat()
-                                    ),
-                                onValueChange = {
-                                    registerInteraction()
-                                    onSeekTo(it.toLong())
-                                },
-                                enabled = progress.isSeekable && progress.durationMs > 0L,
-                                valueRange = 0f..progress.durationMs
-                                    .coerceAtLeast(1L).toFloat(),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onFocusChanged {
-                                        handleFocusChange(it.hasFocus)
-                                    },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.Transparent,
-                                    inactiveTrackColor = Color.Transparent,
-                                    disabledThumbColor = Color.White.copy(alpha = 0.35f),
-                                    disabledActiveTrackColor = Color.Transparent,
-                                    disabledInactiveTrackColor = Color.Transparent,
-                                ),
-                            )
-                        }
-
-                        Text(
-                            text = if (
-                                showRemainingTime && progress.durationMs > 0L
-                            ) {
-                                "-${formatPlayerTime(
-                                    (progress.durationMs - progress.positionMs)
-                                        .coerceAtLeast(0L)
-                                )}"
-                            } else {
-                                formatPlayerTime(progress.durationMs)
+                    if (content is PlayerHudContent.Live) {
+                        HudTileRow(
+                            tiles = buildHudTiles(
+                                content = content,
+                                hasSelectChannelAction = onSelectRecentChannel != null,
+                                hasGuideAction = true,
+                            ),
+                            onOpenGuide = {
+                                registerInteraction()
+                                guideVisible = true
+                                onOpenGuide?.invoke()
                             },
-                            modifier = Modifier.clickable {
-                                showRemainingTime = !showRemainingTime
-                            },
-                            color = Color.White.copy(alpha = 0.78f),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (hudState.hasPrevious) {
-                            HudIconButton(onClick = { registerInteraction(); onPrevious() }, description = "Previous", onFocusChange = handleFocusChange) {
-                                Text("‹", color = Color.White, style = MaterialTheme.typography.headlineMedium)
-                            }
-                        }
-
-                        Spacer(Modifier.width(12.dp))
-
-                        HudIconButton(onClick = { registerInteraction(); onSeekBackward() }, description = "Back 10 seconds", onFocusChange = handleFocusChange) {
-                            Text("↶10", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                        }
-
-                        Spacer(Modifier.width(16.dp))
-
-                        FocusableBox(
-                            onClick = { registerInteraction(); onPlayPause() },
-                            modifier = Modifier
-                                .size(if (wide) 64.dp else 56.dp)
-                                .clip(CircleShape)
-                                .background(Color.White),
+                            onSelectChannel = onSelectRecentChannel,
+                            onInteraction = registerInteraction,
                             onFocusChange = handleFocusChange,
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(if (hudState.isPlaying) "Ⅱ" else "▶", color = Color.Black, style = MaterialTheme.typography.headlineMedium)
-                            }
-                        }
-
-                        Spacer(Modifier.width(16.dp))
-
-                        HudIconButton(onClick = { registerInteraction(); onSeekForward() }, description = "Forward 10 seconds", onFocusChange = handleFocusChange) {
-                            Text("↷10", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                        }
-
-                        Spacer(Modifier.width(12.dp))
-
-                        if (hudState.hasNext) {
-                            HudIconButton(onClick = { registerInteraction(); onNext() }, description = "Next", onFocusChange = handleFocusChange) {
-                                Text("›", color = Color.White, style = MaterialTheme.typography.headlineMedium)
-                            }
-                        }
+                        )
                     }
+                }
+
+                if (guideVisible && content is PlayerHudContent.Live) {
+                    HudGuideOverlay(
+                        content = content,
+                        onClose = { guideVisible = false; registerInteraction() },
+                        onFocusChange = handleFocusChange,
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ContentInformation(
-    content: PlayerHudContent,
-    wide: Boolean,
-    isPlaying: Boolean,
-    onSelectEpisode: (Int, Int) -> Unit,
-) {
-    when (content) {
-        is PlayerHudContent.Movie -> {
-            MovieHudContent(
-                content = content,
-                wide = wide,
-                isPlaying = isPlaying,
-            )
-        }
-
-        is PlayerHudContent.Series -> {
-            SeriesHudContent(
-                content = content,
-                wide = wide,
-                isPlaying = isPlaying,
-                onEpisodeSelected = onSelectEpisode,
-            )
-        }
-
-        is PlayerHudContent.Live -> {
-            Column(
-                modifier = Modifier.fillMaxWidth(if (wide) 0.72f else 0.96f),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(5.dp),
-                    ) {
-                        Text(
-                            "LIVE",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        content.currentProgram?.title ?: "Live television",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                content.currentProgramDescription
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let {
-                        Text(
-                            it,
-                            color = Color.White.copy(alpha = 0.82f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = if (wide) 3 else 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-
-                content.nextProgram?.let {
-                    Text(
-                        "UP NEXT  ·  ${it.title}",
-                        color = Color.White.copy(alpha = 0.68f),
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                if (content.recentChannels.isNotEmpty()) {
-                    Text(
-                        "RECENT CHANNELS",
-                        color = Color.White.copy(alpha = 0.55f),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        content.recentChannels.take(if (wide) 5 else 3).forEach {
-                            Surface(
-                                color = Color.White.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(8.dp),
-                            ) {
-                                Text(
-                                    it.channelName,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        is PlayerHudContent.Other -> Unit
-    }
-}
-
-@Composable
-private fun MetadataLine(
-    year: String?,
-    genre: String?,
-    duration: String?,
-    rating: String?,
-) {
-    val values = listOfNotNull(
-        year?.takeIf { it.isNotBlank() },
-        genre?.takeIf { it.isNotBlank() },
-        duration?.takeIf { it.isNotBlank() },
-        rating?.takeIf { it.isNotBlank() }?.let { "★ $it" },
-    )
-
-    if (values.isNotEmpty()) {
-        Text(
-            values.joinToString("   ·   "),
-            color = Color.White.copy(alpha = 0.72f),
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun HudIconButton(
-    onClick: () -> Unit,
-    description: String,
-    onFocusChange: (Boolean) -> Unit,
-    content: @Composable () -> Unit,
-) {
-    FocusableBox(
-        onClick = onClick,
-        onFocusChange = onFocusChange,
-        modifier = Modifier
-            .size(46.dp)
-            .semantics { contentDescription = description },
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            content()
-        }
-    }
-}
-
-private fun contentTitle(content: PlayerHudContent): String = when (content) {
-    is PlayerHudContent.Movie -> content.title
-    is PlayerHudContent.Series -> content.title
-    is PlayerHudContent.Live -> content.channelName
-    is PlayerHudContent.Other -> content.title
-}
-
-private fun contentSubtitle(content: PlayerHudContent): String = when (content) {
-    is PlayerHudContent.Movie -> listOfNotNull(content.year, content.genre).joinToString("  ·  ")
-    is PlayerHudContent.Series -> "SERIES"
-    is PlayerHudContent.Live -> "LIVE TELEVISION"
-    is PlayerHudContent.Other -> "NOW PLAYING"
-}
-
-private fun formatPlayerTime(value: Long): String {
-    val seconds = (value.coerceAtLeast(0L) / 1_000L)
-    val hours = seconds / 3_600L
-    val minutes = (seconds % 3_600L) / 60L
-    val remaining = seconds % 60L
-
-    return if (hours > 0L) {
-        "%d:%02d:%02d".format(hours, minutes, remaining)
-    } else {
-        "%d:%02d".format(minutes, remaining)
     }
 }

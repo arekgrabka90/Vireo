@@ -542,6 +542,39 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun selectRecentChannel(channel: RecentLiveChannel) {
+        if (advancing) return
+        if (channel.sourceId <= 0L || channel.streamId.isBlank()) return
+
+        val current = session.current() ?: return
+        if (current.contentType != "LIVE") return
+        if (current.sourceId == channel.sourceId && current.streamId == channel.streamId) return
+
+        cancelSeriesNextEpisodeCountdown()
+        advancing = true
+        try {
+            invalidatePlaybackOperation()
+            media3PlayerEngine.invalidateSource()
+            // PlayerScreen uruchomi standardowe resolvePlaybackSource(item) dla sourceId.
+            val selected = PlayItem(
+                title = channel.channelName,
+                url = "",
+                contentKey = "live:${channel.sourceId}:${channel.streamId}",
+                contentType = "LIVE",
+                logoUrl = channel.logoUrl,
+                epgChannelId = channel.epgChannelId,
+                streamId = channel.streamId,
+                sourceId = channel.sourceId,
+            )
+            session.start(listOf(selected), 0)
+            _progress.value = PlayerProgressState()
+            _state.value = createState(selected)
+            observeEpg(selected)
+        } finally {
+            advancing = false
+        }
+    }
+
     fun retry() {
         cancelSeriesNextEpisodeCountdown()
         recoveryAttempts = 0

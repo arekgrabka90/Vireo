@@ -101,6 +101,8 @@ class PlayerHudStateTest {
             contentType = "LIVE",
             streamId = "stream-1",
             epgChannelId = "epg-1",
+            logoUrl = "https://example.invalid/channel-icon.png",
+            sourceId = 1L,
         )
 
         val result = buildPlayerHudState(
@@ -111,6 +113,8 @@ class PlayerHudStateTest {
 
         val live = result.content as PlayerHudContent.Live
         assertEquals(current, live.currentProgram)
+        assertEquals("https://example.invalid/channel-icon.png", live.logoUrl)
+        assertEquals(1L, live.sourceId)
         assertEquals("Programme description", live.currentProgramDescription)
         assertNull(live.nextProgram)
         assertEquals(listOf(recent), live.recentChannels)
@@ -217,6 +221,45 @@ class PlayerHudStateTest {
         assertTrue(series.descriptionIsSeriesFallback)
         assertTrue(series.episodes.first().isWatched)
         assertTrue(series.episodes.first().isSelectable)
+    }
+
+
+
+    @Test
+    fun `movie logo never falls back to poster or backdrop`() {
+        val item = PlayItem(
+            title = "Movie without title logo",
+            url = "https://example.invalid/movie.mp4",
+            contentType = "MOVIE",
+            posterUrl = "https://example.invalid/poster.jpg",
+            backdropUrl = "https://example.invalid/backdrop.jpg",
+            logoUrl = null,
+        )
+        val result = buildPlayerHudState(
+            PlayerUiState(item = item),
+            EpgNowNext(null, null),
+            emptyList(),
+        )
+        assertNull((result.content as PlayerHudContent.Movie).logoUrl)
+    }
+
+    @Test
+    fun `series logo never falls back to poster or backdrop`() {
+        val item = PlayItem(
+            title = "Series without title logo",
+            url = "https://example.invalid/episode.mp4",
+            contentType = "SERIES",
+            seriesId = "series-2",
+            posterUrl = "https://example.invalid/poster.jpg",
+            backdropUrl = "https://example.invalid/backdrop.jpg",
+            logoUrl = null,
+        )
+        val result = buildPlayerHudState(
+            PlayerUiState(item = item),
+            EpgNowNext(null, null),
+            emptyList(),
+        )
+        assertNull((result.content as PlayerHudContent.Series).logoUrl)
     }
 
 }

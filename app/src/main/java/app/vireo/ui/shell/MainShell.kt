@@ -74,7 +74,6 @@ private data class Dest(val route: String, val label: Int)
 
 private val HomeDest = Dest("home", R.string.nav_home)
 private val LiveDest = Dest("live", R.string.nav_live)
-private val GuideDest = Dest("guide", R.string.nav_guide)
 private val MyListDest = Dest("mylist", R.string.nav_mylist)
 private val RecordingsDest = Dest("recordings", R.string.nav_recordings)
 private val SearchDest = Dest("search", R.string.nav_search)
@@ -150,7 +149,6 @@ fun MainShell(
     val topItems = listOf(
         HomeDest,
         LiveDest,
-        GuideDest,
         MyListDest,
         RecordingsDest,
         SearchDest,
@@ -502,9 +500,6 @@ private fun ShellNavHost(
         }
         composable("live") {
             LiveTvScreen(onOpenCategory, openSources)
-        }
-        composable("guide") {
-            PlaceholderScreen(R.string.nav_guide, R.string.ph_guide, "🗓️")
         }
         composable("search") {
             SearchScreen(onOpenTitle = onOpenTmdbTitle)

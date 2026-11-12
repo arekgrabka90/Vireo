@@ -26,6 +26,8 @@ sealed interface PlayerHudContent {
         val duration: String?,
         val rating: String?,
         val posterUrl: String?,
+        /** Rzeczywiste logo tytulu z TMDB; nigdy poster ani backdrop. */
+        /** Rzeczywiste logo serialu z TMDB; nigdy poster ani backdrop. */
         val logoUrl: String?,
         val backdropUrl: String?,
     ) : PlayerHudContent
@@ -53,11 +55,14 @@ sealed interface PlayerHudContent {
         val channelName: String,
         val epgChannelId: String?,
         val streamId: String?,
+        /** Ikona kanalu Xtream (stream_icon), nie logo tytulu TMDB. */
         val logoUrl: String?,
         val currentProgram: app.vireo.domain.model.EpgProgram?,
         val currentProgramDescription: String?,
         val nextProgram: app.vireo.domain.model.EpgProgram?,
         val recentChannels: List<RecentLiveChannel>,
+        /** Konto Xtream, z ktorego pochodzi kanal; odroznia historie miedzy zrodlami. */
+        val sourceId: Long? = null,
     ) : PlayerHudContent
 
     data class Other(
@@ -98,6 +103,7 @@ internal fun buildPlayerHudState(
             currentProgramDescription = epg.current?.description,
             nextProgram = epg.next,
             recentChannels = recentChannels,
+            sourceId = item.sourceId,
         )
 
         contentType == "SERIES" ||

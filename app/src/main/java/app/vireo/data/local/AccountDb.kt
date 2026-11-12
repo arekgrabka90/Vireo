@@ -115,7 +115,7 @@ interface AccountDao {
         LiveChannelHistoryEntity::class,
     ],
     version = 14,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class VireoDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao

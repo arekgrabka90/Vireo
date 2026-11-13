@@ -11,29 +11,30 @@ Repozytorium GitHub `arekgrabka90/Vireo` jest źródłem prawdy dla projektu.
 ### Stan lokalny i zdalny — audyt 2026-11-13
 
 - Branch: `work/vireo-development`
-- Lokalny HEAD: `fecb0dfe749da577d8e99164184d18419c7f6254`
-- GitHub branch HEAD: `fecb0dfe749da577d8e99164184d18419c7f6254`
+- Lokalny HEAD: `7d3ab08ac8d14291ec524d7ac270428bc7920ac0`
+- GitHub branch HEAD: `7d3ab08ac8d14291ec524d7ac270428bc7920ac0`
 - GitHub `main` HEAD: `fa213bb63857f93c6fad3baa2a6b5a057f3d74d1`
 - Lokalny i zdalny HEAD `work/vireo-development` są zgodne (po pushu).
 - Różnica commitów: 0 / 0 (0 do przodu, 0 do tyłu).
 - Zmiany staged: brak.
-- Zmiany tracked unstaged: 2 (poprawka C1.2, przed commitem)
-  - `app/build.gradle.kts` — `kotlinx-serialization-json` 1.6.3 → 1.8.1
-  - `docs/STATE.md` (ta aktualizacja)
+- Zmiany tracked unstaged: 1
+  - `docs/STATE.md` (ta aktualizacja, przed commitem)
 - Pliki untracked: 2
   - `AGENTS.md` (zaktualizowane role; nadal poza repozytorium)
   - `.opencode-permission-probe.txt`
 - Ostatni commit (lokalny i zdalny):
-  `fecb0df test(room): add Room migration test infrastructure (C1.2)`
+  `7d3ab08 fix(room): align kotlinx-serialization with room-testing requirement`
 - Commity po poprzednim audycie (`beec446`, 2026-11-12):
   - `6c4d2a5` — `test(room): prepare schema export and migration testing`
   - `597d887` — `ci(room): publish Room schema artifact and prepare migration validation`
   - `8d5a0a5` — `ci(room): fix recursive schema artifact path`
   - `3555f05` — `docs: align project state with repository and record C1.2 scope`
   - `fecb0df` — `test(room): add Room migration test infrastructure (C1.2)`
+  - `7d3ab08` — `fix(room): align kotlinx-serialization with room-testing requirement`
 - Pliki untracked nie są usuwane, przenoszone, edytowane ani dodawane do Git.
 - Backup przed tą aktualizacją dokumentacji:
-  `~/VIREO_backups/DOCS_UPDATE_20261113_122325`
+  `~/VIREO_backups/DOCS_UPDATE_20261113_122325` (audyt stanu repozytorium)
+  oraz `~/VIREO_backups/AGENTS_20261113_125345` (AGENTS.md).
 
 ### Historia wcześniejszych audytów
 
@@ -264,6 +265,7 @@ Plik: `app/src/androidTest/java/app/vireo/data/local/VireoDatabaseMigrationTest.
   `identityHash` wyeksportowanego schematu (wykrywa rozjazd schematu i kodu).
 - Zakres C1.2 obejmuje wyłącznie wersję 14 (smoke test). Ścieżki migracji
   `2 → 3` … `13 → 14` oraz przyszła `14 → 15` nie są jeszcze pokryte testami.
+- Weryfikacja: CI #160 (`7d3ab08`) — 2/2 testy PASS na emulatorze API 34.
 
 Migracja 13 → 14:
 
@@ -301,15 +303,16 @@ Aktualny stan planowania:
 - Zatwierdzona specyfikacja zadania: C1.2, Wariant A (`androidTest` +
   `MigrationTestHelper`) i Opcja A1 w CI (emulator API 34 +
   `connectedDebugAndroidTest`) — decyzja właściciela z 2026-11-13.
-- Ostatnio wykonany pakiet: **C1.1** (eksport schematu Room + publikacja artefaktu
-  w CI). Zrealizowany w kodzie i potwierdzony w CI, **niezaakceptowany**.
-- C1.2: zaimplementowany w kodzie (working tree, niezacommitowany).
-  Weryfikacja CI i urządzenia **jeszcze nie wykonana**.
+- Ostatnio wykonany pakiet: **C1.2** (infrastruktura testów migracji Room),
+  commity `fecb0df` i `7d3ab08`. Zrealizowany w kodzie, potwierdzony w CI #160
+  (2/2 testy PASS na emulatorze API 34), **niezaakceptowany**.
+- Poprzedni pakiet: **C1.1** (eksport schematu Room + publikacja artefaktu
+  w CI), zrealizowany i potwierdzony w CI, niezaakceptowany.
 - Migracja `14 → 15` **nie została rozpoczęta**.
 - Nie rozpoczynać implementacji bez zatwierdzonej specyfikacji.
 - Nie oznaczać etapów jako zakończonych bez potwierdzonych kryteriów i dowodów.
 
-Statusy poniżej wymagają potwierdzenia na podstawie historii commitów, aktualnego kodu, testów i decyzji projektanta. Nie należy ich wywodzić wyłącznie z wyniku CI.
+Statusy poniżej wymagają potwierdzenia na podstawie historii commitów, aktualnego kodu, testów i decyzji właściciela. Nie należy ich wywodzić wyłącznie z wyniku CI.
 
 | Etap | W kodzie | Testy przeszły | Zaakceptowany |
 |---|---|---|---|
@@ -319,7 +322,7 @@ Statusy poniżej wymagają potwierdzenia na podstawie historii commitów, aktual
 | 2B.5 | Do potwierdzenia | Do potwierdzenia | Niepotwierdzone |
 | Stage 3 | Do potwierdzenia | Do potwierdzenia | Niepotwierdzone |
 | C1.1 | Tak (`6c4d2a5`–`8d5a0a5`) | CI: unit tests PASS, schemat wygenerowany (#158) | Niepotwierdzone |
-| C1.2 | Tak (working tree) | Nie wykonano (brak commita i runu CI) | Niepotwierdzone |
+| C1.2 | Tak (`fecb0df`, `7d3ab08`) | CI #160: 2/2 testy PASS na emulatorze API 34 | Niepotwierdzone |
 
 ### Materiały referencyjne
 
@@ -343,7 +346,7 @@ Zweryfikowane kroki:
 - publikacja artefaktu `vireo-debug-apk`
 - publikacja artefaktu `vireo-room-schemas` z `app/schemas/**/*.json`
   (`if-no-files-found: error`, retencja 30 dni)
-- C1.2 (working tree, niezacommitowane): nowy job `android-test` —
+- C1.2 (commit `fecb0df`): nowy job `android-test` —
   `reactivecircus/android-emulator-runner@v2` (API 34, `x86_64`, `default`),
   `gradle connectedDebugAndroidTest --stacktrace`, raport w artefakcie
   `vireo-android-test-report` (retencja 14 dni, `if-no-files-found: warn`).
@@ -352,13 +355,15 @@ Workflow używa Java 17 i Gradle 8.13. Uruchamia się dla `main`, `work/vireo-de
 
 ### Ostatni potwierdzony sukces CI
 
-- Workflow: #158
-- Commit: `8d5a0a5913526e6e5bb593afd87a13868e8087db`
+- Workflow: #160
+- Commit: `7d3ab08ac8d14291ec524d7ac270428bc7920ac0`
 - Branch: `work/vireo-development`
-- Workflow: Build APK
-- Conclusion: SUCCESS
-- Zakończenie: 2026-11-12 21:50:15 UTC
-- URL: https://github.com/arekgrabka90/Vireo/actions/runs/43313472008
+- Conclusion: SUCCESS (oba joby: `build` i `android-test`)
+- Zakończenie: 2026-11-13 12:34:07 UTC
+- `android-test`: 2/2 testy `VireoDatabaseMigrationTest` przeszły na emulatorze
+  `emulator-5554 - 14` (0 skipped, 0 failed), `BUILD SUCCESSFUL in 8m 52s`.
+- Artefakty: `vireo-debug-apk` (14 377 418 B), `vireo-room-schemas` (3 068 B),
+  `vireo-android-test-report` (5 158 B).
 
 ### C1.2 — pierwszy run z testami instrumentowanymi
 
@@ -371,7 +376,8 @@ Workflow używa Java 17 i Gradle 8.13. Uruchamia się dla `main`, `work/vireo-de
 - Przyczyna: `room-migration:2.8.5` (zależność `room-testing`) wymaga
   `kotlinx-serialization-json:1.8.1`, a aplikacja deklarowała 1.6.3.
   W `androidTest` runtime serializacji był 1.8.1, kod skompilowany przeciw 1.6.3.
-- Poprawka: podniesienie `kotlinx-serialization-json` do 1.8.1 (zgoda właściciela).
+- Poprawka: podniesienie `kotlinx-serialization-json` do 1.8.1 (zgoda właściciela),
+  commit `7d3ab08`, potwierdzona runem #160.
 - Emulator API 34 wystartował poprawnie, testy zostały uruchomione — infrastruktura
   `android-test` działa; problem dotyczył wyłącznie wersji biblioteki.
 - Artefakty runu: `vireo-debug-apk` (14 363 389 B), `vireo-room-schemas` (3 068 B),
@@ -400,18 +406,19 @@ Sukces CI nie zastępuje testów na urządzeniu ani akceptacji etapu.
 - #159 (`fecb0df`) — FAILURE (job `android-test`); `build` SUCCESS.
   Testy instrumentowane uruchomione, ale oba zakończone `AbstractMethodError`
   z `kotlinx-serialization` (rozjazd 1.6.3 vs 1.8.1). Poprawka: wersja 1.8.1.
+- #160 (`7d3ab08`) — SUCCESS; oba joby zielone, 2/2 testy migracji przeszły
+  na emulatorze API 34.
 
 Na commicie `8d5a0a5` nie ma otwartego błędu CI. Na `fecb0df` otwarty był
-błąd `android-test`, naprawiany podniesieniem `kotlinx-serialization-json`.
+błąd `android-test`, naprawiony w `7d3ab08` i potwierdzony runem #160.
 
 ### Stan testów
 
 - Pliki testowe: 39 plików `*.kt` w `app/src/test/`.
 - Liczba adnotacji `@Test`: 223 (policzone lokalnie w kodzie).
-- C1.2 (working tree): istnieje `app/src/androidTest/` z jednym plikiem
-  `VireoDatabaseMigrationTest.kt` (2 testy) oraz `testInstrumentationRunner`.
-- Testy instrumentowane nie zostały jeszcze uruchomione — wymagają CI
-  (job `android-test`, Opcja A1) lub urządzenia.
+- C1.2: `app/src/androidTest/` z plikiem `VireoDatabaseMigrationTest.kt`
+  (2 testy) oraz `testInstrumentationRunner`.
+- Testy instrumentowane: PASS w CI #160 (2/2, emulator API 34).
 - Brak testów pokrywających ścieżki migracji `2 → 3` … `13 → 14`.
 
 ### Historia naprawionych błędów
@@ -428,18 +435,19 @@ błąd `android-test`, naprawiany podniesieniem `kotlinx-serialization-json`.
 
 ## 9. Otwarte kwestie i ograniczenia
 
-- Aktywny etap: C1.2 zaimplementowany w kodzie (working tree), brak CI i akceptacji.
+- Aktywny etap: C1.2 zaimplementowany, CI-zweryfikowany (#160), **niezaakceptowany**.
 - C1.1 zrealizowany w kodzie i CI, niezaakceptowany.
-- `app/schemas/app.vireo.data.local.VireoDatabase/14.json` jest w working tree
-  (untracked) — po commicie schemat będzie źródłem prawdy dla testów migracji.
-  Artefakt CI `vireo-room-schemas` (ważny do 2026-12-12) przestaje być jedynym źródłem.
+- `app/schemas/app.vireo.data.local.VireoDatabase/14.json` jest w repozytorium
+  (commit `fecb0df`) i stanowi źródło prawdy dla testów migracji.
+  Artefakt CI `vireo-room-schemas` (ważny do 2026-12-13) nie jest już jedynym źródłem.
 - C1.2 nie pokrywa ścieżek migracji `2 → 3` … `13 → 14`; wymaga osobnego zadania.
-- Job CI `android-test` (emulator) nie został jeszcze uruchomiony — ryzyko
-  niedostępności KVM lub limitów czasu na runnerze wymaga potwierdzenia w praktyce.
+- Job CI `android-test` działa (run #160, ~17 min); emulator API 34 startuje poprawnie.
+  Uwaga na czas trwania: każdy push na `main`/`work/vireo-development` uruchamia
+  emulator ponownie.
 - Brak migracji Room `1 → 2` — potwierdzone w kodzie (`AppModule`, lista migracji).
-- `AGENTS.md` jest lokalny i nie jest wersjonowany.
+- `AGENTS.md` jest lokalny i nie jest wersjonowany (role zaktualizowane 2026-11-13).
 - `.opencode-permission-probe.txt` wymaga identyfikacji.
-- `docs/audits/SECOND_AUDIT_ROOM_SQLITE_CATALOG.md` jest untracked (audyt na `beec446`).
+- `docs/audits/SECOND_AUDIT_ROOM_SQLITE_CATALOG.md` jest w repozytorium od `3555f05`.
 - Status historycznych etapów wymaga formalnego przeglądu.
 - Nie potwierdzono walidacji migracji Room 13 → 14 na rzeczywistych danych urządzenia.
 - Testy na fizycznym urządzeniu wymagają osobnego potwierdzenia.
@@ -475,7 +483,7 @@ zmieniono konfigurację chronioną:
 - `.github/workflows/build.yml`: krok publikacji artefaktu `vireo-room-schemas`;
 - `app/src/main/java/app/vireo/data/local/AccountDb.kt`: `exportSchema = true`.
 
-W C1.2 (working tree, zgoda właściciela z 2026-11-13) dodatkowo:
+W C1.2 (commity `fecb0df` i `7d3ab08`, zgoda właściciela z 2026-11-13) dodatkowo:
 
 - `app/build.gradle.kts`:
   `testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"`,

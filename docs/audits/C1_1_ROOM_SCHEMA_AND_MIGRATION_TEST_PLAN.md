@@ -1,5 +1,8 @@
 # C1.1 — Room schema and migration test preparation
 
+**Status pakietu (2026-11-13):** zrealizowany w kodzie (`6c4d2a5`, `597d887`, `8d5a0a5`)
+i potwierdzony w CI (workflow #158, SUCCESS). Niezaakceptowany przez właściciela.
+
 ## Baseline
 
 - Branch: work/vireo-development
@@ -12,12 +15,12 @@
 
 ## Scope of this package
 
-1. Publish generated Room schema JSON files as a separate GitHub Actions artifact.
-2. Fail the workflow if the schema JSON files are not generated.
-3. Preserve the existing unit-test, signing and APK-build steps.
-4. Do not modify database entities, migrations or database version.
-5. Do not modify Gradle, AGP, Kotlin, compileSdk or Media3 versions.
-6. Do not modify signing configuration or GitHub secrets.
+1. Publish generated Room schema JSON files as a separate GitHub Actions artifact. — **wykonane**
+2. Fail the workflow if the schema JSON files are not generated. — **wykonane**
+3. Preserve the existing unit-test, signing and APK-build steps. — **zachowane**
+4. Do not modify database entities, migrations or database version. — **zachowane (v14 bez zmian)**
+5. Do not modify Gradle, AGP, Kotlin, compileSdk or Media3 versions. — **zachowane**
+6. Do not modify signing configuration or GitHub secrets. — **zachowane**
 
 ## Expected artifact
 
@@ -25,12 +28,24 @@ Artifact name:
 
 vireo-room-schemas
 
-Expected schema file:
+Rzeczywista ścieżka pliku w artefakcie (potwierdzona przez `gh run download`):
 
-app/schemas/14.json
+app.vireo.data.local.VireoDatabase/14.json
 
-The actual file must be inspected after the workflow run.
-Its existence and contents must not be inferred from a successful APK build.
+Room zapisuje schemat w podkatalogu nazwanym od klasy bazy, dlatego ścieżka
+w workflow to `app/schemas/**/*.json` (poprawka w `8d5a0a5`).
+
+Potwierdzone dla schematu v14:
+
+- rozmiar artefaktu: 3 068 B,
+- `identityHash`: `410131225083a186b43291867168bf6e`,
+- 14 encji,
+- `library_items` bez FK,
+- `live_channel_history` z FK tylko do `profiles`,
+- indeks `index_epg_programs_sourceId_streamId_endTimeMs` istnieje.
+
+Plik schematu nie jest zacommitowany w repozytorium — istnieje wyłącznie
+jako artefakt CI.
 
 ## Migration 14 -> 15 test matrix
 
@@ -70,9 +85,38 @@ After obtaining and reviewing schema 14.json:
 4. Implement and verify migration tests.
 5. Only then implement production migration 14 -> 15.
 
+Stan po 2026-11-13:
+
+- Punkt 1 — schemat v14 pobrany i przejrzany (szczegóły wyżej).
+- Punkt 2 — sprawdzone: brak `app/src/androidTest/`, brak `testInstrumentationRunner`,
+  brak `MigrationTestHelper`. Zadeklarowana zależność `room-testing:2.8.5`
+  nie jest używana.
+- Punkt 3 — zatwierdzony przez właściciela: Wariant A (`androidTest` +
+  `MigrationTestHelper`) i Opcja A1 w CI (emulator API 34 +
+  `connectedDebugAndroidTest`).
+- Punkt 4 — zaimplementowany w working tree (C1.2, 2026-11-13):
+  `app/schemas/app.vireo.data.local.VireoDatabase/14.json`,
+  `VireoDatabaseMigrationTest.kt`, konfiguracja `androidTest` w
+  `app/build.gradle.kts`, job `android-test` w `.github/workflows/build.yml`.
+  Weryfikacja CI i urządzenia — **nie wykonana** (brak commita).
+- Punkt 5 — nierozpoczęty (wymaga zamknięcia C1.2).
+
 ## Verification status
 
 C1.1 script prepares schema artifact publication and this test plan.
 
 No Gradle build or tests are run by the Termux script.
-GitHub Actions verification remains pending.
+
+GitHub Actions verification (potwierdzone dla `work/vireo-development`):
+
+- #156 (`6c4d2a5`) — SUCCESS; brak jeszcze kroku publikacji schematu.
+- #157 (`597d887`) — FAILURE; `Upload Room schema artifact` nie znalazł
+  `app/schemas/*.json` (plik jest w podkatalogu per klasa bazy).
+- #158 (`8d5a0a5`) — SUCCESS; artefakt `vireo-room-schemas` opublikowany
+  (3 068 B, dostępność do 2026-12-12), obok `vireo-debug-apk` (14 363 395 B).
+
+Wnioski:
+
+- Publikacja schematu działa; schemat v14 został faktycznie wygenerowany.
+- Nie istnieją jeszcze testy migracji — sam eksport schematu ich nie zastępuje.
+- Sukces CI nie oznacza akceptacji pakietu C1.1.

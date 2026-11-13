@@ -11,29 +11,26 @@ Repozytorium GitHub `arekgrabka90/Vireo` jest źródłem prawdy dla projektu.
 ### Stan lokalny i zdalny — audyt 2026-11-13
 
 - Branch: `work/vireo-development`
-- Lokalny HEAD: `8d5a0a5913526e6e5bb593afd87a13868e8087db`
-- GitHub branch HEAD: `8d5a0a5913526e6e5bb593afd87a13868e8087db`
+- Lokalny HEAD: `fecb0dfe749da577d8e99164184d18419c7f6254`
+- GitHub branch HEAD: `fecb0dfe749da577d8e99164184d18419c7f6254`
 - GitHub `main` HEAD: `fa213bb63857f93c6fad3baa2a6b5a057f3d74d1`
-- Lokalny i zdalny HEAD `work/vireo-development` są zgodne.
+- Lokalny i zdalny HEAD `work/vireo-development` są zgodne (po pushu).
 - Różnica commitów: 0 / 0 (0 do przodu, 0 do tyłu).
 - Zmiany staged: brak.
-- Zmiany tracked unstaged: 4 (stan po wdrożeniu C1.2, przed commitami)
-  - `docs/STATE.md` (ta aktualizacja, niezacommitowana)
-  - `docs/audits/C1_1_ROOM_SCHEMA_AND_MIGRATION_TEST_PLAN.md` (aktualizacja statusu)
-  - `app/build.gradle.kts` (konfiguracja testów instrumentowanych — C1.2)
-  - `.github/workflows/build.yml` (job `android-test` — C1.2, Opcja A1)
-- Pliki untracked: 5
-  - `AGENTS.md`
+- Zmiany tracked unstaged: 2 (poprawka C1.2, przed commitem)
+  - `app/build.gradle.kts` — `kotlinx-serialization-json` 1.6.3 → 1.8.1
+  - `docs/STATE.md` (ta aktualizacja)
+- Pliki untracked: 2
+  - `AGENTS.md` (zaktualizowane role; nadal poza repozytorium)
   - `.opencode-permission-probe.txt`
-  - `docs/audits/SECOND_AUDIT_ROOM_SQLITE_CATALOG.md`
-  - `app/schemas/app.vireo.data.local.VireoDatabase/14.json` (C1.2)
-  - `app/src/androidTest/java/app/vireo/data/local/VireoDatabaseMigrationTest.kt` (C1.2)
 - Ostatni commit (lokalny i zdalny):
-  `8d5a0a5 ci(room): fix recursive schema artifact path`
+  `fecb0df test(room): add Room migration test infrastructure (C1.2)`
 - Commity po poprzednim audycie (`beec446`, 2026-11-12):
   - `6c4d2a5` — `test(room): prepare schema export and migration testing`
   - `597d887` — `ci(room): publish Room schema artifact and prepare migration validation`
   - `8d5a0a5` — `ci(room): fix recursive schema artifact path`
+  - `3555f05` — `docs: align project state with repository and record C1.2 scope`
+  - `fecb0df` — `test(room): add Room migration test infrastructure (C1.2)`
 - Pliki untracked nie są usuwane, przenoszone, edytowane ani dodawane do Git.
 - Backup przed tą aktualizacją dokumentacji:
   `~/VIREO_backups/DOCS_UPDATE_20261113_122325`
@@ -212,9 +209,16 @@ Testy:
 | Coil | 2.6.0 |
 | OkHttp | 4.12.0 |
 | Coroutines | 1.8.1 |
-| Kotlin Serialization | 1.6.3 |
+| Kotlin Serialization | 1.8.1 |
 
 Nie aktualizować tych wersji bez osobnej, zatwierdzonej decyzji.
+
+`kotlinx-serialization-json` podniesiono z 1.6.3 do 1.8.1 w C1.2
+(zgoda właściciela 2026-11-13). Powód: `room-migration:2.8.5`, używany przez
+`room-testing` w `androidTest`, wymaga runtime 1.8.1. Przy 1.6.3 testy
+instrumentowane kończyły się `AbstractMethodError`
+(`GeneratedSerializer.typeParametersSerializers()`), mimo że testy jednostkowe
+przechodziły.
 
 ## 5. Baza danych Room
 
@@ -356,6 +360,23 @@ Workflow używa Java 17 i Gradle 8.13. Uruchamia się dla `main`, `work/vireo-de
 - Zakończenie: 2026-11-12 21:50:15 UTC
 - URL: https://github.com/arekgrabka90/Vireo/actions/runs/43313472008
 
+### C1.2 — pierwszy run z testami instrumentowanymi
+
+- Workflow: #159
+- Commit: `fecb0dfe749da577d8e99164184d18419c7f6254`
+- Job `build`: SUCCESS (unit tests, podpisany APK, artefakt schematu).
+- Job `android-test`: FAILURE — 2/2 testy zakończone `AbstractMethodError`:
+  `kotlinx.serialization.KSerializer[] GeneratedSerializer.typeParametersSerializers()`
+  (`PluginGeneratedSerialDescriptor`).
+- Przyczyna: `room-migration:2.8.5` (zależność `room-testing`) wymaga
+  `kotlinx-serialization-json:1.8.1`, a aplikacja deklarowała 1.6.3.
+  W `androidTest` runtime serializacji był 1.8.1, kod skompilowany przeciw 1.6.3.
+- Poprawka: podniesienie `kotlinx-serialization-json` do 1.8.1 (zgoda właściciela).
+- Emulator API 34 wystartował poprawnie, testy zostały uruchomione — infrastruktura
+  `android-test` działa; problem dotyczył wyłącznie wersji biblioteki.
+- Artefakty runu: `vireo-debug-apk` (14 363 389 B), `vireo-room-schemas` (3 068 B),
+  `vireo-android-test-report` (6 544 B).
+
 Artefakty workflow #158 (potwierdzone przez `gh api`):
 
 - `vireo-room-schemas` — 3 068 B, dostępność do 2026-12-12.
@@ -376,8 +397,12 @@ Sukces CI nie zastępuje testów na urządzeniu ani akceptacji etapu.
   `app/schemas/app.vireo.data.local.VireoDatabase/14.json`.
 - #158 (`8d5a0a5`) — SUCCESS; poprawiona ścieżka `app/schemas/**/*.json`,
   artefakt `vireo-room-schemas` opublikowany.
+- #159 (`fecb0df`) — FAILURE (job `android-test`); `build` SUCCESS.
+  Testy instrumentowane uruchomione, ale oba zakończone `AbstractMethodError`
+  z `kotlinx-serialization` (rozjazd 1.6.3 vs 1.8.1). Poprawka: wersja 1.8.1.
 
-Na commicie `8d5a0a5` nie ma otwartego błędu CI.
+Na commicie `8d5a0a5` nie ma otwartego błędu CI. Na `fecb0df` otwarty był
+błąd `android-test`, naprawiany podniesieniem `kotlinx-serialization-json`.
 
 ### Stan testów
 
@@ -458,6 +483,7 @@ W C1.2 (working tree, zgoda właściciela z 2026-11-13) dodatkowo:
   `androidTestImplementation("androidx.test:runner:1.6.2")`,
   `androidTestImplementation("androidx.test.ext:junit:1.2.1")`;
 - `.github/workflows/build.yml`: job `android-test` (emulator API 34, Opcja A1);
+- `kotlinx-serialization-json` 1.6.3 → 1.8.1 (wymóg `room-migration:2.8.5`);
 - nowe pliki: `app/schemas/.../14.json`, `VireoDatabaseMigrationTest.kt`.
 
 Zmiany te nie zmieniły wersji Gradle, AGP, Kotlin, KSP, Media3 ani wersji bazy danych.

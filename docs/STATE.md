@@ -25,7 +25,7 @@ Plik `.github/workflows/build.yml` [K]. Wyzwalacze: `push` na `main` i `work/vir
 - `build`: Java 17 (Temurin), Gradle 8.13 przez `gradle/actions/setup-gradle`, `gradle testDebugUnitTest`, przygotowanie klucza podpisu z sekretu, `gradle assembleDebug`, artefakty `vireo-debug-apk` i `vireo-room-schemas`.
 - `android-test`: emulator API 34 (`reactivecircus/android-emulator-runner@v2`), `gradle connectedDebugAndroidTest`, raport w artefakcie `vireo-android-test-report`. Trwa ok. 17 min.
 
-Nie ma: builda release, R8, lint, walidacji wrappera. Ostatni potwierdzony sukces (wg poprzedniej dokumentacji, niezweryfikowany ponownie): run #160 na `7d3ab08` (oba joby, 2/2 testy migracji na API 34).
+Nie ma: builda release, R8, lint, walidacji wrappera. Commit `2a7fb26` dodaje regułę udev nadającą dostęp do `/dev/kvm` przed uruchomieniem emulatora oraz zmienia opcję emulatora z `-no-snapshot-save` na `-no-snapshot`. Run #163 (`43604212356`) zakończył się sukcesem: joby `build` i `android-test` mają status SUCCESS. Liczba wykonanych testów nie została niezależnie potwierdzona raportem.
 
 ## 4. Konfiguracja techniczna [K]
 
@@ -63,7 +63,7 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 ### 5.2 Dane lokalne (Room)
 
 - `VireoDatabase` (`data/local/AccountDb.kt`): wersja 14, 14 encji: konta, profile, ustawienia profilu, ustawienia aplikacji, biblioteka, historia kanałów LIVE, ostatnie wyszukiwania, kategorie/elementy/stan synchronizacji katalogu Xtream, indeks treści Xtream, stan synchronizacji indeksu, programy EPG, stan synchronizacji EPG.
-- Migracje zarejestrowane `2→3` … `13→14` (`di/AppModule.kt`); **brak `1→2`** i brak `fallbackToDestructiveMigration` — baza w nieobsługiwanej wersji powoduje wyjątek przy otwarciu (crash), a nie utratę danych.
+- Migracje zarejestrowane `2→3` … `13→14` (`di/AppModule.kt`); **brak `1→2`** i brak `fallbackToDestructiveMigration` — baza w nieobsługiwanej wersji powoduje wyjątek przy otwarciu (crash), a nie utratę danych. W `app/schemas` znajduje się obecnie wyłącznie `14.json`. Brak schematów pośrednich uniemożliwia pełne odtworzenie historycznych ścieżek migracji przez `MigrationTestHelper`; nie należy deklarować migracji `3→14` jako przetestowanych.
 - `library_items`: klucz `(profileId, contentKey)`, **bez kluczy obcych**; `live_channel_history`: FK do profili, `sourceId` bez FK; pozostałe tabele katalogu: FK do `accounts` z kaskadą [A2 dla FK, K dla `library_items`].
 - Hasła kont: AES-GCM w Android Keystore; PIN profili: PBKDF2 [K]. `server` i `username` przechowywane jawnie [A2].
 
@@ -85,10 +85,10 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 
 ### 5.6 Profile, ustawienia, biblioteka
 
-- Profile z opcjonalnym PIN-em; PIN **bez limitu prób**, wymagany przy wyborze profilu; edycja profilu, ustawienia i źródła bez dodatkowej bramki [K dla repozytorium i `ProfilesViewModel`; interfejs edycji niezweryfikowany].
+- Profile z opcjonalnym PIN-em. Patch E1.1 dodaje limit prób PIN: 5 błędnych prób, następnie blokada 30 s z podwajaniem do 15 min. Dodaje również wymóg podania PIN-u przed wejściem do edycji zabezpieczonego profilu w trybie zarządzania. Jest to zabezpieczenie na poziomie UI; pełne egzekwowanie uprawnień pozostaje zakresem E6. Kompilacja i testy patcha nie zostały jeszcze wykonane.
 - Flaga profilu dziecięcego jest zapisywana i przekazywana do fabryki ustawień, **która jej nie używa** — brak filtrowania treści [K].
 - Ustawienia per profil: część zapisana, ale niekonsumowana (m.in. `liveTvStartOnLastChannel`, motyw, akcent) [A2].
-- Biblioteka: klucz `contentKey` (`tmdb:TYPE:ID...`), moja lista, obejrzane, kontynuacja; po usunięciu profilu **zostają osierocone wiersze `library_items`** (brak sprzątania) [K]. Źródła (konta) są globalne, jedno aktywne w całej aplikacji [K].
+- Biblioteka: klucz `contentKey` (`tmdb:TYPE:ID...`), moja lista, obejrzane, kontynuacja. Patch E1.1 dodaje transakcyjne sprzątanie `library_items` podczas usuwania profilu (tabela nie ma FK do profilu). Test instrumentacyjny dodano, ale nie został jeszcze uruchomiony. Źródła (konta) są globalne, jedno aktywne w całej aplikacji [K].
 
 ### 5.7 Odtwarzacz
 
@@ -124,11 +124,11 @@ Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szcze
 
 ## 7. Znane problemy (priorytet)
 
-1. **P1 — awaria nawigacji:** `MoreScreen` ma wpis `guide`, a `MainShell` nie ma takiej trasy; kliknięcie wywołuje nawigację do nieistniejącego celu [K].
+1. **P1 — awaria nawigacji:** patch E1.1 zmienia wpis `guide` w `MoreScreen` na `live`. Zmiana została zastosowana lokalnie; zachowanie wymaga weryfikacji w aplikacji.
 2. **P1 — migracje:** brak `1→2`, brak testów ścieżek `3→14`; otwarcie bazy w nieobsługiwanej wersji kończy się crashem [K]. Realny zasięg nieznany (brak tagów i wydań).
-3. **P1 — integralność:** `library_items` bez FK i bez sprzątania po usunięciu profilu [K].
+3. **P1 — integralność:** `library_items` nadal nie ma FK do profilu; patch E1.1 dodaje jawne sprzątanie w transakcji przy usuwaniu profilu. Test instrumentacyjny dodano, ale nie został jeszcze uruchomiony.
 4. **P1 — synchronizacja:** podwójne pobranie, pełny delete+insert, parsowanie całej odpowiedzi w pamięci, `strictObjects`, zapytania bez `LIMIT`, `LIKE '%…%'` [K].
-5. **P1 — bezpieczeństwo dostępu:** PIN bez limitu prób; profil dziecięcy bez żadnego działania [K].
+5. **P1 — bezpieczeństwo dostępu:** patch E1.1 dodaje ograniczenie prób PIN i bramkę PIN przed edycją profilu w trybie zarządzania. Profil dziecięcy nadal nie ma egzekwowanych ograniczeń [K]. Testy patcha nie zostały jeszcze uruchomione.
 6. **P1 — bezpieczeństwo sieci:** cleartext globalnie, poświadczenia w URL-ach (wymaga polityki, a nie ślepego wyłączenia — wielu dostawców IPTV używa HTTP) [K].
 7. **P2 — LIVE:** brak zappingu, ulubionych, hosta odtwarzania i siatki EPG; adres LIVE tylko `.m3u8` [K].
 8. **P2 — odtwarzacz:** brak audio focus, wyboru ścieżek, obsługi tła w dłuższej przerwie; napis `Retry` po angielsku [K].

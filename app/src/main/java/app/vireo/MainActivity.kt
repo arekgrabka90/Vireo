@@ -1,7 +1,10 @@
 package app.vireo
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +28,7 @@ import app.vireo.ui.list.TitleListScreen
 import app.vireo.ui.profiles.ProfileEditScreen
 import app.vireo.ui.profiles.ProfileSelectScreen
 import app.vireo.ui.profiles.SplashScreen
+import app.vireo.ui.recovery.StartupGate
 import app.vireo.ui.shell.MainShell
 import app.vireo.ui.theme.VireoTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -38,7 +42,11 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
         )
         hideSystemBars()
-        setContent { VireoTheme { VireoNav() } }
+        setContent {
+            VireoTheme {
+                StartupGate(onRestart = ::restartApp) { VireoNav() }
+            }
+        }
     }
 
     override fun onResume() {
@@ -49,6 +57,14 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
+    }
+
+    private fun restartApp() {
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        startActivity(intent)
+        finishAffinity()
+        Handler(Looper.getMainLooper()).postDelayed({ Runtime.getRuntime().exit(0) }, 400L)
     }
 
     private fun hideSystemBars() {

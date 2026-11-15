@@ -17,7 +17,7 @@ Do czasu decyzji nie zmieniamy powiązanych elementów.
 | P11 | **Porządki poza `docs/`** (`VIREO_Premium_Player_HUD_Prompt.md`, `setup.sh`, lokalne pliki) | Zatwierdzić listę z `reports/repo-cleanup-candidates.md` | E0 |
 | P12 | **Źródła per profil** (plan `14→15` z dotychczasowej dokumentacji: przypisanie źródeł i źródło domyślne profilu; macierz testów w `reports/2026-11-room-migration-infra-c1.md`) | Odłożyć na 1.1; jeśli zostaje w 1.0 — osobny etap i migracja z testami | E6 |
 | P13 | **Model danych profilu z ograniczeniami** (allowlista kategorii, pole właściciela/PIN) i zmiana schematu | Allowlista, migracja addytywna | E6 |
-| P14 | **Migracja `1→2`** albo świadoma deklaracja minimalnej wspieranej wersji bazy | Najpierw ustalić, czy v1 trafiła do użytkowników | E1 |
+| P14 | **Migracja `1→2`** albo świadoma deklaracja minimalnej wspieranej wersji bazy | **Do decyzji właściciela; rekomendacja: przyjąć v14 jako minimalną wspieraną wersję bazy**, ponieważ dostępny schemat to `14.json`, a brak schematu v1 uniemożliwia wiarygodne odtworzenie migracji `1→2` | E1 |
 | P15 | **Cleartext i poświadczenia w URL**: polityka (wyjątki per źródło, `network_security_config`, ukrywanie w logach) | Nie wyłączać globalnie bez analizy skutków | E1 |
 | P16 | **Uprawnienia konektora GitHub** (zapis zawartości na `work/vireo-development`), aby commity mogły być wykonywane bez skryptu lokalnego | Nadać uprawnienie zapisu zawartości dla repozytorium albo kontynuować paczką + skrypt Termux | teraz |
 | P17 | Odroczone: migracja Hilt `kapt` → KSP; modularyzacja Gradle | Po 1.0 | po 1.0 |

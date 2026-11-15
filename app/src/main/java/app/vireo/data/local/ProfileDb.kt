@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -43,4 +44,17 @@ interface ProfileDao {
 
     @Delete
     suspend fun delete(profile: ProfileEntity)
+
+    @Query("DELETE FROM library_items WHERE profileId = :profileId")
+    suspend fun deleteLibraryItems(profileId: Long)
+
+    /**
+     * Usuwa profil razem z danymi bez kluczy obcych (`library_items`) w jednej
+     * transakcji. Pozostałe tabele profilu są usuwane kaskadowo przez FK.
+     */
+    @Transaction
+    suspend fun deleteWithData(profile: ProfileEntity) {
+        deleteLibraryItems(profile.id)
+        delete(profile)
+    }
 }

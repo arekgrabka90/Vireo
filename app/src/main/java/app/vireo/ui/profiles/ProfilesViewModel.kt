@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.vireo.data.ProfileRepository
 import app.vireo.data.local.ProfileEntity
+import app.vireo.data.security.PinCheckResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,21 +77,48 @@ class ProfilesViewModel @Inject constructor(
         }
     }
 
+    fun checkPin(
+        profile: ProfileEntity,
+        entered: String,
+        onResult: (PinCheckResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = try {
+                repo.checkPin(profile, entered)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                PinCheckResult.Wrong(attemptsLeftBeforeLock = 0)
+            }
+
+            onResult(result)
+        }
+    }
+
+    fun pinLockRemaining(
+        profile: ProfileEntity,
+        onResult: (Long) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val remaining = try {
+                repo.pinLockRemainingMs(profile.id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                0L
+            }
+
+            onResult(remaining)
+        }
+    }
+
     fun verifyPin(
         profile: ProfileEntity,
         entered: String,
         onResult: (Boolean) -> Unit,
     ) {
-        viewModelScope.launch {
-            val valid = try {
-                repo.verifyPin(profile, entered)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                false
-            }
-
-            onResult(valid)
+        checkPin(profile, entered) { result ->
+            onResult(result is PinCheckResult.Success)
         }
     }
 }

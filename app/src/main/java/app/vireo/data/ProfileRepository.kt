@@ -4,12 +4,16 @@ import android.content.Context
 import app.vireo.data.local.ProfileDao
 import app.vireo.data.local.ProfileEntity
 import app.vireo.data.security.CryptoManager
+import app.vireo.data.security.PinAttemptPolicy
+import app.vireo.data.security.PinCheckResult
 import app.vireo.data.security.ProfilePinValidator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -79,16 +83,82 @@ class ProfileRepository @Inject constructor(
         return activateProfile(fallback.id)
     }
 
+    private val pinMutex = Mutex()
+
+    private fun pinFailuresKey(profileId: Long) = "pin_failures_$profileId"
+
+    private fun pinLastFailureKey(profileId: Long) = "pin_last_failure_$profileId"
+
+    private fun clearPinAttempts(profileId: Long) {
+        prefs.edit()
+            .remove(pinFailuresKey(profileId))
+            .remove(pinLastFailureKey(profileId))
+            .apply()
+    }
+
+    private fun currentLockRemainingMs(profileId: Long, nowMs: Long): Long {
+        val failures = prefs.getInt(pinFailuresKey(profileId), 0)
+        var lastFailureAt = prefs.getLong(pinLastFailureKey(profileId), 0L)
+        if (failures > 0 && nowMs < lastFailureAt) {
+            // Zegar urządzenia został cofnięty: odliczanie startuje od teraz.
+            lastFailureAt = nowMs
+            prefs.edit().putLong(pinLastFailureKey(profileId), nowMs).apply()
+        }
+        return PinAttemptPolicy.remainingLockMs(failures, lastFailureAt, nowMs)
+    }
+
+    /** Pozostały czas blokady weryfikacji PIN-u profilu (0, gdy brak blokady). */
+    suspend fun pinLockRemainingMs(
+        profileId: Long,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Long = pinMutex.withLock { currentLockRemainingMs(profileId, nowMs) }
+
     suspend fun verifyPin(
         profile: ProfileEntity,
         entered: String,
-    ): Boolean {
-        if (!ProfilePinValidator.isFourDigitPin(entered)) return false
+    ): Boolean = checkPin(profile, entered) is PinCheckResult.Success
 
-        return try {
+    /**
+     * Weryfikuje PIN z limitem prób (patrz [PinAttemptPolicy]). Niepoprawny
+     * format (nie cztery cyfry) nie jest liczony jako porażka.
+     */
+    suspend fun checkPin(
+        profile: ProfileEntity,
+        entered: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ): PinCheckResult = pinMutex.withLock {
+        val remaining = currentLockRemainingMs(profile.id, nowMs)
+        if (remaining > 0L) return@withLock PinCheckResult.Locked(remaining)
+
+        val failures = prefs.getInt(pinFailuresKey(profile.id), 0)
+        if (!ProfilePinValidator.isFourDigitPin(entered)) {
+            return@withLock PinCheckResult.Wrong(
+                PinAttemptPolicy.attemptsLeftBeforeLock(failures)
+            )
+        }
+
+        val valid = try {
             crypto.verifyPin(entered, profile.pin)
         } catch (_: Exception) {
             false
+        }
+
+        if (valid) {
+            clearPinAttempts(profile.id)
+            return@withLock PinCheckResult.Success
+        }
+
+        val newFailures = failures + 1
+        prefs.edit()
+            .putInt(pinFailuresKey(profile.id), newFailures)
+            .putLong(pinLastFailureKey(profile.id), nowMs)
+            .apply()
+
+        val lockMs = PinAttemptPolicy.remainingLockMs(newFailures, nowMs, nowMs)
+        if (lockMs > 0L) {
+            PinCheckResult.Locked(lockMs)
+        } else {
+            PinCheckResult.Wrong(PinAttemptPolicy.attemptsLeftBeforeLock(newFailures))
         }
     }
 
@@ -143,7 +213,8 @@ class ProfileRepository @Inject constructor(
             )
         }
 
-        dao.delete(profile)
+        dao.deleteWithData(profile)
+        clearPinAttempts(profile.id)
         profileSettingsRepository.removeProfileCache(profile.id)
 
         if (deletingActive) {

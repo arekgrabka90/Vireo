@@ -43,6 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.vireo.R
 import app.vireo.data.local.ProfileEntity
+import app.vireo.data.security.PinCheckResult
 import app.vireo.ui.components.FocusableBox
 import app.vireo.ui.components.ProfileAvatar
 import app.vireo.ui.components.Wordmark
@@ -57,6 +58,7 @@ fun ProfileSelectScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     var pinTarget by remember { mutableStateOf<ProfileEntity?>(null) }
+    var pinPurpose by remember { mutableStateOf(PinPurpose.SELECT) }
 
     LaunchedEffect(state.loaded, state.profiles.isEmpty()) {
         if (state.loaded && state.profiles.isEmpty()) onAdd()
@@ -86,8 +88,14 @@ fun ProfileSelectScreen(
                         manage = state.manage,
                         onClick = {
                             if (state.manage) {
-                                onEdit(p.id)
+                                if (!p.pin.isNullOrBlank()) {
+                                    pinPurpose = PinPurpose.EDIT
+                                    pinTarget = p
+                                } else {
+                                    onEdit(p.id)
+                                }
                             } else if (!p.pin.isNullOrBlank()) {
+                                pinPurpose = PinPurpose.SELECT
                                 pinTarget = p
                             } else {
                                 vm.select(p, onSelected)
@@ -127,15 +135,21 @@ fun ProfileSelectScreen(
     pinTarget?.let { target ->
         PinDialog(
             onDismiss = { pinTarget = null },
+            onLoadLock = { callback -> vm.pinLockRemaining(target, callback) },
             onVerify = { entered, result ->
-                vm.verifyPin(target, entered) { valid ->
-                    if (valid) {
-                        vm.select(target) {
+                vm.checkPin(target, entered) { check ->
+                    if (check is PinCheckResult.Success) {
+                        if (pinPurpose == PinPurpose.EDIT) {
                             pinTarget = null
-                            onSelected()
+                            onEdit(target.id)
+                        } else {
+                            vm.select(target) {
+                                pinTarget = null
+                                onSelected()
+                            }
                         }
                     } else {
-                        result(false)
+                        result(check)
                     }
                 }
             },
@@ -213,13 +227,38 @@ private fun AddTile(onClick: () -> Unit) {
     }
 }
 
+private enum class PinPurpose { SELECT, EDIT }
+
+private sealed interface PinMessage {
+    data object Wrong : PinMessage
+    data class Locked(val remainingMs: Long) : PinMessage
+}
+
+private fun lockMessage(remainingMs: Long): String {
+    val seconds = ((remainingMs + 999L) / 1000L).coerceAtLeast(1L)
+    return if (seconds >= 60L) {
+        val minutes = (seconds + 59L) / 60L
+        "Zbyt wiele błędnych prób. Spróbuj ponownie za $minutes min."
+    } else {
+        "Zbyt wiele błędnych prób. Spróbuj ponownie za $seconds s."
+    }
+}
+
 @Composable
 private fun PinDialog(
     onDismiss: () -> Unit,
-    onVerify: (String, (Boolean) -> Unit) -> Unit,
+    onLoadLock: ((Long) -> Unit) -> Unit,
+    onVerify: (String, (PinCheckResult) -> Unit) -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
-    var wrong by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<PinMessage?>(null) }
+
+    LaunchedEffect(Unit) {
+        onLoadLock { remainingMs ->
+            if (remainingMs > 0L) message = PinMessage.Locked(remainingMs)
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.enter_pin)) },
@@ -229,20 +268,34 @@ private fun PinDialog(
                     value = input,
                     onValueChange = { v ->
                         input = v.filter { ch -> ch.isDigit() }.take(4)
-                        wrong = false
+                        if (message is PinMessage.Wrong) message = null
                     },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 )
-                if (wrong) {
-                    Text(stringResource(R.string.wrong_pin), color = MaterialTheme.colorScheme.error)
+                when (val current = message) {
+                    is PinMessage.Wrong -> Text(
+                        stringResource(R.string.wrong_pin),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    is PinMessage.Locked -> Text(
+                        lockMessage(current.remainingMs),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    null -> Unit
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onVerify(input) { valid -> wrong = !valid }
+                onVerify(input) { check ->
+                    message = when (check) {
+                        is PinCheckResult.Success -> null
+                        is PinCheckResult.Wrong -> PinMessage.Wrong
+                        is PinCheckResult.Locked -> PinMessage.Locked(check.remainingMs)
+                    }
+                }
             }) {
                 Text(stringResource(R.string.confirm))
             }

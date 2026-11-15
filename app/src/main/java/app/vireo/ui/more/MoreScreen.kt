@@ -24,7 +24,7 @@ private data class MoreItem(val route: String, val label: Int, val icon: String)
 
 private val MoreItems = listOf(
     MoreItem("search", R.string.nav_search, "🔍"),
-    MoreItem("guide", R.string.nav_guide, "🗓️"),
+    MoreItem("live", R.string.nav_guide, "🗓️"),
     MoreItem("mylist", R.string.nav_mylist, "⭐"),
     MoreItem("recordings", R.string.nav_recordings, "⏺️"),
     MoreItem("settings", R.string.nav_settings, "⚙️"),

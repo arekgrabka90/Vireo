@@ -1,6 +1,6 @@
 # VIREO — STATE
 
-**Stan dokumentu:** 2026-11-14 · **Gałąź:** `work/vireo-development` · **Baza audytu:** zdalny HEAD `2db5db3` (`docs: record C1.2 CI verification (run #160)`)
+**Stan dokumentu:** 2026-11-15 · **Gałąź:** `work/vireo-development` · **Baza audytu:** zdalny HEAD `2db5db3`; zmiany po audycie (E1.1–E1.2) opisane w sekcjach 5.9, 9 i 11
 
 Ten dokument w całości zastępuje poprzedni `docs/STATE.md` (stan z 2026-11-13). Jest punktem wejścia dla kolejnych sesji. **Kod wygrywa nad dokumentacją.**
 
@@ -63,7 +63,7 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 ### 5.2 Dane lokalne (Room)
 
 - `VireoDatabase` (`data/local/AccountDb.kt`): wersja 14, 14 encji: konta, profile, ustawienia profilu, ustawienia aplikacji, biblioteka, historia kanałów LIVE, ostatnie wyszukiwania, kategorie/elementy/stan synchronizacji katalogu Xtream, indeks treści Xtream, stan synchronizacji indeksu, programy EPG, stan synchronizacji EPG.
-- Migracje zarejestrowane `2→3` … `13→14` (`di/AppModule.kt`); **brak `1→2`** i brak `fallbackToDestructiveMigration` — baza w nieobsługiwanej wersji powoduje wyjątek przy otwarciu (crash), a nie utratę danych. W `app/schemas` znajduje się obecnie wyłącznie `14.json`. Brak schematów pośrednich uniemożliwia pełne odtworzenie historycznych ścieżek migracji przez `MigrationTestHelper`; nie należy deklarować migracji `3→14` jako przetestowanych.
+- Migracje zarejestrowane `2→3` … `13→14` (`di/AppModule.kt`); **brak `1→2`** i brak `fallbackToDestructiveMigration`. Decyzja P14 (2026-11-15): minimalna wspierana wersja bazy to 14; starsze bazy trafiają na ekran odzyskiwania bez resetu (sekcja 5.9). W `app/schemas` jest wyłącznie `14.json`, więc ścieżki `3→14` nie są testowalne przez `MigrationTestHelper` i nie są deklarowane jako przetestowane. Fabryka otwierania bazy jest opakowana tak, że uszkodzona baza nie jest usuwana automatycznie (E1.2c).
 - `library_items`: klucz `(profileId, contentKey)`, **bez kluczy obcych**; `live_channel_history`: FK do profili, `sourceId` bez FK; pozostałe tabele katalogu: FK do `accounts` z kaskadą [A2 dla FK, K dla `library_items`].
 - Hasła kont: AES-GCM w Android Keystore; PIN profili: PBKDF2 [K]. `server` i `username` przechowywane jawnie [A2].
 
@@ -85,10 +85,10 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 
 ### 5.6 Profile, ustawienia, biblioteka
 
-- Profile z opcjonalnym PIN-em. Patch E1.1 dodaje limit prób PIN: 5 błędnych prób, następnie blokada 30 s z podwajaniem do 15 min. Dodaje również wymóg podania PIN-u przed wejściem do edycji zabezpieczonego profilu w trybie zarządzania. Jest to zabezpieczenie na poziomie UI; pełne egzekwowanie uprawnień pozostaje zakresem E6. Kompilacja i testy patcha nie zostały jeszcze wykonane.
+- Profile z opcjonalnym PIN-em. E1.1: limit prób PIN (5 błędnych prób, potem blokada 30 s z podwajaniem do 15 min, licznik per profil w `SharedPreferences`) oraz wymóg PIN-u przed wejściem do edycji zabezpieczonego profilu w trybie zarządzania. To zabezpieczenie na poziomie UI (`ProfileEditViewModel.save/delete` nie weryfikują PIN-u); pełne egzekwowanie w logice jest zakresem E6.
 - Flaga profilu dziecięcego jest zapisywana i przekazywana do fabryki ustawień, **która jej nie używa** — brak filtrowania treści [K].
 - Ustawienia per profil: część zapisana, ale niekonsumowana (m.in. `liveTvStartOnLastChannel`, motyw, akcent) [A2].
-- Biblioteka: klucz `contentKey` (`tmdb:TYPE:ID...`), moja lista, obejrzane, kontynuacja. Patch E1.1 dodaje transakcyjne sprzątanie `library_items` podczas usuwania profilu (tabela nie ma FK do profilu). Test instrumentacyjny dodano, ale nie został jeszcze uruchomiony. Źródła (konta) są globalne, jedno aktywne w całej aplikacji [K].
+- Biblioteka: klucz `contentKey` (`tmdb:TYPE:ID...`), moja lista, obejrzane, kontynuacja. E1.1: usunięcie profilu sprząta `library_items` w jednej transakcji (`ProfileDao.deleteWithData`; tabela nie ma FK do profilu); pozostałe tabele profilu usuwa kaskada FK (sprawdza to test instrumentowany). Źródła (konta) są globalne, jedno aktywne w całej aplikacji [K].
 
 ### 5.7 Odtwarzacz
 
@@ -102,6 +102,15 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 ### 5.8 Interfejs
 
 Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szczegóły TMDB (45 KB, główny ekran VOD), Search, Discovery, biblioteka, ustawienia (30 KB), źródła, **LIVE TV = tylko lista kategorii** (`ui/live/LiveTvScreen.kt`), lista tytułów/kanałów kategorii (`TitleListScreen`). LIVE: kolejka odtwarzania ma jeden element, więc nie ma zappingu; brak ulubionych kanałów.
+
+### 5.9 Odzyskiwanie bazy danych (E1.2) [K]
+
+- **Kontrola przy starcie** (`ui/recovery/StartupGate`, `StartupViewModel`): zanim aplikacja dotknie Room, odczytywany jest `user_version` pliku bazy przez `SqliteDatabaseInspector` (własny `DatabaseErrorHandler`, który nie usuwa uszkodzonego pliku). `DatabaseClassifier` ocenia stan względem `DatabasePolicy` (`MIN_SUPPORTED_VERSION = 14`, `CURRENT_VERSION = 14`; wartość musi równać się `@Database(version)`, pilnuje tego test instrumentowany).
+- **Kopia przed migracją:** dla bazy wspieranej, lecz starszej niż aplikacja, `DatabaseFiles.createBackup` kopiuje plik bazy i `-wal`/`-shm` do `files/db_backups/vireo-v{wersja}-{czas}/`; kopia jest sprawdzana `PRAGMA quick_check`, dopiero potem przycinane są stare (zostają 2). Przy braku miejsca lub nieudanej kopii ekran oferuje „Kontynuuj bez kopii”. Dziś zakres jest pusty (MIN = CURRENT = 14); pierwszy raz zadziała przy migracji `14→15`.
+- **Ekran odzyskiwania** (`DatabaseRecoveryScreen`): ponów, kontynuuj bez kopii, eksport (ZIP przez wybór pliku; zapas: katalog aplikacji), przywróć najnowszą kopię przechodzącą kontrolę spójności, odsuń bazę i zacznij od nowa (po potwierdzeniu). Odsunięcie przenosi pliki do `db_backups/aside-*` (nie usuwa); katalogi `aside-*` nie są czyszczone automatycznie. Po przywróceniu i odsunięciu aplikacja restartuje się (`MainActivity.restartApp`; zachowanie na urządzeniu do potwierdzenia [U]).
+- **Brak automatycznego usuwania:** `NonDestructiveOpenHelperFactory` (E1.2c) jest podpięta w `AppModule`; `onCorruption` niczego nie usuwa (domyślna implementacja `SupportSQLiteOpenHelper.Callback` usuwa plik bazy). Test instrumentowany odtwarza uszkodzenie, sprawdza, że plik zostaje, a test kontrolny, że domyślna fabryka by go usunęła.
+- **Licznik niestabilnych startów** (E1.2d, `StartupCrashGuard`): trzy kolejne starty bez oznaczenia stabilności (normalne wyjście `ON_STOP` albo 15 s pracy) powodują, że czwarty start pokazuje ekran odzyskiwania (`REPEATED_CRASHES`). Ogranicza ryzyko pętli awarii przy uszkodzeniu stron bazy z poprawnym nagłówkiem, które po E1.2c nie kończy się już usunięciem pliku.
+- **Poza zakresem:** utrata klucza Keystore (E1.3), czyszczenie katalogów `aside-*`, teksty ekranu zapisane na sztywno po polsku (E7.2).
 
 ## 6. Matryca funkcji
 
@@ -124,11 +133,11 @@ Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szcze
 
 ## 7. Znane problemy (priorytet)
 
-1. **P1 — awaria nawigacji:** patch E1.1 zmienia wpis `guide` w `MoreScreen` na `live`. Zmiana została zastosowana lokalnie; zachowanie wymaga weryfikacji w aplikacji.
-2. **P1 — migracje:** brak `1→2`, brak testów ścieżek `3→14`; otwarcie bazy w nieobsługiwanej wersji kończy się crashem [K]. Realny zasięg nieznany (brak tagów i wydań).
-3. **P1 — integralność:** `library_items` nadal nie ma FK do profilu; patch E1.1 dodaje jawne sprzątanie w transakcji przy usuwaniu profilu. Test instrumentacyjny dodano, ale nie został jeszcze uruchomiony.
+1. ~~P1 — awaria nawigacji~~ **naprawione (E1.1):** wpis `guide` w `MoreScreen` kieruje do `live`; przewodnik (siatka EPG) powstanie w E4.
+2. **P1 — migracje:** brak `1→2` i testów ścieżek `3→13`; decyzja P14 (v14 minimalna). Baza w nieobsługiwanej wersji nie powoduje już crasha ani resetu: ekran odzyskiwania (E1.2b). Pierwszą migracją z kopią przedmigracyjną będzie `14→15` (E4.2).
+3. ~~P1 — integralność~~ **naprawione (E1.1):** sprzątanie `library_items` przy usuwaniu profilu.
 4. **P1 — synchronizacja:** podwójne pobranie, pełny delete+insert, parsowanie całej odpowiedzi w pamięci, `strictObjects`, zapytania bez `LIMIT`, `LIKE '%…%'` [K].
-5. **P1 — bezpieczeństwo dostępu:** patch E1.1 dodaje ograniczenie prób PIN i bramkę PIN przed edycją profilu w trybie zarządzania. Profil dziecięcy nadal nie ma egzekwowanych ograniczeń [K]. Testy patcha nie zostały jeszcze uruchomione.
+5. **P1 — bezpieczeństwo dostępu:** limit prób PIN i bramka PIN przed edycją profilu wdrożone (E1.1, na poziomie UI); profil z ograniczeniami nadal bez egzekwowanych ograniczeń [K].
 6. **P1 — bezpieczeństwo sieci:** cleartext globalnie, poświadczenia w URL-ach (wymaga polityki, a nie ślepego wyłączenia — wielu dostawców IPTV używa HTTP) [K].
 7. **P2 — LIVE:** brak zappingu, ulubionych, hosta odtwarzania i siatki EPG; adres LIVE tylko `.m3u8` [K].
 8. **P2 — odtwarzacz:** brak audio focus, wyboru ścieżek, obsługi tła w dłuższej przerwie; napis `Retry` po angielsku [K].
@@ -142,14 +151,18 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 
 ## 8. Testy
 
-- Jednostkowe: 39 plików, 223 testy wg poprzedniego audytu [A2] — głównie polityki i logika czysta (EPG cache, ustawienia profilu, matcher, normalizacja, recovery/failover, HUD). Brak testów repozytoriów na bazie, DAO i interfejsu.
-- Instrumentowane: `VireoDatabaseMigrationTest` (2 testy, tylko wersja 14). Ścieżki `2→3` … `13→14` nie są pokryte.
+- Jednostkowe: 223 testy w 39 plikach wg audytu bazowego [A2]; dodane w E1.1–E1.2: `PinAttemptPolicyTest` (9), `DatabaseClassifierTest` (13), `DatabaseFilesTest` (11), `StartupCrashGuardTest` (6). Głównie polityki i logika czysta; brak testów repozytoriów na bazie i interfejsu.
+- Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.2: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4). Ścieżki `2→3` … `13→14` nie są pokryte.
 - W tym audycie niczego nie uruchamiano.
+- Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS (wg raportu właściciela). Wyniki E1.2c/d: do uzupełnienia po CI.
 
 ## 9. Historia etapów (bez przenoszenia starych założeń)
 
 - Etapy `2B.3A`, `2B.3B`, `2B.4`, `2B.5`, `Stage 3`: formalny przegląd w E0 (W kodzie / Testy / Zaakceptowany: do potwierdzenia).
 - `C1.1` (eksport schematu Room, artefakt CI) i `C1.2` (infrastruktura testów migracji, CI run #160) — zrealizowane w kodzie i CI, niezaakceptowane przez właściciela. Szczegóły: `reports/2026-11-room-migration-infra-c1.md`.
+- `E1.1` (dwa commity: poprawka nawigacji i funkcja profili; HEAD po nich `f89ba7c`): limit prób PIN, bramka PIN przy edycji, sprzątanie `library_items`, poprawka trasy `guide`. CI run #164 SUCCESS.
+- `E1.2a` (`3d2a195`): klasyfikator stanu bazy i operacje na plikach (kopia, odsunięcie, przywracanie). `E1.2b` (`9d65719`): kontrola przy starcie, ekran odzyskiwania, wpięcie w `MainActivity`. CI SUCCESS.
+- `E1.2c/d` (commity po `9d65719`): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. Wyniki CI do uzupełnienia.
 - Dotychczasowy plan `14→15` (przypisywanie źródeł do profili, źródło domyślne profilu) nie został rozpoczęty; w nowym planie jest decyzją otwartą (`decisions/PENDING.md`, P12).
 
 ## 10. Dokumentacja
@@ -159,6 +172,6 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 ## 11. Punkt wejścia dla kolejnej sesji
 
 1. Sprawdź gałąź, HEAD i stan repozytorium; porównaj z `Baza audytu` na górze.
-2. Aktualny etap: **E0 — dokumentacja przebudowana; porządki poza `docs/` czekają na zgodę (`reports/repo-cleanup-candidates.md`)**; następny: **E1 — dane i dostęp** (testy migracji `3→14`, odzyskiwanie bazy, sprzątanie po usunięciu profilu, limit prób PIN). Poprawka awarii trasy `guide` (przekierowanie wpisu na `live`) jest małym zadaniem poza E1.
+2. Aktualny etap: **E1 — dane i dostęp: E1.1 i E1.2 (a–d) wdrożone; po CI z E1.2c/d i ręcznej weryfikacji na urządzeniu (restart po przywróceniu lub odsunięciu, eksport na TV, brak ekranu odzyskiwania przy zdrowej bazie) E1 można zamknąć.** Pozostałe elementy E1: utrata klucza Keystore (E1.3), przegląd cleartextu i redakcji logów, build release z R8 (wymaga zgody na zmianę CI). Następne: **E2 i E3** (równolegle).
 3. Przed zmianami: przeczytaj tylko potrzebne pliki kodu, nie powtarzaj audytu całego repozytorium.
 4. Po etapie: zaktualizuj ten dokument i `ROADMAP.md`, dodaj raport, commit i push na `work/vireo-development`. Workflow CI uruchamia się automatycznie po pushu; wyniki sprawdza właściciel.

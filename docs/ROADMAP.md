@@ -23,10 +23,11 @@
 - **Ryzyko:** zbyt szerokie czyszczenie (dlatego zgoda z góry). **Decyzje:** urządzenia referencyjne, usunięcia, Wrapper.
 
 ### E1 — Dane i dostęp (M)
+- **Status (2026-11-15):** E1.1 i E1.2 (a–d) wdrożone; czekają na wyniki CI E1.2c/d i weryfikację na urządzeniu. Pozostało: E1.3 (utrata klucza Keystore), przegląd cleartextu i logów, build release z R8 (zgoda na zmianę CI).
 - **Cel:** żadna aktualizacja nie niszczy danych; dostęp do profili i źródeł jest chroniony.
-- **Zakres:** testy migracji `3→14` i decyzja co do `1→2`; odzyskiwanie bazy (`specs/data-safety.md`); sprzątanie danych po usunięciu profilu w transakcji; limit prób PIN; przegląd cleartextu i redakcji logów; (osobna zgoda) build release z R8 w CI.
-- **Zależności:** E0. **DoD:** wszystkie ścieżki migracji zielone w CI; brak osieroconych wierszy po usunięciu profilu; odzyskiwanie nigdy nie resetuje bazy automatycznie; PIN z limitem prób.
-- **Weryfikacja:** testy instrumentowane (zepsuta migracja, uszkodzony plik, usunięty klucz Keystore, baza nowsza od aplikacji), test na kopii realnej bazy.
+- **Zakres:** polityka wersji bazy (decyzja P14: minimalna wspierana wersja 14); odzyskiwanie bazy bez automatycznego resetu (`specs/data-safety.md`); sprzątanie danych po usunięciu profilu w transakcji; limit prób PIN; nieusuwająca fabryka otwierania bazy i licznik niestabilnych startów; testy migracji od wersji 14 w górę; przegląd cleartextu i redakcji logów; (osobna zgoda) build release z R8 w CI.
+- **Zależności:** E0. **DoD:** każda migracja od wersji 14 w górę ma test w CI; baza w nieobsługiwanej wersji, uszkodzona lub nowsza od aplikacji trafia na ekran odzyskiwania i nigdy nie jest resetowana ani usuwana automatycznie; brak osieroconych wierszy po usunięciu profilu; PIN z limitem prób.
+- **Weryfikacja:** testy instrumentowane (uszkodzony plik zachowany, kontrola spójności kopii, sprzątanie po usunięciu profilu), testy jednostkowe klasyfikatora i licznika startów, ręczna weryfikacja na urządzeniu (restart po przywróceniu, eksport na TV).
 - **Ryzyko:** R8 może wyciąć klasy refleksyjne (Room, Hilt, serializacja). **Decyzje:** zmiana CI, polityka odzyskiwania.
 
 ### E2 — Synchronizacja Xtream (M, równolegle do E3)

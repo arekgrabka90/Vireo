@@ -3,6 +3,7 @@ package app.vireo.data.recovery
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.vireo.data.local.ProfileEntity
@@ -64,38 +65,68 @@ class NonDestructiveOpenHelperTest {
     @Test
     fun corruptDatabaseIsKeptWithNonDestructiveFactory() {
         createPopulatedDatabase()
-        corruptHeader()
-        val before = dbFile.readBytes()
+        var capturedCallback: SupportSQLiteOpenHelper.Callback? = null
 
-        val db = build(NonDestructiveOpenHelperFactory.default())
+        val capturingDelegate = object : SupportSQLiteOpenHelper.Factory {
+            override fun create(
+                configuration: SupportSQLiteOpenHelper.Configuration,
+            ): SupportSQLiteOpenHelper {
+                capturedCallback = configuration.callback
+                return androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory()
+                    .create(configuration)
+            }
+        }
+        val protectedFactory = NonDestructiveOpenHelperFactory(capturingDelegate)
+
+        val db = build(protectedFactory)
         try {
-            db.openHelper.writableDatabase
-            fail("Oczekiwano wyjątku przy uszkodzonej bazie")
-        } catch (e: Exception) {
-            // oczekiwane
+            val sqliteDb = db.openHelper.writableDatabase
+            corruptHeader()
+            val before = dbFile.readBytes()
+
+            val callback = capturedCallback
+                ?: throw AssertionError("Nie przechwycono callbacku fabryki")
+
+            callback.onCorruption(sqliteDb)
+
+            assertTrue("plik uszkodzonej bazy powinien zostać", dbFile.exists())
+            assertArrayEquals(before, dbFile.readBytes())
         } finally {
             runCatching { db.close() }
         }
-
-        assertTrue("plik uszkodzonej bazy powinien zostać", dbFile.exists())
-        assertArrayEquals(before, dbFile.readBytes())
     }
 
     @Test
     fun controlDefaultFactoryDeletesCorruptDatabase() {
         createPopulatedDatabase()
-        corruptHeader()
+        var capturedCallback: SupportSQLiteOpenHelper.Callback? = null
 
-        val db = build(null)
+        val capturingFactory = object : SupportSQLiteOpenHelper.Factory {
+            override fun create(
+                configuration: SupportSQLiteOpenHelper.Configuration,
+            ): SupportSQLiteOpenHelper {
+                capturedCallback = configuration.callback
+                return FrameworkSQLiteOpenHelperFactory().create(configuration)
+            }
+        }
+
+        val db = build(capturingFactory)
         try {
-            db.openHelper.writableDatabase
-        } catch (e: Exception) {
-            // oczekiwane
+            val sqliteDb = db.openHelper.writableDatabase
+            corruptHeader()
+
+            val callback = capturedCallback
+                ?: throw AssertionError("Nie przechwycono domyślnego callbacku Room")
+
+            callback.onCorruption(sqliteDb)
         } finally {
             runCatching { db.close() }
         }
 
-        assertFalse("domyślna fabryka Room powinna usunąć uszkodzony plik", dbFile.exists())
+        assertFalse(
+            "domyślny callback Room powinien usunąć uszkodzony plik",
+            dbFile.exists(),
+        )
     }
 
     @Test

@@ -15,6 +15,7 @@ import app.vireo.data.local.RecentSearchDao
 import app.vireo.data.local.VireoDatabase
 import app.vireo.data.local.XtreamContentIndexDao
 import app.vireo.data.local.XtreamCatalogDao
+import app.vireo.data.recovery.NonDestructiveOpenHelperFactory
 import app.vireo.data.security.CryptoManager
 import dagger.Module
 import dagger.Provides
@@ -75,6 +76,7 @@ object AppModule {
                 VireoDatabase.MIGRATION_12_13,
                 VireoDatabase.MIGRATION_13_14,
             )
+            .openHelperFactory(NonDestructiveOpenHelperFactory.default())
             .build()
 
     private fun migration2To3(crypto: CryptoManager) = object : Migration(2, 3) {

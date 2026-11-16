@@ -146,4 +146,31 @@ class DatabaseFilesTest {
         space = 10_000_000L
         assertTrue(manager.hasSpaceForBackup())
     }
+
+    @Test
+    fun createBackupWithoutPruningKeepsAllBackups() {
+        dbFile.writeText("main")
+        val manager = files()
+
+        for (version in 11..14) {
+            manager.createBackup(version, pruneAfter = false)
+            now += 1_000L
+        }
+
+        assertEquals(4, manager.listBackups().size)
+    }
+
+    @Test
+    fun pruneBackupsRemovesOldestBeyondLimit() {
+        dbFile.writeText("main")
+        val manager = files()
+        for (version in 11..14) {
+            manager.createBackup(version, pruneAfter = false)
+            now += 1_000L
+        }
+
+        manager.pruneBackups()
+
+        assertEquals(listOf(14, 13), manager.listBackups().map { it.version })
+    }
 }

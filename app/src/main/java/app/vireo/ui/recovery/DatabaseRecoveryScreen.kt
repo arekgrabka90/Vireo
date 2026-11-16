@@ -185,4 +185,6 @@ private fun describe(kind: RecoveryKind): String = when (kind) {
         "Nie udało się utworzyć kopii przed aktualizacją bazy. Możesz spróbować ponownie albo kontynuować bez kopii."
     RecoveryKind.OPEN_FAILED ->
         "Nie udało się otworzyć bazy. Dane nie zostały zmienione."
+    RecoveryKind.REPEATED_CRASHES ->
+        "Aplikacja kilkakrotnie zakończyła się błędem tuż po uruchomieniu. Dane nie zostały zmienione ani usunięte. Możesz wyeksportować kopię bazy, przywrócić ostatnią kopię albo spróbować ponownie."
 }

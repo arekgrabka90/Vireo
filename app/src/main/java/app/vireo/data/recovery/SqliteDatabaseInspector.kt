@@ -31,6 +31,25 @@ class SqliteDatabaseInspector(private val dbFile: File) {
         }
     }
 
+    /** null: plik przeszedł `PRAGMA quick_check`; w przeciwnym razie opis problemu. */
+    fun integrityIssue(): String? = try {
+        val db = SQLiteDatabase.openDatabase(
+            dbFile.path, null, SQLiteDatabase.OPEN_READONLY, NoDeleteErrorHandler,
+        )
+        db.use {
+            it.rawQuery("PRAGMA quick_check(1)", null).use { cursor ->
+                val first = if (cursor.moveToFirst()) cursor.getString(0) else null
+                when {
+                    first == null -> "brak wyniku kontroli spójności"
+                    first.equals("ok", ignoreCase = true) -> null
+                    else -> first.take(200)
+                }
+            }
+        }
+    } catch (e: SQLiteException) {
+        describe(e)
+    }
+
     private fun read(flags: Int): DatabaseProbe {
         val db = SQLiteDatabase.openDatabase(dbFile.path, null, flags, NoDeleteErrorHandler)
         return db.use {

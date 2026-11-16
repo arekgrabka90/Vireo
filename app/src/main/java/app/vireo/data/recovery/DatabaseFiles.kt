@@ -52,7 +52,7 @@ class DatabaseFiles(
     }
 
     /** Kopiuje plik bazy i towarzyszące pliki do nowego katalogu kopii. */
-    fun createBackup(fromVersion: Int): File {
+    fun createBackup(fromVersion: Int, pruneAfter: Boolean = true): File {
         val files = currentFiles()
         if (files.none { it.name == dbFile.name }) {
             throw IOException("Brak pliku bazy do skopiowania")
@@ -70,7 +70,7 @@ class DatabaseFiles(
             target.deleteRecursively()
             throw e
         }
-        prune()
+        if (pruneAfter) pruneBackups()
         return target
     }
 
@@ -140,7 +140,8 @@ class DatabaseFiles(
         return aside
     }
 
-    private fun prune() {
+    /** Usuwa kopie przedmigracyjne ponad limit [DatabasePolicy.BACKUPS_TO_KEEP] (najstarsze). */
+    fun pruneBackups() {
         listBackups().drop(DatabasePolicy.BACKUPS_TO_KEEP).forEach { it.dir.deleteRecursively() }
     }
 

@@ -10,7 +10,9 @@ import app.vireo.data.recovery.DatabaseFiles
 import app.vireo.data.recovery.DatabaseHealth
 import app.vireo.data.recovery.DatabasePolicy
 import app.vireo.data.recovery.OpenFailure
+import app.vireo.data.recovery.SharedPrefsStartMarkerStore
 import app.vireo.data.recovery.SqliteDatabaseInspector
+import app.vireo.data.recovery.StartupCrashGuard
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,8 +36,9 @@ import javax.inject.Inject
 
 /**
  * Kontrola stanu bazy przy starcie aplikacji. Nic nie dotyka Room, dopóki
- * odczyt wersji pliku (bez usuwania czegokolwiek) i ewentualna kopia
- * przedmigracyjna nie zakończą się powodzeniem.
+ * odczyt wersji pliku (bez usuwania czegokolwiek), licznik niestabilnych
+ * startów i ewentualna zweryfikowana kopia przedmigracyjna nie zakończą się
+ * powodzeniem.
  */
 @HiltViewModel
 class StartupViewModel @Inject constructor(
@@ -46,6 +49,7 @@ class StartupViewModel @Inject constructor(
     private val dbFile: File = context.getDatabasePath(DatabasePolicy.DATABASE_NAME)
     private val dbDir: File = requireNotNull(dbFile.absoluteFile.parentFile)
     private val files = DatabaseFiles(dbFile, File(context.filesDir, "db_backups"))
+    private val crashGuard = StartupCrashGuard(SharedPrefsStartMarkerStore(context))
 
     private val _state = MutableStateFlow<StartupState>(StartupState.Checking)
     val state: StateFlow<StartupState> = _state.asStateFlow()
@@ -54,6 +58,8 @@ class StartupViewModel @Inject constructor(
     val notice: StateFlow<String?> = _notice.asStateFlow()
 
     private var skipBackup = false
+    private var guardEvaluated = false
+    private var crashLoopSuspected = false
     private var checkJob: Job? = null
 
     init {
@@ -68,6 +74,20 @@ class StartupViewModel @Inject constructor(
         }
     }
 
+    /** "Spróbuj ponownie": zeruje licznik niestabilnych startów i ponawia kontrolę. */
+    fun retry() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { crashGuard.reset() }
+            crashLoopSuspected = false
+            recheck()
+        }
+    }
+
+    /** Wywoływane, gdy start uznano za stabilny (normalne wyjście albo odpowiednio długa praca). */
+    fun markStable() {
+        viewModelScope.launch(Dispatchers.IO) { crashGuard.markStable() }
+    }
+
     fun continueWithoutBackup() {
         skipBackup = true
         recheck()
@@ -78,9 +98,10 @@ class StartupViewModel @Inject constructor(
             working = "Przywracanie kopii…",
             done = "Kopia została przywrócona. Poprzednie pliki bazy odsunięto (nie usunięto).",
         ) {
-            val latest = files.listBackups().firstOrNull()
-                ?: throw IOException("Brak kopii do przywrócenia")
-            files.restoreBackup(latest)
+            val candidate = files.listBackups().firstOrNull {
+                SqliteDatabaseInspector(File(it.dir, dbFile.name)).integrityIssue() == null
+            } ?: throw IOException("Żadna kopia nie przeszła kontroli spójności")
+            files.restoreBackup(candidate)
         }
     }
 
@@ -134,6 +155,17 @@ class StartupViewModel @Inject constructor(
     }
 
     private fun runCheck(): StartupState {
+        if (!guardEvaluated) {
+            guardEvaluated = true
+            crashLoopSuspected = crashGuard.onStart()
+        }
+        if (crashLoopSuspected) {
+            return recovery(
+                RecoveryKind.REPEATED_CRASHES,
+                "kilka kolejnych niestabilnych uruchomień",
+            )
+        }
+
         when (val health = DatabaseClassifier.classify(SqliteDatabaseInspector(dbFile).probe())) {
             DatabaseHealth.Ready -> Unit
             is DatabaseHealth.NeedsBackup -> {
@@ -155,8 +187,15 @@ class StartupViewModel @Inject constructor(
     private fun tryCreateBackup(fromVersion: Int): String? {
         if (!files.hasSpaceForBackup()) return "za mało wolnego miejsca na kopię"
         return try {
-            files.createBackup(fromVersion)
-            null
+            val backup = files.createBackup(fromVersion, pruneAfter = false)
+            val issue = SqliteDatabaseInspector(File(backup, dbFile.name)).integrityIssue()
+            if (issue != null) {
+                backup.deleteRecursively()
+                "kopia nie przeszła kontroli spójności: $issue"
+            } else {
+                files.pruneBackups()
+                null
+            }
         } catch (e: Exception) {
             e.message ?: "błąd zapisu kopii"
         }
@@ -193,6 +232,7 @@ class StartupViewModel @Inject constructor(
                 try {
                     runCatching { database.get().close() }
                     action()
+                    crashGuard.markStable()
                     null
                 } catch (e: Exception) {
                     e.message ?: e.javaClass.simpleName

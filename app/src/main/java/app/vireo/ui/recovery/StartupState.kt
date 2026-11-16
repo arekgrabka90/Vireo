@@ -11,6 +11,7 @@ enum class RecoveryKind {
     MISSING_MIGRATION,
     BACKUP_FAILED,
     OPEN_FAILED,
+    REPEATED_CRASHES,
 }
 
 sealed interface StartupState {

@@ -88,4 +88,52 @@ class DatabaseInspectorTest {
             db.close()
         }
     }
+
+    @Test
+    fun healthyDatabasePassesIntegrityCheck() {
+        val file = createDatabase("ok.db", 14)
+        assertTrue(SqliteDatabaseInspector(file).integrityIssue() == null)
+    }
+
+    @Test
+    fun garbageFileFailsIntegrityCheckAndIsNotDeleted() {
+        val file = File(dir, "garbage-check.db")
+        file.writeBytes(ByteArray(4096) { (it % 251).toByte() })
+
+        assertTrue(SqliteDatabaseInspector(file).integrityIssue() != null)
+        assertTrue(file.exists())
+        assertEquals(4096L, file.length())
+    }
+
+    @Test
+    fun damagedBtreePageFailsIntegrityCheck() {
+        val file = File(dir, "pages.db")
+        val db = SQLiteDatabase.openOrCreateDatabase(file.path, null)
+        try {
+            db.execSQL("CREATE TABLE sample (id INTEGER PRIMARY KEY, payload TEXT)")
+            db.beginTransaction()
+            try {
+                for (i in 1..2000) {
+                    db.execSQL(
+                        "INSERT INTO sample (payload) VALUES (?)",
+                        arrayOf<Any?>("x".repeat(100) + i),
+                    )
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            db.version = 14
+        } finally {
+            db.close()
+        }
+        java.io.RandomAccessFile(file, "rw").use { raf ->
+            for (page in 1..3) {
+                raf.seek(page * 4096L)
+                raf.write(0xFF)
+            }
+        }
+
+        assertTrue(SqliteDatabaseInspector(file).integrityIssue() != null)
+    }
 }

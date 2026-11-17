@@ -1,6 +1,6 @@
 # VIREO — ROADMAP do wydania 1.0
 
-**Stan:** 2026-11-14 · Kierunek i podział na etapy zatwierdzone przez właściciela. Rozmiar: S/M/L (względny, bez dat). Statusy: W kodzie / Testy / Zaakceptowany.
+**Stan:** 2026-11-17 · Kierunek i podział na etapy zatwierdzone przez właściciela. Rozmiar: S/M/L (względny, bez dat). Statusy: W kodzie / Testy / Zaakceptowany.
 
 ## Zasady
 
@@ -23,7 +23,7 @@
 - **Ryzyko:** zbyt szerokie czyszczenie (dlatego zgoda z góry). **Decyzje:** urządzenia referencyjne, usunięcia, Wrapper.
 
 ### E1 — Dane i dostęp (M)
-- **Status (2026-11-17):** E1.1 i E1.2 (a–d) — w kodzie i CI; E1.3 — zmiany lokalne, bez commita i bez CI. Testy E1.3: niezweryfikowane. Akceptacja właściciela: oczekuje. Pozostało także: ręczna weryfikacja na urządzeniu, przegląd cleartextu i logów (P15), build release z R8 (zgoda na zmianę CI).
+- **Status (2026-11-17): ZAMKNIĘTY I ZAAKCEPTOWANY.** E1.1, E1.2 (a–d) i E1.3 — w kodzie i CI. E1.3: commit `14e864a`, run #169 SUCCESS (`build` i `android-test`). Właściciel potwierdził wykonanie testów na urządzeniu i zaakceptował cały E1 dnia 2026-11-17. P15 pozostaje osobną otwartą decyzją i nie blokuje zamknięcia E1. Release R8 wymaga osobnej zgody na zmianę CI.
 - **Cel:** żadna aktualizacja nie niszczy danych; dostęp do profili i źródeł jest chroniony.
 - **Zakres:** polityka wersji bazy (decyzja P14: minimalna wspierana wersja 14); odzyskiwanie bazy bez automatycznego resetu (`specs/data-safety.md`); sprzątanie danych po usunięciu profilu w transakcji; limit prób PIN; nieusuwająca fabryka otwierania bazy i licznik niestabilnych startów; testy migracji od wersji 14 w górę; przegląd cleartextu i redakcji logów; (osobna zgoda) build release z R8 w CI.
 - **Zależności:** E0. **DoD:** każda migracja od wersji 14 w górę ma test w CI; baza w nieobsługiwanej wersji, uszkodzona lub nowsza od aplikacji trafia na ekran odzyskiwania i nigdy nie jest resetowana ani usuwana automatycznie; brak osieroconych wierszy po usunięciu profilu; PIN z limitem prób.
@@ -33,14 +33,14 @@
 ### E2 — Synchronizacja Xtream (M, równolegle do E3)
 - **Cel:** stabilna synchronizacja dużych katalogów bez zmiany modelu danych.
 - **Zakres:** `specs/xtream-sync.md` — jedno pobranie zasilające obie projekcje, parser strumieniowy po spike'u, tolerancja na błędne wiersze, ochrona przed pustą odpowiedzią w indeksie, zapytania z `LIMIT`, zapytania kanałów po kategorii.
-- **Zależności:** E1. **DoD:** kryteria wydajności; test porównawczy starej i nowej ścieżki (identyczna zawartość tabel); test dwóch kont z nakładającymi się identyfikatorami.
+- **Zależności:** E1 — spełniona, etap zamknięty 2026-11-17. **DoD:** kryteria wydajności;
 - **Weryfikacja:** testy jednostkowe parsera na korpusie złych odpowiedzi; benchmark na urządzeniu referencyjnym z lokalnego serwera testowego.
 - **Ryzyko:** różnice między dostawcami. **Decyzje:** scalenie tabel, FTS lub Paging tylko jeśli pomiary je wymuszą.
 
 ### E3 — Odtwarzacz i host odtwarzania (L, równolegle do E2)
 - **Cel:** niezawodne odtwarzanie, także po wyjściu z aplikacji i powrocie.
 - **Zakres:** `specs/playback-host.md` — spike hosta (S1), wspólny host, tune coordinator, wybór audio i napisów, audio focus, `handleAudioBecomingNoisy`, watchdog buforowania, nasłuch sieci (wymaga `ACCESS_NETWORK_STATE`), klawisze multimedialne w aktywności, fallback `.m3u8` → `.ts` (`decisions/0008`), stabilność tła, przywracanie stanu po zabiciu procesu.
-- **Zależności:** E1. **DoD:** brak restartu transmisji po zmianie konfiguracji i po przejściu Hub ↔ pełny ekran; kryteria wznowienia; soak 8 h; odzyskanie po 30 s utraty sieci w ≤15 s.
+- **Zależności:** E1 — spełniona, etap zamknięty 2026-11-17. **DoD:** brak restartu transmisji
 - **Weryfikacja:** testy jednostkowe polityk, testy na urządzeniach, soak.
 - **Ryzyko:** refaktoryzacja hosta dotyka stabilnego kodu; dekodery Android TV. **Decyzje:** zmiana manifestu, rozstrzygnięcie martwego kodu.
 

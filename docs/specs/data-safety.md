@@ -57,5 +57,6 @@ Domyślne `SupportSQLiteOpenHelper.Callback.onCorruption` usuwa plik bazy. `NonD
 - Wykrycie: każda awaria odszyfrowania hasła konta (`CryptoManager.canDecrypt`), nie tylko brak klucza, bo `encrypt` po cichu tworzy nowy klucz, po czym stare szyfrogramy dają błąd tagu GCM.
 - `ProviderRegistry.create` rzuca `CredentialUnavailableException`; `ContentRepository` zwraca porażkę (`movieDetails`, `seriesDetails`) lub `null` (`liveUrl`) zamiast wywracać aplikację. Baza, katalog, biblioteka i profile nie są ruszane.
 - Naprawa: ekran Źródła, pole nowego hasła; hasło jest sprawdzane logowaniem do serwera i zapisywane zaszyfrowane w tym samym koncie (`AccountDao.updatePassword`).
-- PIN profili nie zależy od Keystore.
+- PIN profili nie zależy od Keystore (potwierdzono testem instrumentowanym).
+- **Weryfikacja E1.3:** commit `14e864a`; GitHub Actions run #169 zakończony sukcesem dla jobów `build` i `android-test`. Testy E1.3: `ProviderRegistryTest` (3), `CryptoManagerKeyLossTest` (3), `AccountPasswordUpdateTest` (2). Właściciel potwierdził wykonanie testów urządzeniowych i zaakceptował E1 dnia 2026-11-17.
 - Ograniczenia: ekran Źródła obsługuje tylko konto aktywne; wywołania `ContentRepository.provider()` i część repozytoriów (EPG, dostępność TMDB) nie były przeglądane pod kątem wyjątku [H].

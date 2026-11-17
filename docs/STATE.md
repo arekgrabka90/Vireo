@@ -1,6 +1,6 @@
 # VIREO — STATE
 
-**Stan dokumentu:** 2026-11-17 · **Gałąź:** `work/vireo-development` · **Baza audytu:** zdalny HEAD `2db5db3`; zmiany po audycie (E1.1–E1.3) opisane w sekcjach 5.9, 5.10, 9 i 11
+**Stan dokumentu:** 2026-11-17 · **Gałąź:** `work/vireo-development` · **Baza audytu kodu:** zdalny HEAD `2db5db3`; późniejsze zmiany E1.1–E1.3, wyniki CI i zamknięcie E1 opisane w sekcjach 5.9–5.10, 8, 9 i 11.
 
 Ten dokument w całości zastępuje poprzedni `docs/STATE.md` (stan z 2026-11-13). Jest punktem wejścia dla kolejnych sesji. **Kod wygrywa nad dokumentacją.**
 
@@ -118,7 +118,7 @@ Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szcze
 - `ProviderRegistry.create` mapuje awarię odszyfrowania na `CredentialUnavailableException` (podklasa `IllegalStateException`, komunikat po polsku). Metody `ContentRepository` zwracające `Result` (`movieDetails`, `seriesDetails`) zwracają porażkę zamiast rzucać; `liveUrl` zwraca `null`. Synchronizacja katalogu i indeksu już łapała błędy `providers.create` per konto. `ContentRepository.provider()` oraz inne miejsca wywołujące `ProviderRegistry.create` (m.in. EPG, dostępność TMDB) nie były przeglądane pod tym kątem [H].
 - Ekran Źródła pokazuje dla aktywnego konta z nieczytelnym hasłem komunikat i pole „Nowe hasło do źródła”. `ContentRepository.reauthenticate` sprawdza hasło logowaniem do serwera Xtream i zapisuje zaszyfrowane hasło tego samego konta (`AccountDao.updatePassword`); zapis jest uznawany za udany tylko po aktualizacji dokładnie jednego rekordu. Konto, katalog, biblioteka i profile pozostają nietknięte. Ekran Źródła pokazuje tylko konto aktywne, więc nieaktywne konta z utraconym kluczem nie mają jeszcze ścieżki naprawy. Teksty na sztywno po polsku (E7.2).
 - PIN profili (PBKDF2) nie zależy od Keystore (test instrumentowany).
-- Testy: `ProviderRegistryTest` (3), `CryptoManagerKeyLossTest` (3, osobny alias klucza, nie dotyka klucza aplikacji), `AccountPasswordUpdateTest` (2). Wyniki CI do uzupełnienia.
+- Testy E1.3: `ProviderRegistryTest` (3), `CryptoManagerKeyLossTest` (3, osobny alias klucza, nie dotyka klucza aplikacji), `AccountPasswordUpdateTest` (2). GitHub Actions run #169 dla commita `14e864a`: job `build` SUCCESS (testy jednostkowe i podpisany APK), job `android-test` SUCCESS (testy instrumentowane). Raport testów zapisano jako artefakt `vireo-android-test-report`; liczby testów instrumentowanych nie potwierdzono niezależnie.
 
 ## 6. Matryca funkcji
 
@@ -129,7 +129,7 @@ Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szcze
 | VOD TMDB-first, dopasowanie, alternatywy źródeł | działa (kod), niezweryfikowane na urządzeniu |
 | Seriale: sezony, odcinki, następny odcinek | działa (kod) |
 | Biblioteka, kontynuacja, obejrzane | działa (kod); „Kontynuuj” prawdopodobnie otwiera szczegóły [H] |
-| Profile, PIN, ustawienia per profil | działa częściowo (PIN bez limitu, brak profilu z ograniczeniami) |
+| Profile, PIN, ustawienia per profil | działa częściowo: limit prób PIN i bramka UI wdrożone; brak egzekwowanych ograniczeń profilu |
 | LIVE TV | częściowe: kategorie i lista kanałów, odtwarzanie, historia, panel teraz/następny |
 | EPG | tylko warstwa danych per kanał |
 | Siatka EPG / TV Guide, LIVE Hub, panel kategorii LIVE | **brak** (specyfikacja: `specs/live-tv-hub-and-guide.md`) |
@@ -160,9 +160,9 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 ## 8. Testy
 
 - Jednostkowe: 223 testy w 39 plikach wg audytu bazowego [A2]; dodane w E1.1–E1.3: `PinAttemptPolicyTest` (9), `DatabaseClassifierTest` (13), `DatabaseFilesTest` (11), `StartupCrashGuardTest` (6), `ProviderRegistryTest` (3). Głównie polityki i logika czysta; brak testów repozytoriów na bazie i interfejsu.
-- Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.3: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4), `CryptoManagerKeyLossTest` (3), `AccountPasswordUpdateTest` (2). Run #168: 18/18 (bez testów E1.3). Ścieżki `2→3` … `13→14` nie są pokryte.
-- W tym audycie niczego nie uruchamiano.
-- Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS; E1.2c/d (`fa92f3b`) run #168 SUCCESS (`build` i `android-test`, 18/18 testów instrumentowanych), wg raportu właściciela. Wyniki E1.3: do uzupełnienia po CI.
+- Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.3: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4), `CryptoManagerKeyLossTest` (3), `AccountPasswordUpdateTest` (2). Run #168: 18/18 (bez testów E1.3). Run #169: job `android-test` SUCCESS; dokładnej liczby testów nie potwierdzono niezależnie. Ścieżki `2→3` … `13→14` nie są pokryte.
+- Audyt bazowy był statyczny i sam nie uruchamiał testów ani urządzeń. Późniejsze wyniki CI i weryfikacja właściciela są udokumentowane oddzielnie poniżej.
+- Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS; E1.2c/d (`fa92f3b`) run #168 SUCCESS (`build` i `android-test`, 18/18 testów instrumentowanych), wg raportu właściciela. E1.3 commit `14e864a`, run #169 SUCCESS (`build` i `android-test`). Raport: `reports/2026-11-17-e1-3-ci.md`.
 
 ## 9. Historia etapów (bez przenoszenia starych założeń)
 
@@ -170,7 +170,7 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 - `C1.1` (eksport schematu Room, artefakt CI) i `C1.2` (infrastruktura testów migracji, CI run #160) — zrealizowane w kodzie i CI, niezaakceptowane przez właściciela. Szczegóły: `reports/2026-11-room-migration-infra-c1.md`.
 - `E1.1` (dwa commity: poprawka nawigacji i funkcja profili; HEAD po nich `f89ba7c`): limit prób PIN, bramka PIN przy edycji, sprzątanie `library_items`, poprawka trasy `guide`. CI run #164 SUCCESS.
 - `E1.2a` (`3d2a195`): klasyfikator stanu bazy i operacje na plikach (kopia, odsunięcie, przywracanie). `E1.2b` (`9d65719`): kontrola przy starcie, ekran odzyskiwania, wpięcie w `MainActivity`. CI SUCCESS.
-- `E1.2c/d` (do `fa92f3b`, CI run #168 SUCCESS): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. `E1.3`: zmiany przygotowane lokalnie po `fa92f3b`, bez commita i bez wyniku CI; poprawki końcowe oczekują na weryfikację.
+- `E1.2c/d` (do `fa92f3b`, CI run #168 SUCCESS): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. `E1.3` (commit `14e864a`, CI run #169 SUCCESS): obsługa utraty klucza Keystore, ponowne uwierzytelnienie aktywnego konta i testy aktualizacji hasła. Właściciel potwierdził wykonanie wymaganych testów na urządzeniu i zaakceptował cały E1 dnia 2026-11-17.
 - Dotychczasowy plan `14→15` (przypisywanie źródeł do profili, źródło domyślne profilu) nie został rozpoczęty; w nowym planie jest decyzją otwartą (`decisions/PENDING.md`, P12).
 
 ## 10. Dokumentacja
@@ -180,6 +180,6 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 ## 11. Punkt wejścia dla kolejnej sesji
 
 1. Sprawdź gałąź, HEAD i stan repozytorium; porównaj z `Baza audytu` na górze.
-2. Aktualny etap: **E1 — dane i dostęp: E1.1 i E1.2 (a–d): w kodzie i CI; E1.3: zmiany lokalne, bez commita i bez CI. Status testów E1.3 i akceptacja właściciela: oczekują. Przed zamknięciem E1: ręczna weryfikacja na urządzeniu (restart po przywróceniu lub odsunięciu, eksport na TV, brak ekranu odzyskiwania przy zdrowej bazie), przegląd cleartextu i redakcji logów (P15), build release z R8 (wymaga zgody na zmianę CI).** Następne: **E2 i E3** (równolegle).
+2. Aktualny etap: **E1 — DANE I DOSTĘP: ZAMKNIĘTY 2026-11-17.** E1.1, E1.2 (a–d) i E1.3: w kodzie, CI zakończone sukcesem, testy urządzeniowe wykonane przez właściciela, całość zaakceptowana przez właściciela. **E2 i E3 mogą rozpocząć się równolegle.** P15 (polityka cleartextu i poświadczeń w URL) pozostaje osobną otwartą decyzją i nie blokuje zamknięcia E1. Build release z R8 wymaga osobnej zgody na zmianę CI.
 3. Przed zmianami: przeczytaj tylko potrzebne pliki kodu, nie powtarzaj audytu całego repozytorium.
 4. Po etapie: zaktualizuj ten dokument i `ROADMAP.md`, dodaj raport, commit i push na `work/vireo-development`. Workflow CI uruchamia się automatycznie po pushu; wyniki sprawdza właściciel.

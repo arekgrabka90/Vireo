@@ -2,6 +2,7 @@ package app.vireo.data
 
 import app.vireo.data.local.AccountDao
 import app.vireo.data.local.AccountEntity
+import app.vireo.data.security.CredentialUnavailableException
 import app.vireo.data.security.CryptoManager
 import app.vireo.data.xtream.XtreamCatalogRepository
 import app.vireo.domain.model.AccountInfo
@@ -60,6 +61,52 @@ class ContentRepository @Inject constructor(
             clearCachesLocked()
             true
         }
+
+    /** True, gdy zaszyfrowane hasło konta nie daje się odszyfrować (np. po utracie klucza Keystore). */
+    suspend fun accountNeedsPassword(id: Long): Boolean {
+        val account = dao.getById(id) ?: return false
+        return !crypto.canDecrypt(account.password)
+    }
+
+    /**
+     * Sprawdza nowe hasło logowaniem do serwera i zapisuje je zaszyfrowane w tym samym
+     * koncie. Konto, katalog, biblioteka i profile pozostają nietknięte.
+     */
+    suspend fun reauthenticate(id: Long, password: String): Result<AccountInfo> {
+        val account = dao.getById(id)
+            ?: return Result.failure(IllegalStateException("Konto źródłowe nie jest już dostępne."))
+
+        val provider = providers.createXtream(account.server, account.username, password)
+        val result = provider.authenticate()
+        if (result.isFailure) return result
+
+        val encryptedPassword = try {
+            crypto.encrypt(password)
+        } catch (error: Exception) {
+            return Result.failure(error)
+        }
+
+        return try {
+            val updated = stateMutex.withLock {
+                if (dao.updatePassword(id, encryptedPassword) != 1) {
+                    false
+                } else {
+                    cached = null
+                    clearCachesLocked()
+                    true
+                }
+            }
+            if (updated) {
+                result
+            } else {
+                Result.failure(
+                    IllegalStateException("Konto źródłowe nie jest już dostępne.")
+                )
+            }
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
 
     private suspend fun providerSnapshot(): Pair<Long, ContentProvider?> =
         stateMutex.withLock {
@@ -142,7 +189,11 @@ class ContentRepository @Inject constructor(
         catalog.titles(type, categoryId)
 
     suspend fun movieDetails(id: String): Result<MovieDetails> {
-        val (version, provider) = providerSnapshot()
+        val (version, provider) = try {
+            providerSnapshot()
+        } catch (error: CredentialUnavailableException) {
+            return Result.failure(error)
+        }
         if (provider == null) {
             return Result.failure(NoSourceException())
         }
@@ -150,7 +201,11 @@ class ContentRepository @Inject constructor(
     }
 
     suspend fun seriesDetails(id: String): Result<SeriesDetails> {
-        val (version, provider) = providerSnapshot()
+        val (version, provider) = try {
+            providerSnapshot()
+        } catch (error: CredentialUnavailableException) {
+            return Result.failure(error)
+        }
         if (provider == null) {
             return Result.failure(NoSourceException())
         }
@@ -158,7 +213,11 @@ class ContentRepository @Inject constructor(
     }
 
     suspend fun liveUrl(id: String): String? {
-        val (version, provider) = providerSnapshot()
+        val (version, provider) = try {
+            providerSnapshot()
+        } catch (error: CredentialUnavailableException) {
+            return null
+        }
         if (provider == null) return null
 
         val url = provider.liveUrl(id)

@@ -22,4 +22,4 @@ Do czasu decyzji nie zmieniamy powiązanych elementów.
 | P16 | **Uprawnienia konektora GitHub** (zapis zawartości na `work/vireo-development`), aby commity mogły być wykonywane bez skryptu lokalnego | Nadać uprawnienie zapisu zawartości dla repozytorium albo kontynuować paczką + skrypt Termux | teraz |
 | P17 | Odroczone: migracja Hilt `kapt` → KSP; modularyzacja Gradle | Po 1.0 | po 1.0 |
 | P18 | **Czyszczenie katalogów `aside-*`** (odsunięte bazy nie są usuwane automatycznie): ręczna opcja w ustawieniach | Osobne zadanie po E1; do czasu — bez automatycznego usuwania | przed E9 |
-| P19 | **Utrata klucza Keystore** (konta wymagają ponownego wpisania hasła, baza nietknięta) | E1.3 | E1 |
+| P19 | **Utrata klucza Keystore** (konta wymagają ponownego wpisania hasła, baza nietknięta) | E1.3: zmiany przygotowane lokalnie, bez commita i CI; testy i weryfikacja urządzenia oczekują; akceptacja właściciela nieudzielona | po CI |

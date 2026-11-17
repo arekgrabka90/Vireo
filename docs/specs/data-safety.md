@@ -51,3 +51,11 @@ Domyślne `SupportSQLiteOpenHelper.Callback.onCorruption` usuwa plik bazy. `NonD
 - `StartupCrashGuard`: start jest „oczekujący” do czasu `ON_STOP` lub 15 s pracy. Trzy kolejne niestabilne starty powodują ekran odzyskiwania przy czwartym. „Spróbuj ponownie” zeruje licznik.
 - Kopia przedmigracyjna jest sprawdzana `PRAGMA quick_check` po utworzeniu (niepoprawna kopia jest usuwana, a stare kopie nie są przycinane) i przed przywróceniem (wybierana jest najnowsza kopia, która przechodzi kontrolę).
 - Ograniczenia: licznik może dać fałszywy alarm po trzech awariach z innych powodów (ekran ma tylko bezpieczne akcje); `quick_check` nie wykrywa uszkodzenia samych danych w poprawnych stronach.
+
+## 10. Utrata klucza Keystore (E1.3)
+
+- Wykrycie: każda awaria odszyfrowania hasła konta (`CryptoManager.canDecrypt`), nie tylko brak klucza, bo `encrypt` po cichu tworzy nowy klucz, po czym stare szyfrogramy dają błąd tagu GCM.
+- `ProviderRegistry.create` rzuca `CredentialUnavailableException`; `ContentRepository` zwraca porażkę (`movieDetails`, `seriesDetails`) lub `null` (`liveUrl`) zamiast wywracać aplikację. Baza, katalog, biblioteka i profile nie są ruszane.
+- Naprawa: ekran Źródła, pole nowego hasła; hasło jest sprawdzane logowaniem do serwera i zapisywane zaszyfrowane w tym samym koncie (`AccountDao.updatePassword`).
+- PIN profili nie zależy od Keystore.
+- Ograniczenia: ekran Źródła obsługuje tylko konto aktywne; wywołania `ContentRepository.provider()` i część repozytoriów (EPG, dostępność TMDB) nie były przeglądane pod kątem wyjątku [H].

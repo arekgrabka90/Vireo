@@ -1,6 +1,7 @@
 package app.vireo.data
 
 import app.vireo.data.local.AccountEntity
+import app.vireo.data.security.CredentialUnavailableException
 import app.vireo.data.security.CryptoManager
 import app.vireo.data.xtream.XtreamProvider
 import app.vireo.domain.provider.ContentProvider
@@ -36,8 +37,15 @@ class ProviderRegistry @Inject constructor(
             "XTREAM" -> createXtream(
                 account.server,
                 account.username,
-                crypto.decrypt(account.password),
+                decryptPassword(account),
             )
             else -> error("Unsupported content provider")
+        }
+
+    private fun decryptPassword(account: AccountEntity): String =
+        try {
+            crypto.decrypt(account.password)
+        } catch (error: Exception) {
+            throw CredentialUnavailableException(account.id, error)
         }
 }

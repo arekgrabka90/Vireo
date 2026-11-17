@@ -50,6 +50,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET isActive = 1 WHERE id = :id")
     suspend fun activateById(id: Long)
 
+    @Query("UPDATE accounts SET password = :password WHERE id = :id")
+    suspend fun updatePassword(id: Long, password: String): Int
+
     @Query("DELETE FROM accounts WHERE id = :id")
     suspend fun deleteById(id: Long)
 

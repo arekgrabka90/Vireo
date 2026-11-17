@@ -75,6 +75,42 @@ fun SourcesScreen(
                 }
             }
         }
+        if (state.needsPassword) {
+            item {
+                Text(
+                    "Hasło do tego źródła wymaga ponownego wpisania. Nie można go odczytać " +
+                        "(np. po utracie klucza szyfrującego). Pozostałe dane nie zostały zmienione.",
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = state.reauthPassword,
+                    onValueChange = vm::onReauthPassword,
+                    label = { Text("Nowe hasło do źródła") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            state.reauthError?.let { err ->
+                item { Text(err, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+            }
+            item {
+                Button(
+                    onClick = vm::reauthenticate,
+                    enabled = state.canReauthenticate,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (state.reauthLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Zapisz hasło")
+                    }
+                }
+            }
+        }
         item {
             Text(
                 stringResource(R.string.src_add),

@@ -1,6 +1,6 @@
 # VIREO — STATE
 
-**Stan dokumentu:** 2026-11-15 · **Gałąź:** `work/vireo-development` · **Baza audytu:** zdalny HEAD `2db5db3`; zmiany po audycie (E1.1–E1.2) opisane w sekcjach 5.9, 9 i 11
+**Stan dokumentu:** 2026-11-17 · **Gałąź:** `work/vireo-development` · **Baza audytu:** zdalny HEAD `2db5db3`; zmiany po audycie (E1.1–E1.3) opisane w sekcjach 5.9, 5.10, 9 i 11
 
 Ten dokument w całości zastępuje poprzedni `docs/STATE.md` (stan z 2026-11-13). Jest punktem wejścia dla kolejnych sesji. **Kod wygrywa nad dokumentacją.**
 
@@ -110,7 +110,15 @@ Ekrany: splash, wybór i edycja profilu, Home (rzędy TMDB), katalog TMDB, szcze
 - **Ekran odzyskiwania** (`DatabaseRecoveryScreen`): ponów, kontynuuj bez kopii, eksport (ZIP przez wybór pliku; zapas: katalog aplikacji), przywróć najnowszą kopię przechodzącą kontrolę spójności, odsuń bazę i zacznij od nowa (po potwierdzeniu). Odsunięcie przenosi pliki do `db_backups/aside-*` (nie usuwa); katalogi `aside-*` nie są czyszczone automatycznie. Po przywróceniu i odsunięciu aplikacja restartuje się (`MainActivity.restartApp`; zachowanie na urządzeniu do potwierdzenia [U]).
 - **Brak automatycznego usuwania:** `NonDestructiveOpenHelperFactory` (E1.2c) jest podpięta w `AppModule`; `onCorruption` niczego nie usuwa (domyślna implementacja `SupportSQLiteOpenHelper.Callback` usuwa plik bazy). Test instrumentowany odtwarza uszkodzenie, sprawdza, że plik zostaje, a test kontrolny, że domyślna fabryka by go usunęła.
 - **Licznik niestabilnych startów** (E1.2d, `StartupCrashGuard`): trzy kolejne starty bez oznaczenia stabilności (normalne wyjście `ON_STOP` albo 15 s pracy) powodują, że czwarty start pokazuje ekran odzyskiwania (`REPEATED_CRASHES`). Ogranicza ryzyko pętli awarii przy uszkodzeniu stron bazy z poprawnym nagłówkiem, które po E1.2c nie kończy się już usunięciem pliku.
-- **Poza zakresem:** utrata klucza Keystore (E1.3), czyszczenie katalogów `aside-*`, teksty ekranu zapisane na sztywno po polsku (E7.2).
+- **Poza zakresem:** czyszczenie katalogów `aside-*`, teksty ekranu zapisane na sztywno po polsku (E7.2).
+
+### 5.10 Utrata klucza Keystore (E1.3) [K]
+
+- `CryptoManager.decrypt` używa `secretKey(createIfMissing = false)`, a `encrypt` tworzy brakujący klucz. Po utracie klucza i zapisaniu nowego hasła powstaje nowy klucz, a stare szyfrogramy kończą się błędem tagu GCM. Dlatego za „hasło nieczytelne” uznajemy każdą awarię odszyfrowania (`CryptoManager.canDecrypt`), a nie tylko brak klucza.
+- `ProviderRegistry.create` mapuje awarię odszyfrowania na `CredentialUnavailableException` (podklasa `IllegalStateException`, komunikat po polsku). Metody `ContentRepository` zwracające `Result` (`movieDetails`, `seriesDetails`) zwracają porażkę zamiast rzucać; `liveUrl` zwraca `null`. Synchronizacja katalogu i indeksu już łapała błędy `providers.create` per konto. `ContentRepository.provider()` oraz inne miejsca wywołujące `ProviderRegistry.create` (m.in. EPG, dostępność TMDB) nie były przeglądane pod tym kątem [H].
+- Ekran Źródła pokazuje dla aktywnego konta z nieczytelnym hasłem komunikat i pole „Nowe hasło do źródła”. `ContentRepository.reauthenticate` sprawdza hasło logowaniem do serwera Xtream i zapisuje zaszyfrowane hasło tego samego konta (`AccountDao.updatePassword`); zapis jest uznawany za udany tylko po aktualizacji dokładnie jednego rekordu. Konto, katalog, biblioteka i profile pozostają nietknięte. Ekran Źródła pokazuje tylko konto aktywne, więc nieaktywne konta z utraconym kluczem nie mają jeszcze ścieżki naprawy. Teksty na sztywno po polsku (E7.2).
+- PIN profili (PBKDF2) nie zależy od Keystore (test instrumentowany).
+- Testy: `ProviderRegistryTest` (3), `CryptoManagerKeyLossTest` (3, osobny alias klucza, nie dotyka klucza aplikacji), `AccountPasswordUpdateTest` (2). Wyniki CI do uzupełnienia.
 
 ## 6. Matryca funkcji
 
@@ -151,10 +159,10 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 
 ## 8. Testy
 
-- Jednostkowe: 223 testy w 39 plikach wg audytu bazowego [A2]; dodane w E1.1–E1.2: `PinAttemptPolicyTest` (9), `DatabaseClassifierTest` (13), `DatabaseFilesTest` (11), `StartupCrashGuardTest` (6). Głównie polityki i logika czysta; brak testów repozytoriów na bazie i interfejsu.
-- Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.2: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4). Ścieżki `2→3` … `13→14` nie są pokryte.
+- Jednostkowe: 223 testy w 39 plikach wg audytu bazowego [A2]; dodane w E1.1–E1.3: `PinAttemptPolicyTest` (9), `DatabaseClassifierTest` (13), `DatabaseFilesTest` (11), `StartupCrashGuardTest` (6), `ProviderRegistryTest` (3). Głównie polityki i logika czysta; brak testów repozytoriów na bazie i interfejsu.
+- Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.3: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4), `CryptoManagerKeyLossTest` (3), `AccountPasswordUpdateTest` (2). Run #168: 18/18 (bez testów E1.3). Ścieżki `2→3` … `13→14` nie są pokryte.
 - W tym audycie niczego nie uruchamiano.
-- Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS (wg raportu właściciela). Wyniki E1.2c/d: do uzupełnienia po CI.
+- Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS; E1.2c/d (`fa92f3b`) run #168 SUCCESS (`build` i `android-test`, 18/18 testów instrumentowanych), wg raportu właściciela. Wyniki E1.3: do uzupełnienia po CI.
 
 ## 9. Historia etapów (bez przenoszenia starych założeń)
 
@@ -162,7 +170,7 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 - `C1.1` (eksport schematu Room, artefakt CI) i `C1.2` (infrastruktura testów migracji, CI run #160) — zrealizowane w kodzie i CI, niezaakceptowane przez właściciela. Szczegóły: `reports/2026-11-room-migration-infra-c1.md`.
 - `E1.1` (dwa commity: poprawka nawigacji i funkcja profili; HEAD po nich `f89ba7c`): limit prób PIN, bramka PIN przy edycji, sprzątanie `library_items`, poprawka trasy `guide`. CI run #164 SUCCESS.
 - `E1.2a` (`3d2a195`): klasyfikator stanu bazy i operacje na plikach (kopia, odsunięcie, przywracanie). `E1.2b` (`9d65719`): kontrola przy starcie, ekran odzyskiwania, wpięcie w `MainActivity`. CI SUCCESS.
-- `E1.2c/d` (commity po `9d65719`): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. Wyniki CI do uzupełnienia.
+- `E1.2c/d` (do `fa92f3b`, CI run #168 SUCCESS): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. `E1.3`: zmiany przygotowane lokalnie po `fa92f3b`, bez commita i bez wyniku CI; poprawki końcowe oczekują na weryfikację.
 - Dotychczasowy plan `14→15` (przypisywanie źródeł do profili, źródło domyślne profilu) nie został rozpoczęty; w nowym planie jest decyzją otwartą (`decisions/PENDING.md`, P12).
 
 ## 10. Dokumentacja
@@ -172,6 +180,6 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 ## 11. Punkt wejścia dla kolejnej sesji
 
 1. Sprawdź gałąź, HEAD i stan repozytorium; porównaj z `Baza audytu` na górze.
-2. Aktualny etap: **E1 — dane i dostęp: E1.1 i E1.2 (a–d) wdrożone; po CI z E1.2c/d i ręcznej weryfikacji na urządzeniu (restart po przywróceniu lub odsunięciu, eksport na TV, brak ekranu odzyskiwania przy zdrowej bazie) E1 można zamknąć.** Pozostałe elementy E1: utrata klucza Keystore (E1.3), przegląd cleartextu i redakcji logów, build release z R8 (wymaga zgody na zmianę CI). Następne: **E2 i E3** (równolegle).
+2. Aktualny etap: **E1 — dane i dostęp: E1.1 i E1.2 (a–d): w kodzie i CI; E1.3: zmiany lokalne, bez commita i bez CI. Status testów E1.3 i akceptacja właściciela: oczekują. Przed zamknięciem E1: ręczna weryfikacja na urządzeniu (restart po przywróceniu lub odsunięciu, eksport na TV, brak ekranu odzyskiwania przy zdrowej bazie), przegląd cleartextu i redakcji logów (P15), build release z R8 (wymaga zgody na zmianę CI).** Następne: **E2 i E3** (równolegle).
 3. Przed zmianami: przeczytaj tylko potrzebne pliki kodu, nie powtarzaj audytu całego repozytorium.
 4. Po etapie: zaktualizuj ten dokument i `ROADMAP.md`, dodaj raport, commit i push na `work/vireo-development`. Workflow CI uruchamia się automatycznie po pushu; wyniki sprawdza właściciel.

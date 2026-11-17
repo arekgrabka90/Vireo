@@ -23,7 +23,7 @@
 - **Ryzyko:** zbyt szerokie czyszczenie (dlatego zgoda z góry). **Decyzje:** urządzenia referencyjne, usunięcia, Wrapper.
 
 ### E1 — Dane i dostęp (M)
-- **Status (2026-11-15):** E1.1 i E1.2 (a–d) wdrożone; czekają na wyniki CI E1.2c/d i weryfikację na urządzeniu. Pozostało: E1.3 (utrata klucza Keystore), przegląd cleartextu i logów, build release z R8 (zgoda na zmianę CI).
+- **Status (2026-11-17):** E1.1 i E1.2 (a–d) — w kodzie i CI; E1.3 — zmiany lokalne, bez commita i bez CI. Testy E1.3: niezweryfikowane. Akceptacja właściciela: oczekuje. Pozostało także: ręczna weryfikacja na urządzeniu, przegląd cleartextu i logów (P15), build release z R8 (zgoda na zmianę CI).
 - **Cel:** żadna aktualizacja nie niszczy danych; dostęp do profili i źródeł jest chroniony.
 - **Zakres:** polityka wersji bazy (decyzja P14: minimalna wspierana wersja 14); odzyskiwanie bazy bez automatycznego resetu (`specs/data-safety.md`); sprzątanie danych po usunięciu profilu w transakcji; limit prób PIN; nieusuwająca fabryka otwierania bazy i licznik niestabilnych startów; testy migracji od wersji 14 w górę; przegląd cleartextu i redakcji logów; (osobna zgoda) build release z R8 w CI.
 - **Zależności:** E0. **DoD:** każda migracja od wersji 14 w górę ma test w CI; baza w nieobsługiwanej wersji, uszkodzona lub nowsza od aplikacji trafia na ekran odzyskiwania i nigdy nie jest resetowana ani usuwana automatycznie; brak osieroconych wierszy po usunięciu profilu; PIN z limitem prób.

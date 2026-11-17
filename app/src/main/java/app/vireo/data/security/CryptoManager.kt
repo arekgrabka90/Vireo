@@ -14,9 +14,11 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 
-class CryptoManager {
+class CryptoManager(
+    private val keyAlias: String = DEFAULT_KEY_ALIAS,
+) {
     companion object {
-        private const val KEY_ALIAS = "vireo_account_secret_v1"
+        const val DEFAULT_KEY_ALIAS = "vireo_account_secret_v1"
         private const val AES_PREFIX = "v1:"
         private const val PIN_PREFIX = "pbkdf2"
         private const val ITERATIONS = 120_000
@@ -26,7 +28,7 @@ class CryptoManager {
 
     private fun secretKey(createIfMissing: Boolean): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        (store.getKey(keyAlias, null) as? SecretKey)?.let { return it }
 
         check(createIfMissing) {
             "Brak klucza szyfrującego VIREO w Android Keystore"
@@ -38,7 +40,7 @@ class CryptoManager {
         )
         generator.init(
             KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
+                keyAlias,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -71,6 +73,14 @@ class CryptoManager {
             GCMParameterSpec(128, iv),
         )
         return String(cipher.doFinal(encrypted), Charsets.UTF_8)
+    }
+
+    /** True, gdy [value] daje się odszyfrować bieżącym kluczem (false np. po utracie klucza Keystore). */
+    fun canDecrypt(value: String): Boolean = try {
+        decrypt(value)
+        true
+    } catch (_: Exception) {
+        false
     }
 
     fun hashPin(pin: String): String {

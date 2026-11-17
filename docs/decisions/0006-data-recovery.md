@@ -13,3 +13,7 @@
 - Minimalna wspierana wersja bazy: 14 (P14).
 - Kopia przedmigracyjna jest weryfikowana (`PRAGMA quick_check`) przed przycięciem starszych kopii i przed przywróceniem.
 - Licznik niestabilnych startów (trzy kolejne) przenosi aplikację na ekran odzyskiwania, żeby uniknąć pętli awarii przy uszkodzeniu stron bazy.
+
+## Uzupełnienie E1.3 (2026-11-17)
+
+- Utrata klucza Keystore nie powoduje resetu bazy ani usunięcia kont. Hasło konta jest uznawane za nieczytelne przy każdej awarii odszyfrowania, a użytkownik wpisuje je ponownie na ekranie Źródła.

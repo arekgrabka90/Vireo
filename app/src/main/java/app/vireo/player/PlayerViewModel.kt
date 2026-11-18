@@ -78,6 +78,7 @@ class PlayerViewModel @Inject constructor(
     private var handlingPlaybackError = false
     private var recoveryAttempts = 0
     private var recoveryItem: PlayItem? = null
+    private var lastStart: StartRequest? = null
     private var seriesNextEpisodeCountdownJob: Job? = null
     private val playbackOperationGuard = PlaybackOperationGuard()
 
@@ -708,6 +709,18 @@ class PlayerViewModel @Inject constructor(
         media3PlayerEngine.playerForView()
 
     fun startPlayback(item: PlayItem, positionMs: Long) {
+        // E3.2: idempotentny start. Ten sam element i ta sama generacja
+        // ponowienia nie restartuje aktywnego ani trwającego startu.
+        val request = StartRequest(item, _state.value.retryToken)
+        val decision = StartPlaybackPolicy.decide(
+            last = lastStart,
+            request = request,
+            resolving = resolvingPlayback,
+            transport = media3PlayerEngine.state.value.transportState,
+        )
+        if (decision != StartDecision.START) return
+        lastStart = request
+
         cancelSeriesNextEpisodeCountdown()
         if (recoveryItem != item) {
             recoveryItem = item

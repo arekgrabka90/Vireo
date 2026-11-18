@@ -1,6 +1,6 @@
 # VIREO — ROADMAP do wydania 1.0
 
-**Stan:** 2026-11-17 · Kierunek i podział na etapy zatwierdzone przez właściciela. Rozmiar: S/M/L (względny, bez dat). Statusy: W kodzie / Testy / Zaakceptowany.
+**Stan:** 2026-11-18 · Kierunek i podział na etapy zatwierdzone przez właściciela. Rozmiar: S/M/L (względny, bez dat). Statusy: W kodzie / Testy / Zaakceptowany.
 
 ## Zasady
 
@@ -31,6 +31,7 @@
 - **Ryzyko:** R8 może wyciąć klasy refleksyjne (Room, Hilt, serializacja). **Decyzje:** zmiana CI, polityka odzyskiwania.
 
 ### E2 — Synchronizacja Xtream (M, równolegle do E3)
+- **Status (2026-11-18): W TOKU.** E2.0 (spike, wariant B zalecany) i E2.1 (parser strumieniowy obok starej ścieżki, niepodpięty; commit `af3d262`, CI zielone) wykonane; E2.2 i dalsze nie rozpoczęte. Raporty: `reports/2026-11-18-e2-0-parser-spike.md`, `reports/2026-11-18-e2-1-streaming-parser.md`.
 - **Cel:** stabilna synchronizacja dużych katalogów bez zmiany modelu danych.
 - **Zakres:** `specs/xtream-sync.md` — jedno pobranie zasilające obie projekcje, parser strumieniowy po spike'u, tolerancja na błędne wiersze, ochrona przed pustą odpowiedzią w indeksie, zapytania z `LIMIT`, zapytania kanałów po kategorii.
 - **Zależności:** E1 — spełniona, etap zamknięty 2026-11-17. **DoD:** kryteria wydajności;
@@ -38,6 +39,7 @@
 - **Ryzyko:** różnice między dostawcami. **Decyzje:** scalenie tabel, FTS lub Paging tylko jeśli pomiary je wymuszą.
 
 ### E3 — Odtwarzacz i host odtwarzania (L, równolegle do E2)
+- **Status (2026-11-18): W TOKU.** E3.1 (polityki wznowienia, watchdog, fallback formatu LIVE, `TuneCoordinator`; niepodpięte; commit `78e66f8`, CI run #171 SUCCESS) wykonane. E3.2 (idempotentny `startPlayback`) zaplanowane; implementacja po potwierdzeniu hipotezy na urządzeniu. Raport: `reports/2026-11-18-e3-1-playback-policies.md`.
 - **Cel:** niezawodne odtwarzanie, także po wyjściu z aplikacji i powrocie.
 - **Zakres:** `specs/playback-host.md` — spike hosta (S1), wspólny host, tune coordinator, wybór audio i napisów, audio focus, `handleAudioBecomingNoisy`, watchdog buforowania, nasłuch sieci (wymaga `ACCESS_NETWORK_STATE`), klawisze multimedialne w aktywności, fallback `.m3u8` → `.ts` (`decisions/0008`), stabilność tła, przywracanie stanu po zabiciu procesu.
 - **Zależności:** E1 — spełniona, etap zamknięty 2026-11-17. **DoD:** brak restartu transmisji

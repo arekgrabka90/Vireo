@@ -1,6 +1,6 @@
 # VIREO — STATE
 
-**Stan dokumentu:** 2026-11-17 · **Gałąź:** `work/vireo-development` · **Baza audytu kodu:** zdalny HEAD `2db5db3`; późniejsze zmiany E1.1–E1.3, wyniki CI i zamknięcie E1 opisane w sekcjach 5.9–5.10, 8, 9 i 11.
+**Stan dokumentu:** 2026-11-18 · **Gałąź:** `work/vireo-development` · **Baza audytu kodu:** zdalny HEAD `2db5db3`; późniejsze zmiany E1.1–E1.3, wyniki CI i zamknięcie E1 opisane w sekcjach 5.9–5.10, 8, 9 i 11; E2.0, E3.1 i E2.1 dodatkowo w sekcjach 5.3, 5.7, 8 i 9.
 
 Ten dokument w całości zastępuje poprzedni `docs/STATE.md` (stan z 2026-11-13). Jest punktem wejścia dla kolejnych sesji. **Kod wygrywa nad dokumentacją.**
 
@@ -72,6 +72,7 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 - `XtreamProvider` (`data/xtream`): zapytania `player_api.php`; **cała odpowiedź czytana do `String`, parsowana do drzewa `JsonElement`**, `strictObjects` — jeden niebędący obiektem element odrzuca całą listę. Adres LIVE budowany zawsze jako `.m3u8`. Poświadczenia w adresach URL.
 - `xtream_catalog_items` (katalog **aktywnego** konta; LIVE, MOVIE, SERIES; przeglądanie po kategoriach) i `xtream_content_index` (indeks **wszystkich** kont; MOVIE i SERIES; dopasowanie TMDB). Różne role, ale te same dane i ten sam payload pobierany dwukrotnie. Synchronizacja: stale-while-revalidate, TTL 6 h, pełny delete+insert w transakcji, ochrona przed pustą odpowiedzią tylko w katalogu. Pierwsze wejście blokuje UI do końca synchronizacji.
 - `DAO.getItems` zwraca całą kategorię bez `LIMIT`; indeks używa `LIKE '%token%'` z `LIMIT 1000`.
+- E2.1 [K]: obok `XtreamProvider` istnieją niepodpięte `JsonArrayElementSplitter` i `XtreamStreamingListParser` (`data/xtream`). Jedyną używaną ścieżką pozostaje opisana wyżej (cała odpowiedź w `String`, `strictObjects`).
 
 ### 5.4 EPG
 
@@ -96,6 +97,8 @@ Kod: `app/src/main/java/app/vireo/` (`data/`, `domain/`, `di/`, `player/`, `ui/`
 - `PlayerViewModel` korzysta bezpośrednio z silnika i singletona `PlaybackSession` (kolejka, alternatywy źródeł). `PlayerController`, `session/PlaybackQueue`, `PlaybackSessionState` nie są używane przez `PlayerViewModel` ani `PlayerScreen` (odczyt) i według audytu A2 mają referencje tylko w testach — **prawdopodobny martwy kod** [K/A2].
 - Recovery: klasyfikacja błędów, 2 ponowienia, potem failover do alternatywnego źródła; osłony przed spóźnionymi callbackami; komunikaty błędów oczyszczane z adresów [K]. Brak watchdoga zawieszonego buforowania i nasłuchu sieci.
 - Cykl życia: `ON_STOP` zapisuje postęp i pauzuje, `ON_START` wznawia, jeśli użytkownik chciał odtwarzać. Start odtwarzania w `LaunchedEffect` kluczowanym `url`, `contentKey`, `retryToken`, `settingsReady` — po odtworzeniu aktywności możliwy ponowny `startPlayback` [H][U]. Orientacja wymuszona na poziomą w odtwarzaczu (także na telefonie).
+- [H][U] (E3.2): `ON_STOP` i `onDispose` w `PlayerScreen` wołają `pausePlayback` (ustawia `desiredPlayWhenReady=false`), a flaga `resumeAfterLifecycleStop` jest w `remember`, więc ginie przy odtworzeniu aktywności; po odtworzeniu start może nastąpić ponownie i odtwarzanie może zostać wstrzymane. Do potwierdzenia po odczycie manifestu (`configChanges`) i na urządzeniu.
+- E3.1 [K]: w `player/` dodano niepodpięte `BufferingWatchdogPolicy`, `LiveFormatFallbackPolicy`, `PlaybackResumePolicy` i `TuneCoordinator`; `PlayerViewModel` ich nie używa (odczyt 2026-11-18).
 - HUD (`player/hud/*`): transport, ±10 s, kafelki odcinków i ostatnich kanałów, odliczanie do następnego odcinka, panel „teraz/następny” dla bieżącego kanału (to nie jest siatka). Brak: wyboru ścieżek audio/napisów/jakości, prędkości, proporcji, audio focus, MediaSession, PiP.
 - Preferencje języków audio i napisów, włączenie i rozmiar napisów są stosowane z ustawień profilu. Niezmienniki HUD: `specs/player-invariants.md`.
 
@@ -163,6 +166,7 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 - Instrumentowane: `VireoDatabaseMigrationTest` (2, tylko wersja 14) oraz dodane w E1.1–E1.3: `ProfileDeletionCleanupTest` (3), `DatabaseInspectorTest` (9), `NonDestructiveOpenHelperTest` (4), `CryptoManagerKeyLossTest` (3), `AccountPasswordUpdateTest` (2). Run #168: 18/18 (bez testów E1.3). Run #169: job `android-test` SUCCESS; dokładnej liczby testów nie potwierdzono niezależnie. Ścieżki `2→3` … `13→14` nie są pokryte.
 - Audyt bazowy był statyczny i sam nie uruchamiał testów ani urządzeń. Późniejsze wyniki CI i weryfikacja właściciela są udokumentowane oddzielnie poniżej.
 - Wyniki CI: E1.1 run #164 SUCCESS; E1.2a (`3d2a195`) i E1.2b (`9d65719`) oba joby SUCCESS; E1.2c/d (`fa92f3b`) run #168 SUCCESS (`build` i `android-test`, 18/18 testów instrumentowanych), wg raportu właściciela. E1.3 commit `14e864a`, run #169 SUCCESS (`build` i `android-test`). Raport: `reports/2026-11-17-e1-3-ci.md`.
+- E2.1 (`af3d262`): 24 testy jednostkowe dodane (15 rozdzielacza, 9 parsera); CI zielone wg właściciela, liczby wykonanych testów nie potwierdzono niezależnie. Raport: `reports/2026-11-18-e2-1-streaming-parser.md`.
 
 ## 9. Historia etapów (bez przenoszenia starych założeń)
 
@@ -172,6 +176,10 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 - `E1.2a` (`3d2a195`): klasyfikator stanu bazy i operacje na plikach (kopia, odsunięcie, przywracanie). `E1.2b` (`9d65719`): kontrola przy starcie, ekran odzyskiwania, wpięcie w `MainActivity`. CI SUCCESS.
 - `E1.2c/d` (do `fa92f3b`, CI run #168 SUCCESS): nieusuwająca fabryka otwierania bazy, licznik niestabilnych startów, kontrola spójności kopii. `E1.3` (commit `14e864a`, CI run #169 SUCCESS): obsługa utraty klucza Keystore, ponowne uwierzytelnienie aktywnego konta i testy aktualizacji hasła. Właściciel potwierdził wykonanie wymaganych testów na urządzeniu i zaakceptował cały E1 dnia 2026-11-17.
 - Dotychczasowy plan `14→15` (przypisywanie źródeł do profili, źródło domyślne profilu) nie został rozpoczęty; w nowym planie jest decyzją otwartą (`decisions/PENDING.md`, P12).
+- `E2.0` (w `78e66f8`, CI run #171 SUCCESS): spike parsera Xtream, wyłącznie test jednostkowy porównujący wariant A (`decodeToSequence`) i B (rozdzielacz `okio` plus parsowanie per element); wariant B zalecany. Wartości pomiarów do uzupełnienia w raporcie `reports/2026-11-18-e2-0-parser-spike.md`.
+- `E3.1` (w `78e66f8`): czyste polityki i `TuneCoordinator` w `player/` z testami jednostkowymi, niepodpięte; propozycje parametrów (watchdog 10 s, koalescencja 400/250 ms) czekają na zatwierdzenie. Raport: `reports/2026-11-18-e3-1-playback-policies.md`.
+- `E2.1` (`af3d262`, CI zielone): parser strumieniowy wariantu B obok starej ścieżki, niepodpięty; decyzje D1–D3 zatwierdzone 2026-11-18. Raport: `reports/2026-11-18-e2-1-streaming-parser.md`.
+- `E3.2` (idempotentny `startPlayback`): zaplanowane, niezaimplementowane; implementacja po potwierdzeniu hipotezy na urządzeniu (wymaga P5).
 
 ## 10. Dokumentacja
 
@@ -180,6 +188,6 @@ Nie wpisywać hipotez [H] jako błędów bez dowodów.
 ## 11. Punkt wejścia dla kolejnej sesji
 
 1. Sprawdź gałąź, HEAD i stan repozytorium; porównaj z `Baza audytu` na górze.
-2. Aktualny etap: **E1 — DANE I DOSTĘP: ZAMKNIĘTY 2026-11-17.** E1.1, E1.2 (a–d) i E1.3: w kodzie, CI zakończone sukcesem, testy urządzeniowe wykonane przez właściciela, całość zaakceptowana przez właściciela. **E2 i E3 mogą rozpocząć się równolegle.** P15 (polityka cleartextu i poświadczeń w URL) pozostaje osobną otwartą decyzją i nie blokuje zamknięcia E1. Build release z R8 wymaga osobnej zgody na zmianę CI.
+2. Aktualny etap: **E1 — DANE I DOSTĘP: ZAMKNIĘTY 2026-11-17.** E1.1, E1.2 (a–d) i E1.3: w kodzie, CI zakończone sukcesem, testy urządzeniowe wykonane przez właściciela, całość zaakceptowana przez właściciela. **E2 i E3 rozpoczęte równolegle** (wykonane: E2.0, E2.1, E3.1; patrz sekcja 9). P15 (polityka cleartextu i poświadczeń w URL) pozostaje osobną otwartą decyzją i nie blokuje zamknięcia E1. Build release z R8 wymaga osobnej zgody na zmianę CI.
 3. Przed zmianami: przeczytaj tylko potrzebne pliki kodu, nie powtarzaj audytu całego repozytorium.
 4. Po etapie: zaktualizuj ten dokument i `ROADMAP.md`, dodaj raport, commit i push na `work/vireo-development`. Workflow CI uruchamia się automatycznie po pushu; wyniki sprawdza właściciel.
